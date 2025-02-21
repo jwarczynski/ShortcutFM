@@ -7,7 +7,8 @@ from torch import tensor
 from shortcutfm.criteria import (
     FlowMatchingCriterion,
     SelfConditioningFlowMatchingCriterionDecorator,
-    ConsistencyCrterion, VelocityConsistencyCrterion
+    ConsistencyCrterion, VelocityConsistencyCrterion, X0ConsistencyCrterion,
+    SelfConditioningConsistencyCriterionDecorator
 )
 
 
@@ -48,8 +49,18 @@ class TestFlowMatchingCriterion:
               [0.4295, 0.9140, 0.1516],
               [0.0796, 0.5796, 0.7658]]]
         )
+        self.y4 = torch.tensor(
+            [[[0.411, 0.412, 0.413],
+              [0.414, 0.415, 0.416],
+              [0.417, 0.418, 0.419],
+              [0.411, 0.412, 0.413]],
+             [[1.411, 2.412, 3.413],
+              [1.414, 2.415, 3.416],
+              [1.417, 2.418, 3.419],
+              [1.411, 2.412, 3.413]]]
+        )
 
-        self.model.side_effect = [self.y1, self.y2, self.y3]  # Mock model to return y1 and y2
+        self.model.side_effect = [self.y1, self.y2, self.y3, self.y4]  # Mock model to return y1 and y2
         self.criterion = FlowMatchingCriterion(self.model, 2048)
 
         # Define explicit tensors of shape (2, 4, 3) for deterministic testing
@@ -79,12 +90,12 @@ class TestFlowMatchingCriterion:
     def test_flow_matching_criterion(self):
         """Test if the criterion correctly processes inputs and returns expected values."""
         x_start_ret, y_ret = self.criterion(
-            self.x_start,
-            self.x_t,
-            self.noise,
-            self.t,
-            self.shortcut_size,
-            self.input_ids_mask
+            x_start=self.x_start,
+            x_t=self.x_t,
+            noise=self.noise,
+            t=self.t,
+            shortcut_size=self.shortcut_size,
+            input_ids_mask=self.input_ids_mask
         )
 
         assert torch.equal(x_start_ret, self.x_start), "Mismatch in x_start"
@@ -109,7 +120,7 @@ class TestFlowMatchingCriterion:
               [14.7250, 15.5000, 16.2750],
               [17.0500, 17.8250, 18.6000]]]
         )
-        x_t = self.criterion.get_x_t(self.x_start, self.noise, self.t)
+        x_t = self.criterion.interpolate_data_noise(self.x_start, self.noise, self.t)
         print(x_t)
         assert torch.equal(x_t, expected), "Mismatch in interpolated x_t"
 
@@ -164,9 +175,13 @@ class TestFlowMatchingCriterion:
         assert torch.equal(x_start_ret, self.x_start), "Mismatch in x_start"
         assert torch.equal(y_ret, self.y1), "Mismatch in y"
 
+    def test_trying_ConsistencyCrterion_instantionation_throw_error(self):
+        with pytest.raises(TypeError):
+            ConsistencyCrterion(self.model, 2048)
+
     def test_consistency_criterion(self):
         """Test if the consistency criterion correctly processes inputs."""
-        criterion = ConsistencyCrterion(self.model, 2048)
+        criterion = X0ConsistencyCrterion(self.model, 2048)
         target, y = criterion(
             x_start=self.x_start,
             x_t=self.x_t,
@@ -186,7 +201,10 @@ class TestFlowMatchingCriterion:
 
         assert torch.equal(target[0, 2:], self.y2[0, 2:]), "Mismatch in target"
         assert torch.equal(target[1, 3:], self.y2[1, 3:]), "Mismatch in target"
-        assert torch.equal(y, self.y3), "Mismatch in y"
+        assert torch.equal(y[0, 2:], self.y3[0, 2:]), "Mismatch in y"
+        assert torch.equal(y[1, 3:], self.y3[1, 3:]), "Mismatch in y"
+
+        assert not target.requires_grad, "Target should not require gradients"
 
     def test_velocity_consistency_criterion(self):
         criterion = VelocityConsistencyCrterion(self.model, 2048)
@@ -207,7 +225,112 @@ class TestFlowMatchingCriterion:
         assert torch.equal(second_call_args[2], torch.tensor([32, 16])), "Model not queried with correct shortcut_size"
         assert torch.equal(last_call_args[2], torch.tensor([64, 32])), "Model not queried with correct shortcut_size"
 
-        assert torch.equal(y, self.y3), "Mismatch in y"
+        assert torch.equal(y[0, 2:], self.y3[0, 2:]), "Mismatch in y"
+        assert torch.equal(y[1, 3:], self.y3[1, 3:]), "Mismatch in y"
+
+        # input mask part of y is not important as it should not contribute to the loss
+        # assert torch.equal(y[0, :2], torch.zeros(2, 3)), "Mismatch in y"
+        # assert torch.equal(y[1, :3], torch.zeros(3, 3)), "Mismatch in y"
+
+        assert torch.equal(target[0, 2:], (self.y2[0, 2:] + self.y1[0, 2:]) / 2), "Mismatch in target"
+        assert torch.equal(target[1, 3:], (self.y2[1, 3:] + self.y1[1, 3:]) / 2), "Mismatch in target"
+
+        # input mask part of target is not important as it should not contribute to the loss
+        # assert torch.equal(target[0, :2], torch.zeros(2, 3)), "Mismatch in target"
+        # assert torch.equal(target[1, :3], torch.zeros(3, 3)), "Mismatch in target"
+
+        assert not target.requires_grad, "Target should not require gradients"
+
+    def test_self_conditioning_consitency_x0_decorator_with_self_conditoning(self):
+        torch.random.manual_seed(0)  # ensure deterministic results resulting in self-conditioning
+        x0_consistency_criterion = X0ConsistencyCrterion(self.model, 2048)
+        decorator = SelfConditioningConsistencyCriterionDecorator(x0_consistency_criterion, 0.5)
+        target, y = decorator(
+            x_start=self.x_start,
+            x_t=self.x_t,
+            t=self.t,
+            noise=self.noise,
+            shortcut_size=self.shortcut_size,
+            input_ids_mask=self.input_ids_mask
+        )
+
+        assert len(x0_consistency_criterion.model.call_args_list) == 4, "Incorrect number of model calls"
+
+        first_call_args, _ = x0_consistency_criterion.model.call_args_list[0]
+        second_call_args, _ = x0_consistency_criterion.model.call_args_list[1]
+        third_call_args, _ = x0_consistency_criterion.model.call_args_list[2]
+        last_call_args, _ = x0_consistency_criterion.model.call_args_list[3]
+
+        # check timesteps passed to the model calls
+        assert torch.equal(first_call_args[1], torch.tensor([1024, 512])), "Model not queried with correct timesteps"
+        assert torch.equal(second_call_args[1], torch.tensor([1056, 528])), "Model not queried with correct timesteps"
+        assert torch.equal(third_call_args[1], torch.tensor([1024, 512])), "Model not queried with correct timesteps"
+        assert torch.equal(last_call_args[1], torch.tensor([1024, 512])), "Model not queried with correct timesteps"
+
+        # check shorcuts passed ot the model calls
+        assert torch.equal(first_call_args[2], torch.tensor([32, 16])), "Model not queried with correct shortcut_size"
+        assert torch.equal(second_call_args[2], torch.tensor([32, 16])), "Model not queried with correct shortcut_size"
+        assert torch.equal(third_call_args[2], torch.tensor([64, 32])), "Model not queried with correct shortcut_size"
+        assert torch.equal(last_call_args[2], torch.tensor([64, 32])), "Model not queried with correct shortcut_size"
+
+        # check correctness of computed shortcut target
+        assert torch.equal(target[0, 2:], self.y2[0, 2:]), "Mismatch in target"
+        assert torch.equal(target[1, 3:], self.y2[1, 3:]), "Mismatch in target"
+        assert torch.equal(target[0, :2], self.x_start[0, :2]), "Mismatch in target"
+        assert torch.equal(target[1, :3], self.x_start[1, :3]), "Mismatch in target"
+
+        # check correctness of postprocessed model output
+        assert torch.equal(y[0, 2:], self.y4[0, 2:]), "Mismatch in y"
+        assert torch.equal(y[1, 3:], self.y4[1, 3:]), "Mismatch in y"
+        assert torch.equal(y[0, :2], self.x_start[0, :2]), "Mismatch in y"
+        assert torch.equal(y[1, :3], self.x_start[1, :3]), "Mismatch in y"
+
+        assert not target.requires_grad, "Target should not require gradients"
+
+    def test_self_conditioning_consitency_x0_decorator_without_self_conditoning(self):
+        """Test if the self-conditioning consistency criterion decorator correctly processes inputs."""
+        torch.random.manual_seed(44)  # ensure deterministic results resulting in no self-conditioning
+        x0_consistency_criterion = X0ConsistencyCrterion(self.model, 2048)
+        decorator = SelfConditioningConsistencyCriterionDecorator(x0_consistency_criterion, 0.5)
+        target, y = decorator(
+            x_start=self.x_start,
+            x_t=self.x_t,
+            t=self.t,
+            noise=self.noise,
+            shortcut_size=self.shortcut_size,
+            input_ids_mask=self.input_ids_mask
+        )
+
+        assert len(x0_consistency_criterion.model.call_args_list) == 3, "Incorrect number of model calls"
+
+        first_call_args, _ = x0_consistency_criterion.model.call_args_list[0]
+        second_call_args, _ = x0_consistency_criterion.model.call_args_list[1]
+        last_call_args, _ = x0_consistency_criterion.model.call_args_list[2]
+
+        # check timesteps passed to the model calls
+        assert torch.equal(first_call_args[1], torch.tensor([1024, 512])), "Model not queried with correct timesteps"
+        assert torch.equal(second_call_args[1], torch.tensor([1056, 528])), "Model not queried with correct timesteps"
+        assert torch.equal(last_call_args[1], torch.tensor([1024, 512])), "Model not queried with correct timesteps"
+
+        # check shorcuts passed ot the model calls
+        assert torch.equal(first_call_args[2], torch.tensor([32, 16])), "Model not queried with correct shortcut_size"
+        assert torch.equal(second_call_args[2], torch.tensor([32, 16])), "Model not queried with correct shortcut_size"
+        assert torch.equal(last_call_args[2], torch.tensor([64, 32])), "Model not queried with correct shortcut_size"
+
+        # check correctness of computed shortcut target
+        assert torch.equal(target[0, 2:], self.y2[0, 2:]), "Mismatch in target"
+        assert torch.equal(target[1, 3:], self.y2[1, 3:]), "Mismatch in target"
+        assert torch.equal(target[0, :2], self.x_start[0, :2]), "Mismatch in target"
+        assert torch.equal(target[1, :3], self.x_start[1, :3]), "Mismatch in target"
+
+        # check correctness of postprocessed model output
+        assert torch.equal(y[0, 2:], self.y3[0, 2:]), "Mismatch in y"
+        assert torch.equal(y[1, 3:], self.y3[1, 3:]), "Mismatch in y"
+        assert torch.equal(y[0, :2], self.x_start[0, :2]), "Mismatch in y"
+        assert torch.equal(y[1, :3], self.x_start[1, :3]), "Mismatch in y"
+
+        # assertt target does not reuqires gradients
+        assert not target.requires_grad, "Target should not require gradients"
 
 
 if __name__ == "__main__":
