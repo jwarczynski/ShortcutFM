@@ -398,6 +398,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
+        # TODO: consider setting 0 everywhere and maybe dsitingush between x0 and velocity
         x_0_hat = _get_empty_self_conditioning_input(x_t, input_ids_mask)
         return torch.cat((original_result, x_0_hat), dim=-1)
 
