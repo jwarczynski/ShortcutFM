@@ -517,3 +517,111 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             input_ids_mask: Tensor,
     ) -> Tensor:
         raise NotImplementedError("This method should not be called on decorator")
+
+
+class NllCriterion(Criterion):
+    def __init__(
+            self,
+            model: Model,
+            difusion_steps,
+    ):
+        super().__init__(model, difusion_steps)
+
+    @override
+    def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
+        output = self.model.compute_logits(batch.x_start)
+        loss = torch.nn.functional.cross_entropy(
+            output.view(-1, output.size(-1)),
+            batch.seqs.view(-1),
+            reduction="none"
+        ).view(batch.seqs.size())
+
+        return {
+            "nll_loss": loss
+        }
+
+
+class CompositeCriterion(Criterion):
+
+    def __init__(
+            self,
+            criteria: tuple[Criterion, ...],
+            criteria_weights: tuple[float, ...],
+            model: Model,
+            diffusion_steps: int,
+            self_consistency_ratio: float,
+            time_scheduler: Callable[[int], tuple[Tensor, Tensor]],
+            shortcut_sampler: Callable[[int], Tensor],
+    ):
+        assert len(criteria) == len(criteria_weights), \
+            (f"criteria and criteria_weights must have the same length but got"
+             f" {len(criteria)} and {len(criteria_weights)}")
+
+        super().__init__(model, diffusion_steps)
+        self.model = model
+        self.diffusion_steps = diffusion_steps
+        self.criteria = criteria
+        self.criteria_weights = criteria_weights
+        self.self_consistency_ratio = self_consistency_ratio
+        self.time_scheduler = time_scheduler
+        self.shortcut_sampler = shortcut_sampler
+
+    def __call__(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        return self.compute_losses(batch)
+
+    @override
+    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        specific_batches = self._prepare_batches(batch)
+        flow_marching_batch, consistency_batch, full_batch = specific_batches
+
+        flow_and_decoder_loses = self.criteria[0](flow_marching_batch)
+        flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
+        decoder_loss = flow_and_decoder_loses["flow_matching_loss"]
+        consistency_loss = self.criteria[1](consistency_batch)["consistency_loss"]
+        embedding_loss = self.criteria[2](full_batch)["nll_loss"]
+
+        losses = [flow_matching_loss, consistency_loss, embedding_loss] # no decoder_loss
+        weighted_losses = [
+            loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
+        ]
+        total_loss = sum(weighted_losses)
+
+        return {
+            "flow_matching_loss": flow_matching_loss,
+            "consistency_loss": consistency_loss,
+            "embedding_loss": embedding_loss,
+            "decoder_loss": decoder_loss,
+            "loss": total_loss
+        }
+
+    def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
+        embeddings = self.model.aplly_embeddings(batch.seqs)
+        t, weights = self.time_scheduler(batch.size())
+        x_t, noise = self._interpolate_data_noise(embeddings, t)
+
+        bsz = batch.size()
+        num_consistency_elems = int(self.self_consistency_ratio * bsz)
+        num_flow_matching_elems = bsz - num_consistency_elems
+
+        full_batch = FlowMatchingBatch(
+            batch.seqs,
+            batch.padding_mask,
+            batch.input_ids_mask,
+            embeddings,
+            x_t,
+            noise,
+            t,
+        )
+        flow_matching_batch, consistency_batch = full_batch.split(num_flow_matching_elems)
+
+        shortcuts = self.shortcut_sampler(consistency_batch.size())
+        consistency_batch = ShortcutFMBatch.from_flow_matching_batch(
+            consistency_batch,
+            shortcuts,
+        )
+
+        return (
+            flow_matching_batch,
+            consistency_batch,
+            full_batch
+        )
