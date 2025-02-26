@@ -39,7 +39,7 @@ class Criterion(Module, ABC):
         """ Compute the losses. """
 
     def _interpolate_data_noise(
-            self, x_start: Tensor, t: Tensor, noise: Optional[Tensor]=None
+            self, x_start: Tensor, t: Tensor, noise: Optional[Tensor] = None
     ) -> tuple[Tensor, Tensor]:
         t = self.scale_t(t)
         t = t.view(-1, 1, 1)  # Reshape to (batch_size, 1, 1) to match x_start
@@ -71,9 +71,13 @@ class FlowMatchingCriterion(Criterion):
             input_ids_mask=batch.input_ids_mask,
         )
 
-        loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        fm_loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        x_start_predicted = self.get_x0_from_predicition(output, batch)
+        decoder_loss = self._compute_nll_loss(x_start_predicted, batch.seqs)
+
         return {
-            "flow_matching_loss": loss.sum(-1)
+            "flow_matching_loss": fm_loss.mean(-1),
+            "decoder_loss": decoder_loss
         }
 
     def _predict(
@@ -86,35 +90,51 @@ class FlowMatchingCriterion(Criterion):
             input_ids_mask: Tensor,
     ) -> Tensor:
         """ Compute the model output. """
-        y = self.model(x_t, t, torch.tensor(0, device=x_t.device))
+        y = self.model(x_t, t, torch.zeros_like(t))
         return y
+
+    def _compute_nll_loss(self, hidden_last: Tensor, seqs: Tensor) -> Tensor:
+        logits = self.model.compute_logits(hidden_last)
+        return torch.nn.functional.cross_entropy(
+            logits.view(-1, logits.size(-1)),
+            seqs.view(-1),
+            reduction="none"
+        ).view(seqs.size())
 
     @abstractmethod
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
         """ Compute the target. """
 
     @abstractmethod
-    def _modify_model_input(self, input_ids_mask:Tensor, x_start: Tensor, y_hat: Optional[Tensor]=None) -> Tensor:
+    def _modify_model_input(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
         """ Modify model input based on input_ids_mask. Used for self-conditioning. """
+
+    @abstractmethod
+    def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
+        """ Extract x0 from the model prediction. """
 
 
 class X0FlowMatchingCriterion(FlowMatchingCriterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
         return batch.x_start
 
     @override
-    def _modify_model_input(self, input_ids_mask:Tensor, x_start: Tensor, y_hat: Optional[Tensor]=None) -> Tensor:
+    def _modify_model_input(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
         if y_hat is None:
             return torch.where(input_ids_mask == 0, x_start, 0).to(x_start.device)
         return torch.where(input_ids_mask == 0, x_start, y_hat).to(x_start.device)
+
+    @override
+    def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
+        return y_hat
 
 
 class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
@@ -130,10 +150,14 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
         return batch.x_start - batch.noise
 
     @override
-    def _modify_model_input(self, input_ids_mask:Tensor, x_start: Tensor, y_hat: Optional[Tensor]=None) -> Tensor:
+    def _modify_model_input(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
         if y_hat is None:
             return torch.zeros_like(x_start).to(x_start.device)
         return torch.where(input_ids_mask == 0, 0, y_hat).to(x_start.device)
+
+    @override
+    def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
+        return batch.x_t + y_hat * self.scale_t(batch.t)
 
 
 class FlowMatchinCriterionDecorator(FlowMatchingCriterion, ABC):
@@ -181,11 +205,15 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
 
         x_t_next_zero_sc = torch.cat((x_t_next, x_0_hat), dim=-1)
         with torch.no_grad():
-            y_hat = self.model(x_t_next_zero_sc, self.scale_t(t_next), 0).detach()
+            y_hat = self.model(
+                x_t_next_zero_sc,
+                self.scale_t(t_next),
+                torch.zeros_like(t_next, device=t_next.device)
+            ).detach()
 
         y_hat = self._modify_model_input(input_ids_mask, x_start, y_hat)
         y_hat = torch.cat((x_t, y_hat), dim=-1)
-        return self.model(y_hat, t, 0)
+        return self.model(y_hat, t, torch.zeros_like(t))
 
     def _should_apply_self_conditioning(self) -> Tensor:
         """ Determines whether to apply self-conditioning based on the self_conditioning_ratio. """
@@ -197,6 +225,9 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
         return self.criterion._compute_target(batch)
+
+    def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
+        return self.criterion.get_x0_from_predicition(y_hat, batch)
 
 
 class ConsistencyCrterion(Criterion, ABC):
@@ -288,11 +319,16 @@ class ConsistencyCrterion(Criterion, ABC):
         # TODO: pass loss_fn as argument
         loss = torch.nn.functional.mse_loss(output, target, reduction="none")
         return {
-            "consistency_loss": loss.sum(-1)
+            "consistency_loss": loss.mean(-1)
         }
 
     @abstractmethod
-    def _modify_model_input_or_output(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
+    def _modify_model_input_or_output(
+            self,
+            input_ids_mask: Tensor,
+            x_start: Tensor,
+            y_hat: Optional[Tensor] = None
+    ) -> Tensor:
         """ Modify model input based on input_ids_mask. Used for self-conditioning. """
 
 
@@ -300,9 +336,9 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
 
     @override
     def _prepare_2_shortcut_input(
@@ -325,7 +361,12 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
         return target
 
     @override
-    def _modify_model_input_or_output(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
+    def _modify_model_input_or_output(
+            self,
+            input_ids_mask: Tensor,
+            x_start: Tensor,
+            y_hat: Optional[Tensor] = None
+    ) -> Tensor:
         if y_hat is None:
             return torch.where(input_ids_mask == 0, x_start, 0).to(x_start.device)
         return torch.where(input_ids_mask == 0, x_start, y_hat).to(x_start.device)
@@ -355,7 +396,12 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
         return (step1_prediction + step2_prediction) / 2
 
     @override
-    def _modify_model_input_or_output(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
+    def _modify_model_input_or_output(
+            self,
+            input_ids_mask: Tensor,
+            x_start: Tensor,
+            y_hat: Optional[Tensor] = None
+    ) -> Tensor:
         if y_hat is None:
             return torch.zeros_like(x_start).to(x_start.device)
         return torch.where(input_ids_mask == 0, 0, y_hat).to(x_start.device)
@@ -438,7 +484,8 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
     ) -> Tensor:
         """ Compute the model output. """
         if not self._should_apply_self_conditioning():
-            # TODO: replace with self._predict
+            x_0_hat = self._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start)
+            x_t = torch.cat((x_t, x_0_hat), dim=-1)
             y = self._criterion._predict(
                 x_start=x_start,
                 x_t=x_t,
@@ -453,7 +500,10 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         t_next = t + shortcut_size
         x_t_next, noise = self._interpolate_data_noise(x_start, t_next)
         x_t_next = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, x_t_next)
-        empty_self_conditioning_input = self._criterion._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start)
+        empty_self_conditioning_input = self._criterion._modify_model_input_or_output(
+            input_ids_mask.unsqueeze(-1),
+            x_start
+        )
         x_t_next_zero_sc = torch.cat((x_t_next, empty_self_conditioning_input), dim=-1)
 
         y_hat = self.model(x_t_next_zero_sc, t, 2 * shortcut_size).detach()
@@ -509,9 +559,9 @@ class NllCriterion(Criterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
 
     @override
     def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
@@ -536,8 +586,7 @@ class CompositeCriterion(Criterion):
             model: Model,
             diffusion_steps: int,
             self_consistency_ratio: float,
-            time_scheduler: Callable[[int], tuple[Tensor, Tensor]],
-            shortcut_sampler: Callable[[int], Tensor],
+            sampler: TimeAndShorcutStampler,
     ):
         assert len(criteria) == len(criteria_weights), \
             (f"criteria and criteria_weights must have the same length but got"
@@ -549,8 +598,7 @@ class CompositeCriterion(Criterion):
         self.criteria = criteria
         self.criteria_weights = criteria_weights
         self.self_consistency_ratio = self_consistency_ratio
-        self.time_scheduler = time_scheduler
-        self.shortcut_sampler = shortcut_sampler
+        self.sampler = sampler
 
     def __call__(self, batch: EncoderBatch) -> dict[str, Tensor]:
         return self.compute_losses(batch)
@@ -562,11 +610,11 @@ class CompositeCriterion(Criterion):
 
         flow_and_decoder_loses = self.criteria[0](flow_marching_batch)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
-        decoder_loss = flow_and_decoder_loses["flow_matching_loss"]
+        decoder_loss = flow_and_decoder_loses["decoder_loss"]
         consistency_loss = self.criteria[1](consistency_batch)["consistency_loss"]
         embedding_loss = self.criteria[2](full_batch)["nll_loss"]
 
-        losses = [flow_matching_loss, consistency_loss, embedding_loss] # no decoder_loss
+        losses = [flow_matching_loss, consistency_loss, embedding_loss]  # no decoder_loss
         weighted_losses = [
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
@@ -581,15 +629,17 @@ class CompositeCriterion(Criterion):
         }
 
     def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
-        embeddings = self.model.aplly_embeddings(batch.seqs)
-        t, weights = self.time_scheduler(batch.size())
-        x_t, noise = self._interpolate_data_noise(embeddings, t)
-
         bsz = batch.size()
+
+        embeddings = self.model.get_embeddings(batch.seqs)
+        t, shortcuts = self.sampler(batch_size=bsz, device=batch.seqs.device)
+        x_t, noise = self._interpolate_data_noise(embeddings, t)
+        x_t = torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, embeddings, x_t)
+
         num_consistency_elems = int(self.self_consistency_ratio * bsz)
         num_flow_matching_elems = bsz - num_consistency_elems
 
-        full_batch = FlowMatchingBatch(
+        full_batch = ShortcutFMBatch(
             batch.seqs,
             batch.padding_mask,
             batch.input_ids_mask,
@@ -597,17 +647,12 @@ class CompositeCriterion(Criterion):
             x_t,
             noise,
             t,
+            shortcuts
         )
         flow_matching_batch, consistency_batch = full_batch.split(num_flow_matching_elems)
 
-        shortcuts = self.shortcut_sampler(consistency_batch.size())
-        consistency_batch = ShortcutFMBatch.from_flow_matching_batch(
-            consistency_batch,
-            shortcuts,
-        )
-
         return (
-            flow_matching_batch,
+            FlowMatchingBatch.from_shortcut_fm_batch(flow_matching_batch),
             consistency_batch,
-            full_batch
+            FlowMatchingBatch.from_shortcut_fm_batch(full_batch)
         )
