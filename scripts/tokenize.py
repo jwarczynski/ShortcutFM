@@ -1,21 +1,40 @@
-from argparse import Namespace
+import argparse
+
+from datasets import DatasetDict
 
 from shortcutfm.text_datasets import get_corpus
 from shortcutfm.tokenizer import MyTokenizer
 
 if __name__ == '__main__':
-    args = Namespace(
-        data_dir="../datasets/QQP-Official",
-        dataset="QQP-Official",
-        vocab="bert",
-        config_name="bert-base-uncased",
-        merge_strategy="nonequal",
-    )
+    parser = argparse.ArgumentParser(description="Tokenize dataset and save to disk.")
+    parser.add_argument("--dataset_name", type=str, required=True, help="Name of the dataset")
+    parser.add_argument("--vocab", type=str, default="bert", help="Vocabulary type")
+    parser.add_argument("--config_name", type=str, default="bert-base-uncased", help="Model config name")
+    parser.add_argument("--merge_strategy", type=str, default="nonequal", help="Merge strategy")
+    parser.add_argument("--max_seq_length", type=int, default=128)
+
+    args = parser.parse_args()
+
+    args.data_dir = f"../datasets/raw/{args.dataset_name}"
+    save_path = f"../datasets/tokenized/{args.dataset_name}"
+
+    # Initialize tokenizer
     tokenizer = MyTokenizer(args, True)
 
-    corpus = get_corpus(args, 128, split="valid", loaded_vocab=tokenizer)["train"]
+    # Load datasets
+    train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)["train"]
+    val_corpus = get_corpus(args, args.max_seq_length, split="valid", loaded_vocab=tokenizer)["train"]
+    test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)["train"]
 
-    save_path = "../datasets/tokenized/QQP-Official/val_subset_16"
+    # Create DatasetDict
+    ds_dict = DatasetDict(
+        {
+            "train": train_corpus,
+            "valid": val_corpus,
+            "test": test_corpus
+        }
+    )
 
-    print(corpus)
-    corpus.save_to_disk(save_path)
+    # Save dataset to disk
+    print(f"Saving dataset to {save_path}")
+    ds_dict.save_to_disk(save_path)
