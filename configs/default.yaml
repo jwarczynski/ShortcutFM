@@ -37,7 +37,7 @@ training_config:
   lr: 3e-4
   weight_decay: 1e-1
 
-  gradient_clipping: 1.0
+  gradient_clipping: 2.0
   ema:
     smoothing: 0.99
     half_life: null
