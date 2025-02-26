@@ -131,10 +131,9 @@ def get_lightning_trainer(cfg):
         deterministic=cfg.training_config.deterministic,
         precision="16-mixed" if cfg.training_config.get("fp16", False) else "32",
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
-        devices=-1,  # Use all available devices
-        strategy="ddp" if torch.cuda.device_count() > 1 else "auto",
         log_every_n_steps=cfg.training_config.log_interval,
         val_check_interval=cfg.training_config.val_interval,
+        accumulate_grad_batches=cfg.training_config.accumulate_grad_batches,
     )
 
     return trainer, pl_model, train_dataloader
