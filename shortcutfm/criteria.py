@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from itertools import zip_longest
-from typing import Callable
 
 import torch
 from torch import Tensor
@@ -8,26 +7,13 @@ from torch.nn import Module
 from typing_extensions import Optional, override
 
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
+from shortcutfm.model.model import FlowMatchingModel as Model
+from shortcutfm.shortcut_samplers import TimeAndShorcutStampler
 
 
-class Model(ABC):
-    def __init__(
-            self,
-            module: Module
-    ):
-        self.module = module
-
-    @abstractmethod
-    def __call__(self, *args, **kwargs):
-        """ Forward pass of the model. """
-
-
-class Criterion(ABC):
-    def __init__(
-            self,
-            model: Model,
-            diffusion_steps: int,
-    ):
+class Criterion(Module, ABC):
+    def __init__(self, model: Model, diffusion_steps: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.model = model
         self.diffusion_steps = diffusion_steps
 
