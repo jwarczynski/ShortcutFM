@@ -1,0 +1,18 @@
+[project]
+name = "shorcutFM"
+version = "0.1.0"
+description = "Flow matching objective with shorcuts for faster inference with fewer sampling steps"
+authors = [
+    { name = "Jędrzej Warczyński" }
+]
+dependencies = [
+    "torch>=2.6.0",
+    "datasets>=3.3.2",
+    "lightning>=2.5.0.post0",
+    "numpy>=2.2.3",
+    "omegaconf>=2.3.0",
+    "transformers>=4.49.0",
+    "pydantic>=2.10.6",
+    "wandb>=0.19.7",
+]
+requires-python = ">=3.12"
