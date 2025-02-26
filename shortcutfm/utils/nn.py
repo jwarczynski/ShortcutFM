@@ -7,21 +7,40 @@ import math
 import torch as th
 import torch.nn as nn
 
-# PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
-class SiLU(nn.Module):
-    def forward(self, x):
-        return x * th.sigmoid(x)
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
+
+
+class MyleLR(LRScheduler):
+    def __init__(self, optimizer: Optimizer, num_warmup_steps: int, start_lr: float = 0.0, last_epoch: int = -1):
+        if num_warmup_steps <= 0:
+            raise ValueError("`num_warmup_steps` must be greater than 0.")
+
+        self.num_warmup_steps = num_warmup_steps
+        self.start_lr = start_lr
+
+        # Ensure 'initial_lr' is set for each param group
+        for param_group in optimizer.param_groups:
+            if 'initial_lr' not in param_group:
+                param_group['initial_lr'] = param_group['lr']
+
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        step = max(self.last_epoch, 1)  # Prevent division by zero
+        base_lrs = [group['initial_lr'] for group in self.optimizer.param_groups]
+
+        if step < self.num_warmup_steps:
+            factor = step / self.num_warmup_steps  # Linear warmup
+        else:
+            factor = (self.num_warmup_steps / step) ** 0.5  # Inverse sqrt decay
+
+        return [self.start_lr + (base_lr - self.start_lr) * factor for base_lr in base_lrs]
 
 
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
         return super().forward(x.float()).type(x.dtype)
-
-def linear(*args, **kwargs):
-    """
-    Create a linear module.
-    """
-    return nn.Linear(*args, **kwargs)
 
 
 def avg_pool_nd(dims, *args, **kwargs):
