@@ -1,0 +1,13 @@
+dry_run: false
+use_composer: false
+
+data_config:
+  dataset_path: "datasets/tokenized/QQP-Official/val_subset_16"
+  batch_size: 16
+
+training_config:
+  project_name: "test"
+  run_name: "SFM_qqp_lit_v0.2"
+
+  checkpoint:
+    overwrite: true
