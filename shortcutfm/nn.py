@@ -5,8 +5,6 @@ Various utilities for neural networks.
 import math
 
 import torch as th
-import torch.nn as nn
-
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
@@ -36,78 +34,6 @@ class MyleLR(LRScheduler):
             factor = (self.num_warmup_steps / step) ** 0.5  # Inverse sqrt decay
 
         return [self.start_lr + (base_lr - self.start_lr) * factor for base_lr in base_lrs]
-
-
-class GroupNorm32(nn.GroupNorm):
-    def forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
-
-
-def avg_pool_nd(dims, *args, **kwargs):
-    """
-    Create a 1D, 2D, or 3D average pooling module.
-    """
-    if dims == 1:
-        return nn.AvgPool1d(*args, **kwargs)
-    elif dims == 2:
-        return nn.AvgPool2d(*args, **kwargs)
-    elif dims == 3:
-        return nn.AvgPool3d(*args, **kwargs)
-    raise ValueError(f"unsupported dimensions: {dims}")
-
-
-def update_ema(target_params, source_params, rate=0.99):
-    """
-    Update target parameters to be closer to those of source parameters using
-    an exponential moving average.
-
-    :param target_params: the target parameter sequence.
-    :param source_params: the source parameter sequence.
-    :param rate: the EMA rate (closer to 1 means slower).
-    """
-    for targ, src in zip(target_params, source_params):
-        targ.detach().mul_(rate).add_(src, alpha=1 - rate)
-
-
-def zero_module(module):
-    """
-    Zero out the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().zero_()
-    return module
-
-
-def scale_module(module, scale):
-    """
-    Scale the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().mul_(scale)
-    return module
-
-
-def mean_flat(tensor):
-    """
-    Take the mean over all non-batch dimensions.
-    """
-    return tensor.mean(dim=list(range(1, len(tensor.shape))))
-
-def mean_with_mask(tensor, mask):
-    assert tensor.shape == mask.shape
-    mean_value = (tensor*mask).sum(
-        dim=list(range(1, len(tensor.shape)))) / mask.sum(dim=list(range(1, len(tensor.shape)))
-    )
-    return mean_value
-
-def normalization(channels):
-    """
-    Make a standard normalization layer.
-
-    :param channels: number of input channels.
-    :return: an nn.Module for normalization.
-    """
-    return GroupNorm32(32, channels)
 
 
 def timestep_embedding(timesteps, dim, max_period=10000):

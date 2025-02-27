@@ -15,31 +15,27 @@ Prepare datasets and put them under the `datasets` folder. Take `datasets/Common
 ## Training
 For Non-MT (Machine Translation) tasks, run:
 ```bash
-cd scripts
 # qqp:
-bash train_qqp.sh
+uv run python -m shortcutfm configs/qqp.yaml
 # others: modify learning_steps, dataset, data_dir, notes
 ```
 
 For MT tasks, run:
 ```bash
-cd scripts
-bash train_de2en.sh
+uv run python -m shortcutfm configs/mt.yaml
 ```
 
 The trained checkpoints are provided here: [link of ckpt](to be added)
 
 ## Decoding
 ```bash
-cd scripts
-bash run_decode.sh
+uv run python -m shortcutfm configs/qqp-decode.yaml
 # core parameters: step and td
 ```
 
 ## Evaluation
 ```bash
-cd scripts
-bash eval.sh
+uv run python -m shortcutfm configs/qqp-eval.yaml
 # you can eval single file or multiple file which are in the same folder (mbr in default)
 ```
 
