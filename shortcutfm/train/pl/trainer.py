@@ -36,9 +36,14 @@ def get_lightning_trainer(cfg):
     logger.info(f"Model: {model}")
 
     logger.info("Loading dataset...")
-    ds = Dataset.load_from_disk(cfg.data_config.dataset_path)
-    text_ds = TextDataset(ds)
-    logger.info(f"Dataset contains {len(ds)} samples.")
+
+    train_ds = Dataset.load_from_disk(cfg.data_config.dataset_path)
+    train_text_ds = TextDataset(train_ds)
+    logger.info(f"Train dataset contains {len(train_ds)} samples.")
+
+    val_ds = Dataset.load_from_disk(cfg.data_config.validation_data_path)
+    val_text_ds = TextDataset(val_ds)
+    logger.info(f"Validation dataset contains {len(val_ds)} samples.")
 
     # Define Criterions
     flow_matching_criterion = X0FlowMatchingCriterion(model, diffusion_steps=cfg.model_config.diffusion_steps)
@@ -84,10 +89,16 @@ def get_lightning_trainer(cfg):
 
     # Setup data
     train_dataloader = DataLoader(
-        text_ds,
+        train_text_ds,
         batch_size=cfg.data_config.batch_size,
         collate_fn=collate,
-        sampler=DistributedSampler(text_ds, shuffle=True) if torch.distributed.is_initialized() else None,
+        shuffle=not torch.distributed.is_initialized(),
+    )
+
+    val_dataloader = DataLoader(
+        val_text_ds,
+        batch_size=cfg.data_config.batch_size,
+        collate_fn=collate,
         shuffle=not torch.distributed.is_initialized(),
     )
 
@@ -136,4 +147,4 @@ def get_lightning_trainer(cfg):
         accumulate_grad_batches=cfg.training_config.accumulate_grad_batches,
     )
 
-    return trainer, pl_model, train_dataloader
+    return trainer, pl_model, train_dataloader, val_dataloader

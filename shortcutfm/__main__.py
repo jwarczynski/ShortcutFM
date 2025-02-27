@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     else:
         seed_everything(cfg.training_config.seed)
-        trainer, model, train_dataloader = get_lightning_trainer(cfg)
+        trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
         if not getattr(cfg, "dry_run", False):
             logger.info("Starting training...")
-            trainer.fit(model, train_dataloader)
+            trainer.fit(model, train_dataloader, val_dataloader)

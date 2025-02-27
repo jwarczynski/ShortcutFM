@@ -18,7 +18,6 @@ model_config:
   max_position_embeddings: null
 
 data_config:
-  dataset_path: "override in specific config"
   batch_size: 16
 
 training_config:
