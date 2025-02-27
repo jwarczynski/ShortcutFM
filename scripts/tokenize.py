@@ -7,24 +7,23 @@ from shortcutfm.tokenizer import MyTokenizer
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Tokenize dataset and save to disk.")
-    parser.add_argument("--dataset_name", type=str, required=True, help="Name of the dataset")
+    parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset")
     parser.add_argument("--vocab", type=str, default="bert", help="Vocabulary type")
     parser.add_argument("--config_name", type=str, default="bert-base-uncased", help="Model config name")
-    parser.add_argument("--merge_strategy", type=str, default="nonequal", help="Merge strategy")
     parser.add_argument("--max_seq_length", type=int, default=128)
 
     args = parser.parse_args()
 
-    args.data_dir = f"../datasets/raw/{args.dataset_name}"
-    save_path = f"../datasets/tokenized/{args.dataset_name}"
+    args.data_dir = f"../datasets/raw/{args.dataset}"
+    save_path = f"../datasets/tokenized/{args.dataset}"
 
     # Initialize tokenizer
     tokenizer = MyTokenizer(args, True)
 
     # Load datasets
-    train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)["train"]
-    val_corpus = get_corpus(args, args.max_seq_length, split="valid", loaded_vocab=tokenizer)["train"]
-    test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)["train"]
+    train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)
+    val_corpus = get_corpus(args, args.max_seq_length, split="valid", loaded_vocab=tokenizer)
+    test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)
 
     # Create DatasetDict
     ds_dict = DatasetDict(
