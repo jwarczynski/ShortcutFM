@@ -9,3 +9,7 @@ wandb/*
 
 .idea
 .vscode
+
+checkpoints
+datasets
+lightning_logs
