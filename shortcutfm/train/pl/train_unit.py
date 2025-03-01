@@ -54,12 +54,8 @@ class TrainModule(pl.LightningModule):
         return outputs["loss"]
 
     def test_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
-        outputs = self(batch)
-        self.log_dict(
-            {f"test/{k}": v for k, v in outputs.items() if k != "loss"},
-            on_step=False, on_epoch=True
-        )
-        return outputs["loss"]
+        outputs = self.criterion.denoise(batch, self.prediction_shorcut_size)
+        return outputs
 
     def _predict_step(self, batch: EncoderBatch, batch_idx: int) -> ndarray[str, dtype[str]]:
         if not self.prediction_strategy:
