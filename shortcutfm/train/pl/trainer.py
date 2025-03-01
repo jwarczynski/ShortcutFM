@@ -82,16 +82,8 @@ def get_lightning_trainer(cfg: TrainingConfig):
         sampler=time_and_shortcut_sampler,
     )
 
-    # Setup optimizer configuration for the Lightning module
-    optimizer_config = {
-        'lr': cfg.lr,
-        'weight_decay': cfg.weight_decay,
-        'warmup_steps': cfg.warmup_steps,
-        'start_lr': cfg.start_lr
-    }
-
     # Create Lightning module
-    pl_model = TrainModule(criterion, optimizer_config)
+    pl_model = TrainModule(criterion, cfg.optimizer.scheduler)
 
     # Setup data
     train_dataloader = DataLoader(

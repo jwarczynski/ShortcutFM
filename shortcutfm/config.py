@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 
 from pydantic import BaseModel, Field, FilePath, field_validator, ConfigDict
 
@@ -53,6 +53,38 @@ class ModelConfig(BaseModel):
     max_position_embeddings: Optional[int] = Field(default=None, description="Maximum position embeddings")
 
 
+class BaseSchedulerConfig(BaseModel):
+    """Base class for scheduler configurations"""
+    lr: float = Field(default=3e-4, description="Target learning rate")
+    weight_decay: float = Field(default=0.1, description="Weight decay factor")
+
+
+class MyleSchedulerConfig(BaseSchedulerConfig):
+    """Configuration for Myle scheduler"""
+    type: Literal["myle"]
+    warmup_steps: int = Field(..., description="Number of warmup steps")
+    start_lr: float = Field(..., description="Initial learning rate")
+
+
+class LinearSchedulerConfig(BaseSchedulerConfig):
+    """Configuration for Linear scheduler"""
+    type: Literal["linear"]
+    start_factor: float = Field(..., description="Start factor for linear scheduler")
+    end_factor: float = Field(..., description="End factor for linear scheduler")
+    total_steps: Optional[int] = Field(default=None, description="Total steps for linear scheduler")
+
+
+# Define the scheduler type union with discriminator
+SchedulerConfig = Union[MyleSchedulerConfig, LinearSchedulerConfig]
+
+
+class OptimizerConfig(BaseModel):
+    """Optimizer and learning rate scheduler configuration"""
+    scheduler: SchedulerConfig = Field(..., description="Scheduler configuration", discriminator='type')
+
+    model_config = ConfigDict(validate_assignment=True)  # Validate values even after model creation
+
+
 class TrainingConfig(BaseModel):
     """Training process configuration"""
     # Data configuration
@@ -66,10 +98,6 @@ class TrainingConfig(BaseModel):
     val_interval: Optional[int] = Field(default=None, description="How often to run validation")
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
     max_steps: int = Field(default=500, description="Maximum training steps")
-    warmup_steps: int = Field(default=100, description="Number of warmup steps")
-    start_lr: float = Field(default=1e-7, description="Initial learning rate")
-    lr: float = Field(default=3e-4, description="Target learning rate")
-    weight_decay: float = Field(default=0.1, description="Weight decay factor")
     gradient_clipping: float = Field(default=2.0, description="Gradient clipping value")
     accumulate_grad_batches: int = Field(default=8, description="Number of batches to accumulate gradients")
     deterministic: bool = Field(default=True, description="Whether to use deterministic training")
@@ -86,6 +114,7 @@ class TrainingConfig(BaseModel):
 
     # Component configurations
     model: ModelConfig = Field(default_factory=ModelConfig, description="Model configuration")
+    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig, description="Optimizer configuration")
     wandb: WandBConfig = Field(default_factory=WandBConfig, description="Weights & Biases configuration")
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig, description="Checkpoint configuration")
     ema: EMAConfig = Field(default_factory=EMAConfig, description="EMA configuration")

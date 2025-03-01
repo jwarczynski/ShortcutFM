@@ -1,14 +1,15 @@
 from typing import Optional
 
 import lightning as pl
-import torch
 from numpy import dtype, ndarray
 from torch import Tensor
+from torch.optim import AdamW
 
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.criteria import Criterion
 from shortcutfm.decoding.prediction_strategies import PredictionStrategy
-from shortcutfm.nn import MyleLR
+from shortcutfm.train.optim import SchedulerFactory
+from shortcutfm.config import SchedulerConfig
 
 
 class TrainModule(pl.LightningModule):
@@ -16,18 +17,13 @@ class TrainModule(pl.LightningModule):
     def __init__(
             self,
             criterion: Criterion,
-            optimizer_config: dict = None,
+            optimizer_config: SchedulerConfig,
             prediction_strategy: Optional[PredictionStrategy] = None,
             prediction_shorcut_size: int = 1,
     ) -> None:
         super().__init__()
         self.criterion = criterion
-        self.optimizer_config = optimizer_config or {
-            'lr': 1e-4,
-            'weight_decay': 0.1,
-            'warmup_steps': 1000,
-            'start_lr': 1e-7
-        }
+        self.optimizer_config = optimizer_config
         self.prediction_strategy = prediction_strategy
         self.prediction_shorcut_size = prediction_shorcut_size
         self.save_hyperparameters(ignore=['criterion', 'prediction_strategy'])
@@ -67,10 +63,10 @@ class TrainModule(pl.LightningModule):
         self.prediction_shorcut_size = shortcut_size
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        optimizer = AdamW(
             self.criterion.model.module.parameters(),
-            lr=self.optimizer_config['lr'],
-            weight_decay=self.optimizer_config['weight_decay']
+            lr=self.optimizer_config.lr,
+            weight_decay=self.optimizer_config.weight_decay
         )
 
         scheduler = {
@@ -82,8 +78,8 @@ class TrainModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def _get_lr_scheduler(self, optimizer):
-        return MyleLR(
+        return SchedulerFactory.get_scheduler(
+            name=self.optimizer_config.type,
             optimizer=optimizer,
-            num_warmup_steps=self.optimizer_config['warmup_steps'],
-            start_lr=self.optimizer_config['start_lr'],
+            config=self.optimizer_config
         )
