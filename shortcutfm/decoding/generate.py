@@ -1,18 +1,17 @@
-from shortcutfm.batch import collate
-from shortcutfm.text_datasets import TextDataset
+import lightning as pl
+import torch
 from datasets import Dataset
 from torch.utils.data import DataLoader
-from shortcutfm.decoding.prediction_strategies import X0PredictionStrategy, SelfConditioningPredictionDecorator
 from transformers import AutoTokenizer
-import numpy as np
-import torch
 
-from shortcutfm.model.factory import TransformerNetModelFactory
+from shortcutfm.batch import collate
+from shortcutfm.criteria import X0FlowMatchingCriterion, CompositeCriterion, \
+    SelfConditioningFlowMatchingCriterionDecorator
 from shortcutfm.model.config import TransformerNetModelConfig
-from omegaconf import DictConfig, OmegaConf as om
+from shortcutfm.model.factory import TransformerNetModelFactory
 from shortcutfm.shortcut_samplers import TimeAndShorcutStampler, ShortcutSampler
-from shortcutfm.criteria import X0FlowMatchingCriterion, CompositeCriterion, NllCriterion, X0ConsistencyCrterion, \
-    SelfConditioningFlowMatchingCriterionDecorator, SelfConditioningConsistencyCriterionDecorator
+from shortcutfm.text_datasets import TextDataset
+from shortcutfm.train.pl.callbacks import EMACallback, SaveTestOutputsCallback
 from shortcutfm.train.pl.train_unit import TrainModule
 from shortcutfm.utils import parse_args
 
@@ -20,30 +19,36 @@ if __name__ == '__main__':
     cfg = parse_args()
 
     transformer_model_config = TransformerNetModelConfig(**cfg.model_config)
-    model = TransformerNetModelFactory(transformer_model_config).build().to("cuda")
+    model = TransformerNetModelFactory(transformer_model_config).build()
 
-
-    checkpoint = torch.load("checkpoints/last.ckpt")
-    for key in checkpoint.keys():
-        print(f"Key: {key}")
-        if isinstance(checkpoint[key], dict):
-            for subkey in checkpoint[key].keys():
-                print(f"  Subkey: {subkey}")
-
-
-    ema_weights = checkpoint["callbacks"]["EMACallback"]["shadow_params"]
-    ema_weights_clean = {key.replace("criterion.model.", ""): value for key, value in ema_weights.items()}
-
-    for name, param in model.named_parameters():
-        if name in ema_weights_clean:
-            print(f"Loading EMA weight for {name}")
-            param.data.copy_(ema_weights_clean[name])
-        else:
-            print(f"Skipping {name}, not found in EMA checkpoint")
-
+    # Define Criterions
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-    x0_strategy = X0PredictionStrategy(model, 2048, tokenizer)
-    sc_decorator = SelfConditioningPredictionDecorator(x0_strategy, model, 2048, tokenizer)
+    flow_matching_criterion = X0FlowMatchingCriterion(model, diffusion_steps=cfg.model_config.diffusion_steps,
+                                                      tokenizer=tokenizer)
+    self_conditioning_flow_matching_criterion = SelfConditioningFlowMatchingCriterionDecorator(
+        flow_matching_criterion, self_conditioning_ratio=cfg.model_config.sc_rate
+    )
+
+    shortcut_sampler = ShortcutSampler(
+        diffusion_steps=cfg.model_config.diffusion_steps, min_shortcut_size=cfg.model_config.min_shortcut_size
+    )
+    time_and_shortcut_sampler = TimeAndShorcutStampler(
+        shortcut_sampler,
+        cfg.model_config.diffusion_steps,
+        cfg.model_config.min_shortcut_size
+    )
+
+    criterion = CompositeCriterion(
+        criteria=(self_conditioning_flow_matching_criterion,),
+        criteria_weights=(1,),
+        model=model,
+        diffusion_steps=cfg.model_config.diffusion_steps,
+        self_consistency_ratio=cfg.training_config.self_consistency_ratio,
+        sampler=time_and_shortcut_sampler,
+    )
+
+    unit = TrainModule.load_from_checkpoint("checkpoints/last.ckpt", criterion=criterion)
+    unit.set_prediction_shorcut_size(32)
 
     test_ds = Dataset.load_from_disk("datasets/tokenized/QQP-Official/test")
     val_text_ds = TextDataset(test_ds)
@@ -55,18 +60,18 @@ if __name__ == '__main__':
         shuffle=not torch.distributed.is_initialized(),
     )
 
-    for b in test_dataloader:
-        b.seqs = b.seqs.to(torch.device('cuda'))
-        b.input_ids_mask = b.input_ids_mask.to(torch.device('cuda'))
-        b.padding_mask = b.padding_mask.to(torch.device('cuda'))
-        result = sc_decorator.denoise(b, shortcut_size=64)
-        # save results to a file
-        with open("results.txt", "w") as f:
-            for i, example in enumerate(result, start=1):  # Iterate over batch size
-                f.write(f"Example {i}:\n")  # Label each example
-                for t, prediction in zip(range(2048, 0, -64), example):
-                    f.write(f"  Timestep {t}: {prediction}\n")  # Indent timesteps
-                f.write("\n")  # Add spacing between examples
+    ema_callback = EMACallback(decay=0.999, update_interval=1, ema_eval=True)
+    checkpoint = torch.load("checkpoints/last.ckpt", map_location="cpu")
 
-        print(result.shape)
-        break
+    if "EMACallback" in checkpoint["callbacks"]:
+        ema_callback_state = checkpoint["callbacks"]["EMACallback"]
+        ema_callback.load_state_dict(ema_callback_state)
+
+    save_outputs_callback = SaveTestOutputsCallback(
+        save_path="test_outputs.txt", diff_steps=2048, shortcut_size=64, start_example_idx=1
+    )
+    trainer = pl.Trainer(
+        callbacks=[ema_callback, save_outputs_callback],
+        limit_test_batches=2,
+    )
+    trainer.test(unit, dataloaders=test_dataloader)
