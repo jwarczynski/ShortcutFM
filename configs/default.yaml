@@ -46,7 +46,7 @@ training_config:
     overwrite: false
   save_folder: "checkpoints"
   save_interval: 100
-  num_checkpoints_to_keep: 3
+  num_checkpoints_to_keep: -1
 
   deterministic: true
   seed: 44
