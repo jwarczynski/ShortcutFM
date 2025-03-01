@@ -6,8 +6,9 @@ import torch
 from torch import Tensor, nn
 from torch.nn import Module
 
-from shortcutfm.model.config import TransformerNetModelConfig
+from shortcutfm.config import ModelConfig
 from shortcutfm.nn import timestep_embedding
+
 
 class FlowMatchingModel(Module, ABC):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
@@ -16,7 +17,7 @@ class FlowMatchingModel(Module, ABC):
         self.diffusion_steps = diffusion_steps
         self.min_shortcut_size = min_shortcut_size
 
-    def __call__(self, x: Tensor, time_steps: Tensor, shortcuts:Optional[Tensor]=None) -> Tensor:
+    def __call__(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
         """ Forward pass of the model. """
         if shortcuts is None:
             shortcuts = torch.zeros_like(time_steps, device=x.device)
@@ -56,18 +57,18 @@ class TransformerNetModel(nn.Module):
     """
 
     def __init__(
-        self,
-        word_embedding: nn.Embedding,
-        lm_head: nn.Linear,
-        time_embed: nn.Sequential,
-        shortcut_embedding: nn.Embedding,
-        input_up_proj: Optional[nn.Sequential],
-        input_transformers: nn.Module,
-        position_embeddings: nn.Embedding,
-        LayerNorm: nn.LayerNorm,
-        output_down_proj: Optional[nn.Sequential],
-        config: TransformerNetModelConfig,
-        position_ids: Tensor,
+            self,
+            word_embedding: nn.Embedding,
+            lm_head: nn.Linear,
+            time_embed: nn.Sequential,
+            shortcut_embedding: nn.Embedding,
+            input_up_proj: Optional[nn.Sequential],
+            input_transformers: nn.Module,
+            position_embeddings: nn.Embedding,
+            LayerNorm: nn.LayerNorm,
+            output_down_proj: Optional[nn.Sequential],
+            config: ModelConfig,
+            position_ids: Tensor,
     ):
         super().__init__()
         self.config = config
@@ -120,10 +121,10 @@ class TransformerNetModel(nn.Module):
 
         position_ids = self.position_ids[:, : seq_len]
         x = (
-            self.position_embeddings(position_ids) +
-            x +
-            time_embed.unsqueeze(1).expand(-1, seq_len, -1) +
-            shorcut_embed.unsqueeze(1).expand(-1, seq_len, -1)
+                self.position_embeddings(position_ids) +
+                x +
+                time_embed.unsqueeze(1).expand(-1, seq_len, -1) +
+                shorcut_embed.unsqueeze(1).expand(-1, seq_len, -1)
         )
 
         x = self.dropout(self.LayerNorm(x))

@@ -1,0 +1,37 @@
+# Generation-specific settings
+generation_shortcut_size: 32
+checkpoint_path: "checkpoints/last.ckpt"
+output_folder: "generation_outputs/qqp"
+seed: 42
+limit_test_batches: 2  # Set to null for all batches
+
+# Data configuration
+batch_size: 16
+test_data_path: "datasets/tokenized/QQP-Official/test"
+
+# Model configuration (must match training config)
+model:
+  input_dims: 768
+  hidden_size: 768
+  output_dims: 768
+  hidden_t_dim: 128
+  diffusion_steps: 2048
+  min_shortcut_size: 32
+  dropout: 0.1
+  config_name: "bert-base-uncased"
+  vocab_size: 30522
+  init_pretrained: "no"
+  logits_mode: 1
+  sc_rate: 0.5
+  predict_t: false
+
+# Optional WandB configuration (comment out to disable)
+wandb:
+  project_name: "ShortcutFM"
+  run_name: "qqp_generation"
+  enabled: true
+
+# Optional EMA configuration (comment out to disable)
+ema:
+  smoothing: 0.99
+  update_interval: 1 

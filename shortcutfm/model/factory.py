@@ -8,7 +8,7 @@ from torch.nn import SiLU
 from transformers import AutoConfig, BertModel
 from transformers.models.bert.modeling_bert import BertEncoder, BertModel
 
-from shortcutfm.model.config import TransformerNetModelConfig
+from shortcutfm.config import ModelConfig
 from shortcutfm.model.model import FlowMatchingModel, TransformerNetModel
 
 
@@ -31,7 +31,7 @@ class TransformerNetModelModules:
 class TransformerNetModelFactory:
     """Factory class to create TransformerNetModel instances from configuration."""
 
-    def __init__(self, config: TransformerNetModelConfig):
+    def __init__(self, config: ModelConfig):
         # TODO: validation of config e.g. diffusion steps, shorcut and so on
         self.config = config
 

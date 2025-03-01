@@ -1,28 +1,51 @@
 import logging
+import sys
+from pathlib import Path
 
 from lightning import seed_everything
 from omegaconf import OmegaConf as om
 
-from shortcutfm.train.mosaic.mosaic_trainer import get_composer_trainer
+from shortcutfm.config import TrainingConfig
 from shortcutfm.train.pl.trainer import get_lightning_trainer
-from shortcutfm.utils import parse_args
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+
+def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
+    """Parse and validate training config from YAML file"""
+    if not Path(config_path).exists():
+        raise ValueError(f"Config file not found: {config_path}")
+
+    # Load and merge configs
+    with open("configs/training/default.yaml", "r") as f:
+        default_cfg = om.load(f)
+
+    with open(config_path, "r") as f:
+        yaml_cfg = om.load(f)
+
+    # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
+    merged_cfg = om.merge(default_cfg, yaml_cfg, om.from_cli(args_list))
+    
+    # Convert to dict and validate with Pydantic
+    config_dict = om.to_container(merged_cfg, resolve=True)
+    training_config = TrainingConfig(**config_dict)
+    
+    return training_config
+
+
 if __name__ == "__main__":
-    cfg = parse_args(defult_config_path="configs/default.yaml")
-    logger.info("Final Merged Configuration:\n" + om.to_yaml(cfg, resolve=True))
+    if len(sys.argv) < 2:
+        print("Usage: python -m shortcutfm <config_path>")
+        sys.exit(1)
 
-    if cfg.use_composer:
-        trainer = get_composer_trainer(cfg)
-        if not getattr(cfg, "dry_run", False):
-            logger.info("Starting training...")
-            trainer.fit()
+    yaml_path, args_list = sys.argv[1], sys.argv[2:]
 
-    else:
-        seed_everything(cfg.training_config.seed)
-        trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
-        if not getattr(cfg, "dry_run", False):
-            logger.info("Starting training...")
-            trainer.fit(model, train_dataloader, val_dataloader)
+    cfg = parse_config(yaml_path, args_list)
+    logger.info("Final Configuration:\n" + om.to_yaml(cfg.model_dump()))
+
+    seed_everything(cfg.seed)
+    trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
+    if not cfg.dry_run:
+        logger.info("Starting training...")
+        trainer.fit(model, train_dataloader, val_dataloader)

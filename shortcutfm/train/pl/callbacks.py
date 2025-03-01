@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import lightning as pl
 import numpy as np
 
@@ -111,7 +113,7 @@ class EMACallback(pl.Callback):
 
 
 class SaveTestOutputsCallback(pl.Callback):
-    def __init__(self, save_path="test_outputs.txt", diff_steps=2048, shortcut_size=64, start_example_idx=1):
+    def __init__(self, save_path: Path, diff_steps, shortcut_size, start_example_idx=1):
         super().__init__()
         self.save_path = save_path
         self.start_example_idx = start_example_idx
@@ -125,7 +127,7 @@ class SaveTestOutputsCallback(pl.Callback):
     def on_test_epoch_end(self, trainer, pl_module):
         """Aggregate and save outputs, ensuring only rank 0 writes to the file."""
         all_outputs = np.concatenate(self.outputs, axis=0)
-        process_file = f"{self.save_path}.rank{trainer.global_rank}"
+        process_file = self.save_path / f"rank{trainer.global_rank}.txt"
 
         if trainer.is_global_zero:
             with open(process_file, "a", encoding="utf-8") as f:

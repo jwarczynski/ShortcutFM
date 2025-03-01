@@ -1,0 +1,19 @@
+# QQP Training Configuration
+# Extends default.yaml with QQP-specific settings
+
+
+dry_run: false
+
+# Data paths
+training_data_path: "datasets/tokenized/QQP-Official/train"
+validation_data_path: "datasets/tokenized/QQP-Official/valid"
+val_interval: null
+
+# WandB configuration
+wandb:
+  project_name: "test"
+  run_name: "qqp_training-test"
+
+# Checkpoint configuration
+checkpoint:
+  save_folder: "checkpoints/qqp"
