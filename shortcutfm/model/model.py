@@ -7,7 +7,7 @@ from torch import Tensor, nn
 from torch.nn import Module
 
 from shortcutfm.model.config import TransformerNetModelConfig
-from shortcutfm.utils.nn import timestep_embedding
+from shortcutfm.nn import timestep_embedding
 
 class FlowMatchingModel(Module, ABC):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
