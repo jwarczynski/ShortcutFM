@@ -1,5 +1,5 @@
 import lightning as pl
-import torch
+import numpy as np
 
 
 # Custom Gradient Monitor Callback for Lightning
@@ -110,59 +110,32 @@ class EMACallback(pl.Callback):
         self.update_interval = state_dict.get("update_interval", self.update_interval)
 
 
-def save_model_with_ema(model, ema_callback, filepath):
-    """
-    Save a model checkpoint including EMA weights
+class SaveTestOutputsCallback(pl.Callback):
+    def __init__(self, save_path="test_outputs.txt", diff_steps=2048, shortcut_size=64, start_example_idx=1):
+        super().__init__()
+        self.save_path = save_path
+        self.start_example_idx = start_example_idx
+        self.time_steps = range(diff_steps, 0, -shortcut_size)
+        self.outputs = []
 
-    Args:
-        model: The PyTorch Lightning module
-        ema_callback: The EMACallback instance
-        filepath: Path where to save the checkpoint
-    """
-    checkpoint = {
-        "state_dict": model.state_dict(),
-        "ema_state_dict": ema_callback.state_dict(),
-    }
-    torch.save(checkpoint, filepath)
-    print(f"Model checkpoint with EMA weights saved to {filepath}")
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        """Store outputs from each batch."""
+        self.outputs.append(outputs)
 
+    def on_test_epoch_end(self, trainer, pl_module):
+        """Aggregate and save outputs, ensuring only rank 0 writes to the file."""
+        all_outputs = np.concatenate(self.outputs, axis=0)
+        process_file = f"{self.save_path}.rank{trainer.global_rank}"
 
-def load_model_with_ema(model_class, filepath, ema_weights=False):
-    """
-    Load a model from checkpoint, optionally with EMA weights
+        if trainer.is_global_zero:
+            with open(process_file, "a", encoding="utf-8") as f:
+                for i, example in enumerate(all_outputs, start=self.start_example_idx):
+                    f.write(f"Example {i}:\n")
+                    for t, prediction in zip(self.time_steps, example):
+                        f.write(f"  Timestep {t}: {prediction}\n")
+                    f.write("\n")
+                    self.start_example_idx += 1
+            print(f"✅ Saved test outputs to {process_file}")
 
-    Args:
-        model_class: The model class to instantiate
-        filepath: Path to the checkpoint file
-        ema_weights: Whether to use EMA weights instead of regular weights
-
-    Returns:
-        model: The loaded model
-    """
-    checkpoint = torch.load(filepath, map_location='cpu')
-
-    # Create model instance (this assumes your model can be instantiated with default args)
-    # Adjust as needed for your model initialization
-    model = model_class()
-
-    if ema_weights and "ema_state_dict" in checkpoint:
-        # Load EMA weights into the model
-        ema_state = checkpoint["ema_state_dict"]
-        if "shadow_params" in ema_state:
-            # Apply EMA weights directly to model
-            model.load_state_dict(ema_state["shadow_params"])
-            print(f"Model loaded with EMA weights from {filepath}")
-        else:
-            model.load_state_dict(checkpoint["state_dict"])
-            print(f"EMA state dict found but no shadow params. Using regular weights.")
-    else:
-        # Load regular model weights
-        model.load_state_dict(checkpoint["state_dict"])
-        print(f"Model loaded with regular weights from {filepath}")
-
-    # If you want to also restore the EMA callback state
-    ema_callback = EMACallback()
-    if "ema_state_dict" in checkpoint:
-        ema_callback.load_state_dict(checkpoint["ema_state_dict"])
-
-    return model, ema_callback
+        # Clear stored outputs after saving
+        self.outputs = []
