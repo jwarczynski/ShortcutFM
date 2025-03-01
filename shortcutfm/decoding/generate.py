@@ -14,19 +14,10 @@ from shortcutfm.shortcut_samplers import TimeAndShorcutStampler, ShortcutSampler
 from shortcutfm.criteria import X0FlowMatchingCriterion, CompositeCriterion, NllCriterion, X0ConsistencyCrterion, \
     SelfConditioningFlowMatchingCriterionDecorator, SelfConditioningConsistencyCriterionDecorator
 from shortcutfm.train.pl.train_unit import TrainModule
-
+from shortcutfm.utils import parse_args
 
 if __name__ == '__main__':
-
-    with open("configs/default.yaml", "r") as f:
-        default_cfg = om.load(f)
-
-    with open("configs/qqp.yaml", "r") as f:
-        yaml_cfg = om.load(f)
-
-    # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
-    cfg = om.merge(default_cfg, yaml_cfg)
-    cfg = DictConfig(cfg)
+    cfg = parse_args()
 
     transformer_model_config = TransformerNetModelConfig(**cfg.model_config)
     model = TransformerNetModelFactory(transformer_model_config).build().to("cuda")
