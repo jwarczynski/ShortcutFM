@@ -82,6 +82,14 @@ class EMACallback(pl.Callback):
         # Restore original weights after testing
         self.on_validation_end(trainer, pl_module)
 
+    def on_predict_start(self, trainer, pl_module):
+        # Same as validation - use EMA weights for testing
+        self.on_validation_start(trainer, pl_module)
+
+    def on_predict_end(self, trainer, pl_module):
+        # Restore original weights after testing
+        self.on_validation_end(trainer, pl_module)
+
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         """Save EMA weights in checkpoint"""
         return {"shadow_params": self.shadow_params}

@@ -1,15 +1,25 @@
+from typing import Optional
+
 import lightning as pl
 import torch
+from numpy import dtype, ndarray
 from torch import Tensor
 
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.criteria import Criterion
-from shortcutfm.utils.nn import MyleLR
+from shortcutfm.decoding.prediction_strategies import PredictionStrategy
+from shortcutfm.nn import MyleLR
 
 
 class TrainModule(pl.LightningModule):
 
-    def __init__(self, criterion: Criterion, optimizer_config: dict = None) -> None:
+    def __init__(
+            self,
+            criterion: Criterion,
+            optimizer_config: dict = None,
+            prediction_strategy: Optional[PredictionStrategy] = None,
+            prediction_shorcut_size: int = 1,
+    ) -> None:
         super().__init__()
         self.criterion = criterion
         self.optimizer_config = optimizer_config or {
@@ -18,7 +28,9 @@ class TrainModule(pl.LightningModule):
             'warmup_steps': 1000,
             'start_lr': 1e-7
         }
-        self.save_hyperparameters(ignore=['criterion'])
+        self.prediction_strategy = prediction_strategy
+        self.prediction_shorcut_size = prediction_shorcut_size
+        self.save_hyperparameters(ignore=['criterion', 'prediction_strategy'])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         return self.criterion(batch)
@@ -48,6 +60,15 @@ class TrainModule(pl.LightningModule):
             on_step=False, on_epoch=True
         )
         return outputs["loss"]
+
+    def _predict_step(self, batch: EncoderBatch, batch_idx: int) -> ndarray[str, dtype[str]]:
+        if not self.prediction_strategy:
+            raise "Predicition Strategu Not provided. Cannot perform densoing"
+
+        return self.prediction_strategy(batch, self.shortcut_size)
+
+    def set_prediction_shorcut_size(self, shortcut_size: int) -> None:
+        self.prediction_shorcut_size = shortcut_size
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
