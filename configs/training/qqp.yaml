@@ -10,11 +10,16 @@ validation_data_path: "datasets/tokenized/QQP-Official/valid"
 check_val_every_n_epoch: 5
 val_interval: null
 
+self_consistency_ratio: 0.0
+
+model:
+  sc_rate: 0.5
+
 # WandB configuration
 wandb:
   project_name: "test"
-  run_name: "qqp_training-test"
+  run_name: "qqp_simple"
 
 # Checkpoint configuration
 checkpoint:
-  save_folder: "checkpoints/qqp"
+  save_folder: "checkpoints/qqp-tst"
