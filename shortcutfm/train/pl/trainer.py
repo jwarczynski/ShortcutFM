@@ -140,6 +140,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
             resume=cfg.wandb.resume,
         )
         wandb_logger.watch(model.module, log="all")
+        wandb_logger.log_hyperparams(cfg)
 
     # Configure checkpoint directory with wandb run ID if available
     checkpoint_dir = cfg.checkpoint.save_folder
