@@ -1,7 +1,11 @@
+import json
 from pathlib import Path
+from typing import List, Tuple
 
 import lightning as pl
 import numpy as np
+import torch
+from torch import Tensor
 
 
 # Custom Gradient Monitor Callback for Lightning
@@ -113,31 +117,61 @@ class EMACallback(pl.Callback):
 
 
 class SaveTestOutputsCallback(pl.Callback):
-    def __init__(self, save_path: Path, diff_steps, shortcut_size, start_example_idx=1):
+    """Callback to save test outputs with their corresponding inputs."""
+
+    def __init__(
+            self,
+            save_path: Path,
+            diff_steps: int,
+            shortcut_size: int,
+            start_example_idx: int = 1,
+    ):
         super().__init__()
-        self.save_path = save_path
+        self.save_path = Path(save_path)
+        self.time_steps = np.linspace(0, diff_steps - 1, shortcut_size, dtype=int)
         self.start_example_idx = start_example_idx
-        self.time_steps = range(diff_steps, 0, -shortcut_size)
-        self.outputs = []
+        self.outputs: List[Tuple[Tensor, Tensor]] = []
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-        """Store outputs from each batch."""
-        self.outputs.append(outputs)
+        """Store input sequences and predictions from each batch."""
+        input_ids, predictions = outputs
+        # Convert tensors to CPU and store
+        self.outputs.append((
+            input_ids.detach().cpu(),
+            predictions.detach().cpu()
+        ))
 
     def on_test_epoch_end(self, trainer, pl_module):
-        """Aggregate and save outputs, ensuring only rank 0 writes to the file."""
-        all_outputs = np.concatenate(self.outputs, axis=0)
-        process_file = self.save_path / f"rank{trainer.global_rank}.txt"
+        """Save inputs and predictions in a format suitable for later processing."""
+        # Create separate files for inputs and predictions
+        inputs_file = self.save_path / f"inputs_rank{trainer.global_rank}.pt"
+        preds_file = self.save_path / f"predictions_rank{trainer.global_rank}.pt"
+        metadata_file = self.save_path / f"metadata_rank{trainer.global_rank}.json"
 
-        if trainer.is_global_zero:
-            with open(process_file, "a", encoding="utf-8") as f:
-                for i, example in enumerate(all_outputs, start=self.start_example_idx):
-                    f.write(f"Example {i}:\n")
-                    for t, prediction in zip(self.time_steps, example):
-                        f.write(f"  Timestep {t}: {prediction}\n")
-                    f.write("\n")
-                    self.start_example_idx += 1
-            print(f"✅ Saved test outputs to {process_file}")
+        # Concatenate all batches
+        all_inputs = torch.cat([inp for inp, _ in self.outputs], dim=0)
+        all_predictions = torch.cat([pred for _, pred in self.outputs], dim=0)
+
+        # Save tensors
+        torch.save(all_inputs, inputs_file)
+        torch.save(all_predictions, preds_file)
+
+        # Save metadata
+        metadata = {
+            "num_examples": len(all_inputs),
+            "time_steps": self.time_steps.tolist(),
+            "input_shape": list(all_inputs.shape),
+            "predictions_shape": list(all_predictions.shape),
+            "start_example_idx": self.start_example_idx
+        }
+
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        print(f"✅ Saved {len(all_inputs)} test examples:")
+        print(f"   - Input sequences: {inputs_file}")
+        print(f"   - Predictions: {preds_file}")
+        print(f"   - Metadata: {metadata_file}")
 
         # Clear stored outputs after saving
         self.outputs = []

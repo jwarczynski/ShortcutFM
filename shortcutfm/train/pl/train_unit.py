@@ -49,9 +49,16 @@ class TrainModule(pl.LightningModule):
         # TODO: log the outputs
         return outputs["loss"]
 
-    def test_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
-        outputs = self.criterion.denoise(batch, self.prediction_shorcut_size)
-        return outputs
+    def test_step(self, batch: EncoderBatch, batch_idx: int) -> tuple[Tensor, Tensor]:
+        """Run test step and return both input sequences and model predictions.
+        
+        Returns:
+            tuple[Tensor, Tensor]: A tuple containing:
+                - input_ids: Input token sequences [batch_size, seq_len]
+                - predictions: Model predictions [batch_size, num_steps, seq_len]
+        """
+        predictions = self.criterion.denoise(batch, self.prediction_shorcut_size)
+        return batch.seqs, predictions
 
     def _predict_step(self, batch: EncoderBatch, batch_idx: int) -> ndarray[str, dtype[str]]:
         if not self.prediction_strategy:

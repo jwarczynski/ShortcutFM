@@ -106,34 +106,39 @@ class FlowMatchingCriterion(Criterion):
             reduction="none"
         ).view(seqs.size())
 
-    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> np.ndarray[np.ndarray[str]]:
+    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> Tensor:
         """
-        Denoises batch of exapmles
+        Denoises batch of exapmles.
 
         :param batch: batch of exapmles to denoise
         :type batch: EncoderBatch
         :param shortcut_size: shorcut size to use during denoising
         :type shortcut_size: int
 
-        :returns: np.array of strings for each exmaple and timestep. Each row corresponds to single example
-        :rtype: ndarray
+        :returns:
+            Predictions tensor of shape [batch_size, num_steps, seq_len] where:
+                - First dimension is the batch dimension (examples)
+                - Second dimension is the timestep dimension
+                - Third dimension is the sequence length
+        :rtype: Tensor
         """
         self._reset()
         input_mask = batch.input_ids_mask.unsqueeze(-1)
         embeddings = self.model.get_embeddings(batch.seqs)
         noise = torch.randn_like(embeddings)
         self.x_t = torch.where(input_mask == 0, embeddings, noise)
-        predicted_seqs = self.denoise_loop(shortcut_size, input_mask)
-
-        return np.array(predicted_seqs).T
-
-    def denoise_loop(self, shortcut_size: int, input_mask) -> list[list[str]]:
-        """Denosing loop for a given shorcut size"""
-        predicted_seqs: list[list[str]] = []
+        
+        # Pre-allocate tensor for all predictions
+        num_steps = len(range(self.diffusion_steps, 0, -shortcut_size))
+        predictions = torch.zeros(
+            (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
+            dtype=torch.long,
+            device=batch.seqs.device
+        )
 
         shortcuts = torch.tensor(shortcut_size, device=input_mask.device).repeat(input_mask.shape[0])
-        for t in torch.arange(self.diffusion_steps, 0, -shortcut_size, device=input_mask.device):
-            t = t.repeat(input_mask.shape[0])
+        for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -shortcut_size, device=input_mask.device)):
+            t: Tensor = t.repeat(input_mask.shape[0])
             model_output = self.infere_model(
                 self.x_t,
                 t,
@@ -150,9 +155,11 @@ class FlowMatchingCriterion(Criterion):
             x0_hat = self.x_t + (shortcuts / self.diffusion_steps)[:, None, None] * v_hat
 
             self.x_t = x0_hat
-            predicted_seqs.append(self.probe(x0_hat))
+            # Get predictions and store them in the correct position
+            step_predictions = self.probe(x0_hat)
+            predictions[:, step_idx, :] = step_predictions
 
-        return predicted_seqs
+        return predictions
 
     def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
         """Call the model and resotre input part of the pediction"""
@@ -174,13 +181,13 @@ class FlowMatchingCriterion(Criterion):
     ) -> Tensor:
         """computes velocity based on models output"""
 
-    def probe(self, hidden_representation) -> list[str]:
+    def probe(self, hidden_representation) -> Tensor:
         """Predicts sequence of tokens based on hidden_representation"""
         logtis = self.model.compute_logits(hidden_representation)
         probs = torch.softmax(logtis, dim=-1)
         tokens = torch.argmax(probs, dim=-1)
         seqs = self.tokenizer.batch_decode(tokens)
-        return seqs
+        return tokens
 
     def _reset(self):
         """
