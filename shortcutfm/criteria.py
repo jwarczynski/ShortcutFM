@@ -145,7 +145,7 @@ class FlowMatchingCriterion(Criterion):
                 shortcuts,
                 input_mask
             )
-            v_hat = self.predict_velocity(
+            v_hat = self.compute_velocity(
                 self.x_t,
                 model_output,
                 t,
@@ -171,7 +171,7 @@ class FlowMatchingCriterion(Criterion):
         """recover input part of the prediction based on input_mask"""
 
     @abstractmethod
-    def predict_velocity(
+    def compute_velocity(
             self,
             x_t,
             model_output: Tensor,
@@ -179,7 +179,7 @@ class FlowMatchingCriterion(Criterion):
             shortcut_size: Tensor,
             input_mask: Tensor
     ) -> Tensor:
-        """computes velocity based on models output"""
+        """computes velocity based on models output for the denoising process"""
 
     def probe(self, hidden_representation) -> Tensor:
         """Predicts sequence of tokens based on hidden_representation"""
@@ -234,7 +234,7 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
         return y_hat
 
     @override
-    def predict_velocity(
+    def compute_velocity(
             self,
             x_t,
             x0_hat: Tensor,
@@ -275,7 +275,7 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
         return batch.x_t + y_hat * self.scale_t(batch.t)
 
     @override
-    def predict_velocity(
+    def compute_velocity(
             self,
             x_t,
             v_hat: Tensor,
@@ -321,7 +321,8 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
             t: Tensor,
             input_ids_mask: Tensor,
     ) -> Tensor:
-        """ Compute the target and the model output. """
+        """ Compute the model output. """
+        # prepare self-conditioning input
         x_0_hat = self._modify_model_input(input_ids_mask, x_start)
 
         if not self._should_apply_self_conditioning():
@@ -376,7 +377,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
         return model_output
 
     @override
-    def predict_velocity(
+    def compute_velocity(
             self,
             x_t,
             model_output: Tensor,
@@ -385,7 +386,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
             input_mask: Tensor
     ) -> Tensor:
         """COmputes velocity from models output"""
-        return self.criterion.predict_velocity(x_t, model_output, t, shortcut_size, input_mask)
+        return self.criterion.compute_velocity(x_t, model_output, t, shortcut_size, input_mask)
 
     @override
     def _restore_input_part(self, model_output: Tensor, x_t: Tensor, input_mask: Tensor) -> Tensor:
