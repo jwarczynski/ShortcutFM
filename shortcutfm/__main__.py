@@ -48,4 +48,5 @@ if __name__ == "__main__":
     trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
     if not cfg.dry_run:
         logger.info("Starting training...")
-        trainer.fit(model, train_dataloader, val_dataloader)
+        trainer.fit(model, train_dataloader)
+        # trainer.fit(model, train_dataloader, val_dataloader)
