@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import lightning as pl
 import torch
@@ -111,11 +112,16 @@ def get_lightning_trainer(cfg: TrainingConfig):
         )
         wandb_logger.watch(model.module, log="all")
 
+    # Configure checkpoint directory with wandb run ID if available
+    checkpoint_dir = cfg.checkpoint.save_folder
+    if wandb_logger is not None:
+        checkpoint_dir = Path(checkpoint_dir) / f"run_{wandb_logger.experiment.id}"
+
     # Configure Callbacks
     callbacks = [
         ModelSummary(),
         ModelCheckpoint(
-            dirpath=cfg.checkpoint.save_folder,
+            dirpath=str(checkpoint_dir),
             save_top_k=cfg.checkpoint.save_top_k,
             every_n_train_steps=cfg.checkpoint.save_interval,
             filename="{epoch}-{step}",
