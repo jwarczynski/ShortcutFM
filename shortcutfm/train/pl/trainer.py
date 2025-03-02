@@ -146,6 +146,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         deterministic=cfg.deterministic,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         log_every_n_steps=cfg.log_interval,
+        check_val_every_n_epoch=cfg.check_val_every_n_epoch,
         val_check_interval=cfg.val_interval,
         accumulate_grad_batches=cfg.accumulate_grad_batches,
         limit_train_batches=cfg.limit_train_batches,

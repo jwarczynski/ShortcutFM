@@ -7,6 +7,7 @@ dry_run: false
 # Data paths
 training_data_path: "datasets/tokenized/QQP-Official/train"
 validation_data_path: "datasets/tokenized/QQP-Official/valid"
+check_val_every_n_epoch: 5
 val_interval: null
 
 # WandB configuration
