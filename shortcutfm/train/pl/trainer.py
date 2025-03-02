@@ -17,9 +17,10 @@ from shortcutfm.criteria import (
     SelfConditioningConsistencyCriterionDecorator, SelfConditioningFlowMatchingCriterionDecorator,
     X0ConsistencyCrterion,
     X0FlowMatchingCriterion,
+    FLowNllCriterion,
 )
 from shortcutfm.model.factory import TransformerNetModelFactory
-from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShorcutStampler
+from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShorcutStampler, UniformSampler
 from shortcutfm.text_datasets import TextDataset
 from shortcutfm.train.pl.callbacks import EMACallback, GradientMonitor
 from shortcutfm.train.pl.train_unit import TrainModule
@@ -46,27 +47,52 @@ def get_lightning_trainer(cfg: TrainingConfig):
 
     # Define Criterions
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.config_name)
-    flow_matching_criterion = X0FlowMatchingCriterion(model, diffusion_steps=cfg.model.diffusion_steps,
-                                                      tokenizer=tokenizer)
-    self_conditioning_flow_matching_criterion = SelfConditioningFlowMatchingCriterionDecorator(
-        flow_matching_criterion, self_conditioning_ratio=cfg.model.sc_rate
+    
+    # Create base flow matching criterion
+    flow_matching_criterion = X0FlowMatchingCriterion(
+        model, 
+        diffusion_steps=cfg.model.diffusion_steps,
+        tokenizer=tokenizer
     )
-
-    consistency_criterion = X0ConsistencyCrterion(model, cfg.model.diffusion_steps)
-    self_conditioning_consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
-        consistency_criterion, self_conditioning_ratio=cfg.model.sc_rate
-    )
-
     nll_criterion = NllCriterion(model, cfg.model.diffusion_steps)
+    
+    # Apply self-conditioning decorator if sc_rate > 0
+    if cfg.model.sc_rate > 0:
+        flow_matching_criterion = SelfConditioningFlowMatchingCriterionDecorator(
+            flow_matching_criterion, 
+            self_conditioning_ratio=cfg.model.sc_rate
+        )
 
-    shortcut_sampler = ShortcutSampler(
-        diffusion_steps=cfg.model.diffusion_steps, min_shortcut_size=cfg.model.min_shortcut_size
-    )
-    time_and_shortcut_sampler = TimeAndShorcutStampler(
-        shortcut_sampler,
-        cfg.model.diffusion_steps,
-        cfg.model.min_shortcut_size
-    )
+    # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
+    if cfg.self_consistency_ratio > 0:
+        # Build criteria list for CompositeCriterion
+        criteria = [flow_matching_criterion]
+        weights = [cfg.flow_matching_loss_weight]
+
+        # Add consistency criterion with optional self-conditioning decorator
+        consistency_criterion = X0ConsistencyCrterion(model, cfg.model.diffusion_steps)
+        if cfg.model.sc_rate > 0:
+            consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
+                consistency_criterion, 
+                self_conditioning_ratio=cfg.model.sc_rate
+            )
+        criteria.append(consistency_criterion)
+        weights.append(cfg.consistency_loss_weight)
+
+        # Add NLL criterion
+        criteria.append(nll_criterion)
+        weights.append(cfg.nll_loss_weight)
+
+        # Create shortcut sampler
+        shortcut_sampler = ShortcutSampler(
+            diffusion_steps=cfg.model.diffusion_steps, 
+            min_shortcut_size=cfg.model.min_shortcut_size
+        )
+        time_and_shortcut_sampler = TimeAndShorcutStampler(
+            shortcut_sampler,
+            cfg.model.diffusion_steps,
+            cfg.model.min_shortcut_size
+        )
 
     criteria_weights = (
         cfg.flow_matching_loss_weight,
