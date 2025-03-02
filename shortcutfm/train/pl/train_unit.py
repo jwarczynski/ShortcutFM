@@ -66,7 +66,7 @@ class TrainModule(pl.LightningModule):
 
         return self.prediction_strategy(batch, self.shortcut_size)
 
-    def set_prediction_shorcut_size(self, shortcut_size: int) -> None:
+    def set_prediction_shortcut_size(self, shortcut_size: int) -> None:
         self.prediction_shortcut_size = shortcut_size
 
     def configure_optimizers(self):

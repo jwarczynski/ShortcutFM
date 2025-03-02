@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # Load checkpoint
     unit = TrainModule.load_from_checkpoint(str(cfg.checkpoint_path), criterion=criterion)
-    unit.set_prediction_shorcut_size(cfg.generation_shortcut_size)
+    unit.set_prediction_shortcut_size(cfg.generation_shortcut_size)
 
     # Load dataset
     test_ds = Dataset.load_from_disk(cfg.test_data_path)
