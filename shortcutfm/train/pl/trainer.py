@@ -94,20 +94,23 @@ def get_lightning_trainer(cfg: TrainingConfig):
             cfg.model.min_shortcut_size
         )
 
-    criteria_weights = (
-        cfg.flow_matching_loss_weight,
-        cfg.consistency_loss_weight,
-        cfg.nll_loss_weight
-    )
-
-    criterion = CompositeCriterion(
-        criteria=(self_conditioning_flow_matching_criterion, self_conditioning_consistency_criterion, nll_criterion,),
-        criteria_weights=criteria_weights,
-        model=model,
-        diffusion_steps=cfg.model.diffusion_steps,
-        self_consistency_ratio=cfg.self_consistency_ratio,
-        sampler=time_and_shortcut_sampler,
-    )
+        criterion = CompositeCriterion(
+            criteria=tuple(criteria),
+            criteria_weights=tuple(weights),
+            model=model,
+            diffusion_steps=cfg.model.diffusion_steps,
+            self_consistency_ratio=cfg.self_consistency_ratio,
+            sampler=time_and_shortcut_sampler,
+        )
+    else:
+        sampler = UniformSampler(cfg.model.diffusion_steps)
+        criterion = FLowNllCriterion(
+            flow_matching_criterion=flow_matching_criterion,
+            nll_criterion=nll_criterion,
+            model=model,
+            diffusion_steps=cfg.model.diffusion_steps,
+            sampler=sampler
+        )
 
     # Create Lightning module
     pl_model = TrainModule(criterion, cfg.optimizer.scheduler)
