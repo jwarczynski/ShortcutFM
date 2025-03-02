@@ -10,7 +10,7 @@ from typing_extensions import Optional, override
 
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
 from shortcutfm.model.model import FlowMatchingModel as Model
-from shortcutfm.shortcut_samplers import TimeAndShorcutStampler
+from shortcutfm.shortcut_samplers import TimeAndShorcutStampler, ScheduleSampler
 
 
 class Criterion(Module, ABC):
@@ -842,3 +842,54 @@ class CompositeCriterion(Criterion):
         # TODO: fix this terrible implementation (criteria[0])
         return self.criteria[0].denoise(batch, shortcut_size)
 
+
+class FLowNllCriterion(Criterion):
+    def __init__(
+            self,
+            flow_matching_criterion: FlowMatchingCriterion,
+            nll_criterion: NllCriterion,
+            model: Model,
+            diffusion_steps,
+            sampler: ScheduleSampler,
+    ):
+        super().__init__(model, diffusion_steps)
+        self.flow_matching_criterion = flow_matching_criterion
+        self.nll = nll_criterion
+        self.sampler = sampler
+
+    @override
+    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        fm_batch = self._prepare_batch(batch)
+
+        flow_and_decoder_loses = self.flow_matching_criterion(fm_batch)
+        flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
+        decoder_loss = flow_and_decoder_loses["decoder_loss"]
+        embedding_loss = self.nll(fm_batch)["nll_loss"]
+
+        losses = [flow_matching_loss, embedding_loss]  # no decoder_loss
+        total_loss = sum(losses)
+
+        return {
+            "flow_matching_loss": flow_matching_loss,
+            "embedding_loss": embedding_loss,
+            "decoder_loss": decoder_loss,
+            "loss": total_loss
+        }
+
+    def _prepare_batch(self, batch: EncoderBatch) -> FlowMatchingBatch:
+        bsz = batch.size()
+
+        embeddings = self.model.get_embeddings(batch.seqs)
+        t, _ = self.sampler(batch_size=bsz, device=batch.seqs.device)
+        x_t, noise = self._interpolate_data_noise(embeddings, t)
+        x_t = torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, embeddings, x_t)
+
+        return FlowMatchingBatch(
+            batch.seqs,
+            batch.padding_mask,
+            batch.input_ids_mask,
+            embeddings,
+            x_t,
+            noise,
+            t
+        )
