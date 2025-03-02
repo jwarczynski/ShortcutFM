@@ -10,6 +10,8 @@ validation_data_path: "datasets/tokenized/QQP-Official/valid"
 check_val_every_n_epoch: 5
 val_interval: null
 
+max_steps: 50000
+
 self_consistency_ratio: 0.0
 
 model:
@@ -17,9 +19,9 @@ model:
 
 # WandB configuration
 wandb:
-  project_name: "test"
-  run_name: "qqp_simple"
+  project_name: "shortcutFM"
+  run_name: "sc-0.5_shortcut-0.0-qqp"
 
 # Checkpoint configuration
 checkpoint:
-  save_folder: "checkpoints/qqp-tst"
+  save_folder: "checkpoints/qqp/sc-0.5_shortcut-0.0-qqp"
