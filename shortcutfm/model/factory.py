@@ -56,13 +56,14 @@ class TransformerNetModelFactory:
 
         input_dims = self.config.input_dims
         word_embedding = nn.Embedding(self.config.vocab_size, input_dims)
-        nn.init.normal_(word_embedding.weight, mean=0.0, std=1e-3)
-        if self.config.sc_rate > 0:
-            input_dims = self.config.input_dims * 2
+        # nn.init.normal_(word_embedding.weight, mean=0.0, std=1e-3)
 
         lm_head = nn.Linear(input_dims, self.config.vocab_size)
         with torch.no_grad():
             lm_head.weight = word_embedding.weight
+
+        if self.config.sc_rate > 0:
+            input_dims = self.config.input_dims * 2
 
         time_embed_dim = self.config.hidden_t_dim * 4
         time_embed = nn.Sequential(
@@ -74,9 +75,6 @@ class TransformerNetModelFactory:
         num_possible_shortcuts = np.log2(self.config.diffusion_steps) - np.log2(
             self.config.min_shortcut_size
         ) + 2  # include min_shortcut_size and 0
-        shortcut_embedding = nn.Embedding(int(num_possible_shortcuts), config.hidden_size)
-
-        num_possible_shortcuts = np.log2(self.config.diffusion_steps) + 1  # include 0
         shortcut_embedding = nn.Embedding(int(num_possible_shortcuts), config.hidden_size)
 
         input_up_proj = None

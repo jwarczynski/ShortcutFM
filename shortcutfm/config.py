@@ -37,9 +37,9 @@ class CheckpointConfig(BaseModel):
 
 class ModelConfig(BaseModel):
     """Model architecture and behavior configuration"""
-    input_dims: int = Field(default=768, description="Input dimension size")
+    input_dims: int = Field(default=128, description="Input dimension size")
+    output_dims: int = Field(default=128, description="Output dimension size")
     hidden_size: int = Field(default=768, description="Hidden layer dimension size")
-    output_dims: int = Field(default=768, description="Output dimension size")
     hidden_t_dim: int = Field(default=128, description="Hidden time embedding dimension")
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=32, description="Minimum shortcut size")
