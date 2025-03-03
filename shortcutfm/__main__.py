@@ -17,15 +17,11 @@ def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
     if not Path(config_path).exists():
         raise ValueError(f"Config file not found: {config_path}")
 
-    # Load and merge configs
-    with open("configs/training/default.yaml", "r") as f:
-        default_cfg = om.load(f)
-
     with open(config_path, "r") as f:
         yaml_cfg = om.load(f)
 
     # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
-    merged_cfg = om.merge(default_cfg, yaml_cfg, om.from_cli(args_list))
+    merged_cfg = om.merge(yaml_cfg, om.from_cli(args_list))
     
     # Convert to dict and validate with Pydantic
     config_dict = om.to_container(merged_cfg, resolve=True)
