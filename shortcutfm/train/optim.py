@@ -45,7 +45,7 @@ def get_myle_scheduler(optimizer: Optimizer, cfg: MyleSchedulerConfig) -> LRSche
 def get_linear_scheduler(optimizer: Optimizer, cfg: LinearSchedulerConfig) -> LRScheduler:
     return LinearLR(
         optimizer,
-        start_factor=cfg['start_factor'],
-        end_factor=cfg['end_factor'],
-        total_iters=cfg['total_steps'],
+        start_factor=cfg.start_factor,
+        end_factor=cfg.end_factor,
+        total_iters=cfg.total_steps,
     )
