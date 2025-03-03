@@ -1,13 +1,15 @@
 import argparse
+import json
 from pathlib import Path
 
-import numpy as np
+import evaluate
 import torch
-from bert_score import score
-from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
-from rouge_score import rouge_scorer
 from transformers import AutoTokenizer
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def load_and_merge_outputs(output_dir: Path) -> tuple[torch.Tensor, torch.Tensor]:
     """Load and merge outputs from all ranks."""
@@ -103,56 +105,84 @@ def evaluate_generations(
     pred_texts = [tokenizer.decode(seq[-1], skip_special_tokens=False) for seq in predictions]
     hypotheses = [process_prediction(text, tokenizer) for text in pred_texts]
 
-    # Compute ROUGE scores
-    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-    rouge_scores = {
-        'rouge1': [], 'rouge2': [], 'rougeL': []
+    # Calculate metrics
+    metrics = {}
+
+    # BLEU score
+    bleu = evaluate.load("bleu")
+    bleu_score = bleu.compute(predictions=hypotheses, references=[[ref] for ref in references])
+    metrics["bleu"] = bleu_score
+    logger.info(f"BLEU score: {bleu_score}")
+
+    # ROUGE scores
+    rouge = evaluate.load("rouge")
+    rouge_scores = rouge.compute(predictions=hypotheses, references=references)
+    metrics.update(rouge_scores)
+    logger.info(f"ROUGE scores: {rouge_scores}")
+
+    # BERTScore
+    bert_score = evaluate.load("bertscore")
+    bert_scores = bert_score.compute(
+        predictions=hypotheses,
+        references=references,
+        model_type="microsoft/deberta-xlarge-mnli"
+    )
+    metrics["bertscore"] = {
+        "precision": sum(bert_scores["precision"]) / len(bert_scores["precision"]),
+        "recall": sum(bert_scores["recall"]) / len(bert_scores["recall"]),
+        "f1": sum(bert_scores["f1"]) / len(bert_scores["f1"])
     }
-    for ref, hyp in zip(references, hypotheses):
-        scores = scorer.score(ref, hyp)
-        for key in rouge_scores:
-            rouge_scores[key].append(scores[key].fmeasure)
+    logger.info(f"BERTScore: {metrics['bertscore']}")
 
-    rouge_scores = {k: np.mean(v) for k, v in rouge_scores.items()}
+    # Distinct n-grams
+    for n in [1, 2, 3, 4]:
+        distinct_score = compute_distinct_ngrams(hypotheses, n)
+        metrics[f"distinct_{n}"] = distinct_score
+        logger.info(f"Distinct-{n}: {distinct_score}")
 
-    # Compute BLEU scores with smoothing
-    references_tokens = [[ref.split()] for ref in references]
-    hypotheses_tokens = [hyp.split() for hyp in hypotheses]
-
-    # Use different n-gram orders with smoothing
-    chencherry = SmoothingFunction()
-    bleu_scores = {}
-    for n in range(1, 5):
-        bleu_scores[f'bleu-{n}'] = corpus_bleu(
-            references_tokens,
-            hypotheses_tokens,
-            weights=tuple([1.0 / n] * n),  # Equal weights for n-grams
-            smoothing_function=chencherry.method3  # Use method3 smoothing
-        )
-
-    # Compute BERTScore
-    P, R, F1 = score(hypotheses, references, lang="en", device=device)
-    bert_score = {
-        'precision': P.mean().item(),
-        'recall': R.mean().item(),
-        'f1': F1.mean().item()
-    }
-
-    # Compute distinct n-grams
-    distinct_scores = {
-        f'distinct-{n}': compute_distinct_ngrams(hypotheses, n)
-        for n in range(1, 5)
-    }
-
-    # Combine all metrics
-    metrics = {
-        **rouge_scores,
-        **bleu_scores,
-        **{f'bertscore_{k}': v for k, v in bert_score.items()},
-        **distinct_scores
-    }
+    # Save all results
+    save_evaluation_results(
+        output_dir=Path(output_dir),
+        sources=sources,
+        references=references,
+        hypotheses=hypotheses,
+        metrics=metrics
+    )
 
     return metrics
+
+
+def save_evaluation_results(output_dir: Path, sources: list[str], references: list[str], hypotheses: list[str],
+                            metrics: dict):
+    """Save evaluation results and texts to files.
+    
+    Args:
+        output_dir: Directory to save results
+        sources: List of source texts
+        references: List of reference texts
+        hypotheses: List of generated texts
+        metrics: Dictionary of evaluation metrics
+    """
+    # Save texts
+    texts = [
+        {
+            "source": src,
+            "reference": ref,
+            "hypothesis": hyp
+        }
+        for src, ref, hyp in zip(sources, references, hypotheses)
+    ]
+
+    texts_file = output_dir / "generation_texts.json"
+    with open(texts_file, "w", encoding="utf-8") as f:
+        json.dump(texts, f, indent=2, ensure_ascii=False)
+    logger.info(f"Saved generation texts to {texts_file}")
+
+    # Save metrics
+    metrics_file = output_dir / "metrics.json"
+    with open(metrics_file, "w") as f:
+        json.dump(metrics, f, indent=2)
+    logger.info(f"Saved metrics to {metrics_file}")
 
 
 def main():
@@ -175,4 +205,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main() 
+    main()
