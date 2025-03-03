@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Optional, Literal, Union
 
-from pydantic import BaseModel, Field, FilePath, field_validator, ConfigDict
+from pydantic import BaseModel, Field, FilePath, field_validator, ConfigDict, computed_field
+from omegaconf import OmegaConf
 
 
 class EMAConfig(BaseModel):
@@ -88,7 +89,7 @@ class OptimizerConfig(BaseModel):
 class TrainingConfig(BaseModel):
     """Training process configuration"""
     # Data configuration
-    batch_size: int = Field(default=16, description="Batch size for training")
+    batch_size: int = Field(default=256, description="Batch size for training")
     training_data_path: Path = Field(description="Path to training dataset")
     # TODO:make it optional
     validation_data_path: Path = Field(description="Path to validation dataset")
@@ -96,9 +97,9 @@ class TrainingConfig(BaseModel):
     # Training process settings
     log_interval: int = Field(default=1, description="How often to log metrics")
     val_interval: Optional[int] = Field(default=None, description="How often to run validation")
-    check_val_every_n_epoch: Optional[int] = Field(default=None, description="How often to run validation")
+    check_val_every_n_epoch: Optional[int] = Field(default=5, description="How often to run validation")
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
-    max_steps: int = Field(default=500, description="Maximum training steps")
+    max_steps: int = Field(default=60000, description="Maximum training steps")
     gradient_clipping: float = Field(default=2.0, description="Gradient clipping value")
     accumulate_grad_batches: int = Field(default=8, description="Number of batches to accumulate gradients")
     deterministic: bool = Field(default=True, description="Whether to use deterministic training")
@@ -109,9 +110,9 @@ class TrainingConfig(BaseModel):
                                              description="Number of validation batches per epoch (-1 for all)")
 
     # Loss weights
-    flow_matching_loss_weight: float = Field(default=1.0, description="Weight for flow matching loss")
-    consistency_loss_weight: float = Field(default=1.0, description="Weight for consistency loss")
-    nll_loss_weight: float = Field(default=1.0, description="Weight for negative log likelihood loss")
+    flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
+    consistency_loss_weight: Optional[float] = Field(default=1.0, description="Weight for consistency loss")
+    nll_loss_weight: Optional[float] = Field(default=1.0, description="Weight for negative log likelihood loss")
 
     # Component configurations
     model: ModelConfig = Field(default_factory=ModelConfig, description="Model configuration")
@@ -121,31 +122,49 @@ class TrainingConfig(BaseModel):
     ema: EMAConfig = Field(default_factory=EMAConfig, description="EMA configuration")
 
     # Runtime settings
-    dry_run: bool = Field(default=True, description="Whether this is a dry run")
+    dry_run: bool = Field(default=False, description="Whether this is a dry run")
     use_composer: bool = Field(default=False, description="Whether to use Composer for training")
 
 
 class GenerationConfig(BaseModel):
-    """Configuration for generation/inference"""
-    # Generation-specific settings
-    generation_shortcut_size: int = Field(default=32, description="Shortcut size to use during generation")
-    checkpoint_path: FilePath = Field(..., description="Path to the checkpoint to use for generation")
-    seed: int = Field(..., description="Random seed for generation (required)")
-    output_folder: Path = Field(..., description="Base path for generation outputs")
-    limit_test_batches: Optional[int] = Field(default=None, description="Number of test batches to run (-1 for all)")
+    """Configuration for model generation/inference."""
+    # Path to training config YAML and the loaded config
+    training_config_path: str = Field(description="Path to training config YAML file")
+    
+    # Model checkpoint and weights
+    checkpoint_path: str = Field(description="Path to model checkpoint")
+    use_ema_weights: bool = Field(default=True, description="Whether to use EMA weights for generation")
+    
+    # Data and batch settings
+    test_data_path: str = Field(description="Path to test dataset")
+    batch_size: int = Field(default=32, description="Batch size for generation")
+    limit_test_batches: Optional[Union[float, int]] = Field(
+        default=None, 
+        description="None for full dataset, float for fraction, int for number of batches"
+    )
+    
+    # Generation settings
+    generation_shortcut_size: int = Field(default=1, description="Size of generation shortcut")
+    seed: int = Field(default=44, description="Random seed for reproducibility")
+    output_folder: str = Field(default="outputs", description="Folder to save generation outputs")
 
-    # Data configuration
-    batch_size: int = Field(default=16, description="Batch size for generation")
-    test_data_path: str = Field(..., description="Path to test dataset")
+    model_config = ConfigDict(validate_assignment=True)
 
-    model: ModelConfig = Field(..., description="Model configuration")
+    @computed_field
+    @property
+    def training_config(self) -> TrainingConfig:
+        """Load and return the training configuration."""
+        if not Path(self.training_config_path).exists():
+            raise ValueError(f"Training config file not found: {self.training_config_path}")
+        
+        with open(self.training_config_path, "r") as f:
+            yaml_cfg = OmegaConf.load(f)
+        
+        return TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True))
 
-    # Optional component configurations
-    wandb: Optional[WandBConfig] = Field(default=None, description="Optional Weights & Biases configuration")
-    ema: Optional[EMAConfig] = Field(default=None, description="Optional EMA configuration")
-
-    @field_validator('output_folder', mode='before')
-    def modify_output_folder(cls, v, info):
+    @field_validator('output_folder')
+    @classmethod
+    def modify_output_folder(cls, v: str, info) -> str:
         """Append seed value to the output folder path and ensure uniqueness"""
         if v is None:
             raise ValueError("output_folder must be specified")
@@ -161,7 +180,5 @@ class GenerationConfig(BaseModel):
             counter += 1
 
         # Create the unique output directory
-        path.mkdir(parents=True)
-        return path
-
-    model_config = ConfigDict(validate_assignment=True)  # Validate values even after model creation
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)

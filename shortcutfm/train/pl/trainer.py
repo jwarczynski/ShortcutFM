@@ -8,6 +8,7 @@ from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, Mo
 from lightning.pytorch.loggers import WandbLogger
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
+from omegaconf import OmegaConf
 
 from shortcutfm.batch import collate
 from shortcutfm.config import TrainingConfig
@@ -146,6 +147,16 @@ def get_lightning_trainer(cfg: TrainingConfig):
     checkpoint_dir = cfg.checkpoint.save_folder
     if wandb_logger is not None:
         checkpoint_dir = Path(checkpoint_dir) / f"run_{wandb_logger.experiment.id}"
+    
+    # Create checkpoint directory if it doesn't exist and save training config
+    checkpoint_dir = Path(checkpoint_dir)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save training config in the checkpoint directory
+    config_path = checkpoint_dir / "training_config.yaml"
+    with open(config_path, "w") as f:
+        OmegaConf.save(cfg.model_dump(), f)
+    logger.info(f"Saved training config to {config_path}")
 
     # Configure Callbacks
     callbacks = [
