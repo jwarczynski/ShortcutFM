@@ -843,7 +843,7 @@ class CompositeCriterion(Criterion):
         return self.criteria[0].denoise(batch, shortcut_size)
 
 
-class FLowNllCriterion(Criterion):
+class FlowNllCriterion(Criterion):
     def __init__(
             self,
             flow_matching_criterion: FlowMatchingCriterion,
@@ -893,3 +893,18 @@ class FLowNllCriterion(Criterion):
             noise,
             t
         )
+
+    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> np.ndarray[str, np.dtype[str]]:
+        """
+        Denoises batch of exapmles
+
+        :param batch: batch of exapmles to denoise
+        :type batch: EncoderBatch
+        :param shortcut_size: shorcut size to use during denoising
+        :type shortcut_size: int
+
+        :returns: np.array of strings for each exmaple and timestep. Each row corresponds to single example
+        :rtype: ndarray
+        """
+        # TODO: fix this terrible implementation (criteria[0])
+        return self.flow_matching_criterion.denoise(batch, shortcut_size)

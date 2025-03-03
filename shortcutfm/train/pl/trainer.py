@@ -18,7 +18,7 @@ from shortcutfm.criteria import (
     SelfConditioningConsistencyCriterionDecorator, SelfConditioningFlowMatchingCriterionDecorator,
     X0ConsistencyCrterion,
     X0FlowMatchingCriterion,
-    FLowNllCriterion,
+    FlowNllCriterion,
 )
 from shortcutfm.model.factory import TransformerNetModelFactory
 from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShorcutStampler, UniformSampler
@@ -105,7 +105,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         )
     else:
         sampler = UniformSampler(cfg.model.diffusion_steps)
-        criterion = FLowNllCriterion(
+        criterion = FlowNllCriterion(
             flow_matching_criterion=flow_matching_criterion,
             nll_criterion=nll_criterion,
             model=model,
