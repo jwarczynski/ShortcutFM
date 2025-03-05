@@ -120,26 +120,42 @@ class SaveTestOutputsCallback(pl.Callback):
     """Callback to save test outputs with their corresponding inputs."""
 
     def __init__(
-            self,
-            save_path: Path,
-            diff_steps: int,
-            shortcut_size: int,
-            start_example_idx: int = 1,
+        self,
+        save_path: Path,
+        diff_steps: int,
+        shortcut_size: int,
+        start_example_idx: int = 1
     ):
+        """Initialize callback.
+        
+        :param save_path: path to save outputs
+        :type save_path: Path
+        :param diff_steps: total number of diffusion steps
+        :type diff_steps: int
+        :param shortcut_size: size of step between time steps
+        :type shortcut_size: int
+        :param start_example_idx: starting index for examples
+        :type start_example_idx: int
+        """
         super().__init__()
-        self.save_path = Path(save_path)
-        self.time_steps = np.linspace(0, diff_steps - 1, shortcut_size, dtype=int)
+        self.save_path = save_path
+        self.diff_steps = diff_steps
+        self.shortcut_size = shortcut_size
         self.start_example_idx = start_example_idx
-        self.outputs: List[Tuple[Tensor, Tensor]] = []
+        
+        # Calculate time steps using shortcut_size as step size
+        self.time_steps = np.arange(0, diff_steps, shortcut_size, dtype=int)
+        
+        # Store outputs for each rank
+        self.inputs = []
+        self.predictions = []
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         """Store input sequences and predictions from each batch."""
         input_ids, predictions = outputs
         # Convert tensors to CPU and store
-        self.outputs.append((
-            input_ids.detach().cpu(),
-            predictions.detach().cpu()
-        ))
+        self.inputs.append(input_ids.detach().cpu())
+        self.predictions.append(predictions.detach().cpu())
 
     def on_test_epoch_end(self, trainer, pl_module):
         """Save inputs and predictions in a format suitable for later processing."""
@@ -149,8 +165,8 @@ class SaveTestOutputsCallback(pl.Callback):
         metadata_file = self.save_path / f"metadata_rank{trainer.global_rank}.json"
 
         # Concatenate all batches
-        all_inputs = torch.cat([inp for inp, _ in self.outputs], dim=0)
-        all_predictions = torch.cat([pred for _, pred in self.outputs], dim=0)
+        all_inputs = torch.cat(self.inputs, dim=0)
+        all_predictions = torch.cat(self.predictions, dim=0)
 
         # Save tensors
         torch.save(all_inputs, inputs_file)
@@ -174,4 +190,5 @@ class SaveTestOutputsCallback(pl.Callback):
         print(f"   - Metadata: {metadata_file}")
 
         # Clear stored outputs after saving
-        self.outputs = []
+        self.inputs = []
+        self.predictions = []
