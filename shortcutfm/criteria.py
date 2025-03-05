@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import zip_longest
+from typing import Union
 
 import numpy as np
 import torch
@@ -106,21 +107,33 @@ class FlowMatchingCriterion(Criterion):
             reduction="none"
         ).view(seqs.size())
 
-    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> Tensor:
+    def denoise(
+        self, 
+        batch: EncoderBatch, 
+        shortcut_size: int,
+        probe_every_step: bool = True,
+        return_decoded: bool = False
+    ) -> Union[Tensor, list[list[str]]]:
         """
-        Denoises batch of exapmles.
+        Denoises batch of examples with flexible probing and output options.
 
-        :param batch: batch of exapmles to denoise
+        :param batch: batch of examples to denoise
         :type batch: EncoderBatch
-        :param shortcut_size: shorcut size to use during denoising
+        :param shortcut_size: shortcut size to use during denoising
         :type shortcut_size: int
+        :param probe_every_step: whether to probe at every step or only at the final step
+        :type probe_every_step: bool
+        :param return_decoded: whether to return decoded sequences or token IDs
+        :type return_decoded: bool
 
-        :returns:
-            Predictions tensor of shape [batch_size, num_steps, seq_len] where:
-                - First dimension is the batch dimension (examples)
-                - Second dimension is the timestep dimension
-                - Third dimension is the sequence length
-        :rtype: Tensor
+        :returns: One of the following based on parameters:
+            - If return_decoded=False:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len] with token IDs
+                - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
+            - If return_decoded=True:
+                - If probe_every_step=True: List[List[str]] where outer list is batches, inner list is steps
+                - If probe_every_step=False: List[str] of decoded sequences
+        :rtype: Union[Tensor, list[list[str]]]
         """
         self._reset()
         input_mask = batch.input_ids_mask.unsqueeze(-1)
@@ -128,13 +141,14 @@ class FlowMatchingCriterion(Criterion):
         noise = torch.randn_like(embeddings)
         self.x_t = torch.where(input_mask == 0, embeddings, noise)
         
-        # Pre-allocate tensor for all predictions
+        # Pre-allocate tensor for predictions if probing every step
         num_steps = len(range(self.diffusion_steps, 0, -shortcut_size))
-        predictions = torch.zeros(
-            (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
-            dtype=torch.long,
-            device=batch.seqs.device
-        )
+        if probe_every_step:
+            predictions = torch.zeros(
+                (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
+                dtype=torch.long,
+                device=batch.seqs.device
+            )
 
         shortcuts = torch.tensor(shortcut_size, device=input_mask.device).repeat(input_mask.shape[0])
         for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -shortcut_size, device=input_mask.device)):
@@ -153,12 +167,27 @@ class FlowMatchingCriterion(Criterion):
                 input_mask
             )
             x0_hat = self.x_t + (shortcuts / self.diffusion_steps)[:, None, None] * v_hat
-
             self.x_t = x0_hat
-            # Get predictions and store them in the correct position
-            step_predictions = self.probe(x0_hat)
-            predictions[:, step_idx, :] = step_predictions
 
+            # Get predictions if probing every step or if this is the last step
+            if probe_every_step or step_idx == num_steps - 1:
+                step_predictions = self.probe(x0_hat)
+                if probe_every_step:
+                    predictions[:, step_idx, :] = step_predictions
+                else:
+                    predictions = step_predictions
+
+        # Handle output format
+        if return_decoded:
+            if probe_every_step:
+                # Reshape to [batch_size * num_steps, seq_len] for batch decoding
+                flat_preds = predictions.reshape(-1, predictions.shape[-1])
+                decoded = self.tokenizer.batch_decode(flat_preds, skip_special_tokens=True)
+                # Reshape back to [batch_size, num_steps]
+                return [decoded[i:i + num_steps] for i in range(0, len(decoded), num_steps)]
+            else:
+                return self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
+        
         return predictions
 
     def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
@@ -186,7 +215,8 @@ class FlowMatchingCriterion(Criterion):
         logtis = self.model.compute_logits(hidden_representation)
         probs = torch.softmax(logtis, dim=-1)
         tokens = torch.argmax(probs, dim=-1)
-        seqs = self.tokenizer.batch_decode(tokens)
+        # seqs = self.tokenizer.batch_decode(tokens)
+        # return seqs
         return tokens
 
     def _reset(self):
