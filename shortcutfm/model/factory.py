@@ -56,7 +56,7 @@ class TransformerNetModelFactory:
 
         input_dims = self.config.input_dims
         word_embedding = nn.Embedding(self.config.vocab_size, input_dims)
-        # nn.init.normal_(word_embedding.weight, mean=0.0, std=1e-3)
+        nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
 
         lm_head = nn.Linear(input_dims, self.config.vocab_size)
         with torch.no_grad():

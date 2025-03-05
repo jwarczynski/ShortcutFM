@@ -52,6 +52,7 @@ class ModelConfig(BaseModel):
     sc_rate: float = Field(default=0.5, description="Self-conditioning rate")
     predict_t: bool = Field(default=False, description="Whether to predict timestep")
     max_position_embeddings: Optional[int] = Field(default=None, description="Maximum position embeddings")
+    word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
 
 
 class BaseSchedulerConfig(BaseModel):
