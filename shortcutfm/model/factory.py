@@ -21,11 +21,11 @@ class TransformerNetModelModules:
     time_embed: nn.Sequential
     shortcut_embedding: nn.Embedding
     input_up_proj: Optional[nn.Sequential]
-    input_transformers: nn.Module  # Can be BertEncoder or BertModel.encoder
-    position_embeddings: nn.Embedding
-    LayerNorm: nn.LayerNorm
-    output_down_proj: Optional[nn.Sequential]
-    position_ids: Tensor
+    input_transformers: nn.Module
+    position_embeddings: Optional[nn.Embedding] = None
+    layer_norm: Optional[nn.LayerNorm] = None
+    output_down_proj: Optional[nn.Sequential] = None
+    position_ids: Optional[Tensor] = None
 
 
 class TransformerNetModelFactory:
@@ -86,26 +86,49 @@ class TransformerNetModelFactory:
             )
 
         if self.config.init_pretrained == "bert":
-            print("initializing from pretrained bert...")
-            temp_bert = BertModel.from_pretrained(self.config.config_name, config=config)
-            word_embedding = temp_bert.embeddings.word_embeddings
-            with torch.no_grad():
-                lm_head.weight = word_embedding.weight
+            print("Initializing BERT architecture...")
+            if self.config.use_pretrained_weights:
+                print("Using pretrained BERT weights...")
+                temp_bert = BertModel.from_pretrained(self.config.config_name, config=config)
+                word_embedding = temp_bert.embeddings.word_embeddings
+                with torch.no_grad():
+                    lm_head.weight = word_embedding.weight
+                input_transformers = temp_bert.encoder
+                position_embeddings = temp_bert.embeddings.position_embeddings
+                layer_norm = temp_bert.embeddings.LayerNorm
+                del temp_bert.embeddings
+                del temp_bert.pooler
+            else:
+                print("Using randomly initialized BERT architecture...")
+                input_transformers = BertEncoder(config)
+                position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+                layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
-            input_transformers = temp_bert.encoder
-            position_embeddings = temp_bert.embeddings.position_embeddings
-            layer_norm = temp_bert.embeddings.LayerNorm
+        elif self.config.init_pretrained == "modern_bert":
+            print("Initializing ModernBERT architecture...")
+            from transformers import ModernBertModel
+            
+            if self.config.use_pretrained_weights:
+                print("Using pretrained ModernBERT weights...")
+                temp_bert = ModernBertModel.from_pretrained(
+                    self.config.config_name, 
+                    config=config,
+                    trust_remote_code=True
+                )
+                word_embedding = temp_bert.embeddings
+                with torch.no_grad():
+                    lm_head.weight = word_embedding.weight
 
-            del temp_bert.embeddings
-            del temp_bert.pooler
+                input_transformers = temp_bert
+                del temp_bert.embeddings
+            else:
+                print("Using randomly initialized ModernBERT architecture...")
+                input_transformers = ModernBertModel(config)
+                position_embeddings = None
+                layer_norm = None
 
-        elif self.config.init_pretrained == "no":
-            print("BertConfig: ", config)
-            input_transformers = BertEncoder(config)
-            position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
-            layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         else:
-            raise ValueError("invalid type of init_pretrained")
+            raise ValueError(f"Invalid init_pretrained value: {self.config.init_pretrained}")
 
         output_down_proj = None
         if self.config.output_dims != config.hidden_size:

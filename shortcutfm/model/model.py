@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 from torch.nn import Module
+from transformers import ModernBertModel
+from transformers.models.bert.modeling_bert import BertEncoder
 
 from shortcutfm.config import ModelConfig
 from shortcutfm.nn import timestep_embedding
@@ -52,9 +54,42 @@ class TransformerNetModel(nn.Module):
     """
     The full Transformer module with attention and timestep embedding.
 
-    :param modules: Dataclass containing the pre-built modules.
-    :param config: The configuration object.
+    :param word_embedding: Word embedding layer
+    :type word_embedding: nn.Embedding
+    :param lm_head: Language model head
+    :type lm_head: nn.Linear
+    :param time_embed: Time embedding layer
+    :type time_embed: nn.Sequential
+    :param shortcut_embedding: Shortcut embedding layer
+    :type shortcut_embedding: nn.Embedding
+    :param input_up_proj: Optional input projection layer
+    :type input_up_proj: Optional[nn.Sequential]
+    :param input_transformers: Main transformer module
+    :type input_transformers: ModernBertModel | BertEncoder
+    :param position_embeddings: Optional position embeddings layer
+    :type position_embeddings: Optional[nn.Embedding]
+    :param layer_norm: Optional layer normalization
+    :type layer_norm: Optional[nn.LayerNorm]
+    :param output_down_proj: Optional output projection layer
+    :type output_down_proj: Optional[nn.Sequential]
+    :param config: Model configuration
+    :type config: ModelConfig
+    :param position_ids: Optional position IDs tensor
+    :type position_ids: Optional[Tensor]
     """
+
+    config: ModelConfig
+    word_embedding: nn.Embedding
+    lm_head: nn.Linear
+    time_embed: nn.Sequential
+    shortcut_embedding: nn.Embedding
+    input_up_proj: nn.Module
+    input_transformer: BertEncoder | ModernBertModel
+    position_embeddings: Optional[nn.Embedding]
+    layer_norm: nn.Module
+    output_down_proj: nn.Module
+    dropout: nn.Dropout
+    hidden_size: int
 
     def __init__(
             self,
@@ -63,12 +98,12 @@ class TransformerNetModel(nn.Module):
             time_embed: nn.Sequential,
             shortcut_embedding: nn.Embedding,
             input_up_proj: Optional[nn.Sequential],
-            input_transformers: nn.Module,
-            position_embeddings: nn.Embedding,
-            LayerNorm: nn.LayerNorm,
-            output_down_proj: Optional[nn.Sequential],
-            config: ModelConfig,
-            position_ids: Tensor,
+            input_transformers: BertEncoder | ModernBertModel,
+            position_embeddings: Optional[nn.Embedding] = None,
+            layer_norm: Optional[nn.LayerNorm] = None,
+            output_down_proj: Optional[nn.Sequential] = None,
+            config: ModelConfig = None,
+            position_ids: Optional[Tensor] = None,
     ):
         super().__init__()
         self.config = config
@@ -76,11 +111,11 @@ class TransformerNetModel(nn.Module):
         self.lm_head = lm_head
         self.time_embed = time_embed
         self.shortcut_embedding = shortcut_embedding
-        self.input_up_proj = input_up_proj
-        self.input_transformers = input_transformers
+        self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
+        self.input_transformer = input_transformers
         self.position_embeddings = position_embeddings
-        self.LayerNorm = LayerNorm
-        self.output_down_proj = output_down_proj
+        self.layer_norm = layer_norm if layer_norm is not None else nn.Identity()
+        self.output_down_proj = output_down_proj if output_down_proj is not None else nn.Identity()
         self.dropout = nn.Dropout(config.dropout)
         self.hidden_size = config.hidden_size
         self.register_buffer("position_ids", position_ids)
@@ -113,24 +148,23 @@ class TransformerNetModel(nn.Module):
         bsz, seq_len, *_ = x.size()
 
         time_embed = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-
         shorcut_embed = self.shortcut_embedding(shortcuts)
 
-        if self.input_up_proj is not None:
-            x = self.input_up_proj(x)
+        x =  self.input_up_proj(x)
 
-        position_ids = self.position_ids[:, : seq_len]
-        x = (
-                self.position_embeddings(position_ids) +
-                x +
-                time_embed.unsqueeze(1).expand(-1, seq_len, -1) +
-                shorcut_embed.unsqueeze(1).expand(-1, seq_len, -1)
-        )
+        # Add time and shortcut embeddings
+        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shorcut_embed.unsqueeze(1).expand(-1, seq_len, -1)
 
-        x = self.dropout(self.LayerNorm(x))
-        hidden_states = self.input_transformers(x).last_hidden_state
+        # Add position embeddings if available
+        if self.position_embeddings is not None:
+            position_ids = self.position_ids[:, :seq_len]
+            x = x + self.position_embeddings(position_ids)
 
-        if self.output_down_proj is not None:
-            hidden_states = self.output_down_proj(hidden_states)
+        x = self.dropout(self.layer_norm(x))
+        if isinstance(self.input_transformer, BertEncoder):
+            hidden_states = self.input_transformer(hidden_states=x).last_hidden_state
+        else:  # ModernBert
+            hidden_states = self.input_transformer(inputs_embeds=x).last_hidden_state
+        hidden_states = self.output_down_proj(hidden_states)
 
         return hidden_states

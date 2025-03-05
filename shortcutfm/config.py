@@ -44,10 +44,19 @@ class ModelConfig(BaseModel):
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=32, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
-    config_name: str = Field(default="bert-base-uncased", description="Name of the base model configuration")
+    config_name: Literal["bert-base-uncased", "answerdotai/ModernBERT-base"] = Field(
+        default="bert-base-uncased",
+        description="Name of the base model configuration to use"
+    )
     vocab_size: int = Field(default=30522, description="Size of the vocabulary")
-    init_pretrained: Literal["no", "bert"] = Field(default="no",
-                                                   description="Whether to initialize from pretrained model")
+    init_pretrained: Literal["bert", "modern_bert"] = Field(
+        default="bert",
+        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT"
+    )
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)"
+    )
     logits_mode: int = Field(default=1, description="Mode for logits computation")
     sc_rate: float = Field(default=0.5, description="Self-conditioning rate")
     predict_t: bool = Field(default=False, description="Whether to predict timestep")
