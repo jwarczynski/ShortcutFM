@@ -14,8 +14,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.data_dir = f"../datasets/raw/{args.dataset}"
-    save_path = f"../datasets/tokenized/{args.dataset}"
+    config_name = args.config_name.split("/")[-1] if "/" in args.config_name else args.config_name
+    args.data_dir = f"datasets/raw/{args.dataset}"
+    save_path = f"datasets/tokenized/{config_name}/{args.dataset}"
 
     # Initialize tokenizer
     tokenizer = MyTokenizer(args, True)
