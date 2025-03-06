@@ -119,7 +119,7 @@ class TrainingConfig(BaseModel):
     limit_val_batches: Optional[int] = Field(default=None,
                                              description="Number of validation batches per epoch (-1 for all)")
     overfit_batches: Optional[Union[int, float]] = Field(
-        default=None,
+        default=0.0,
         description="Number of batches to overfit on. Can be int (number of batches) or float (fraction of batches)"
     )
 
