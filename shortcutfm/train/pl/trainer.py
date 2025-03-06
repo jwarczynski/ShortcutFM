@@ -1,42 +1,35 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 import lightning as pl
 import torch
 from datasets import Dataset
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
 from lightning.pytorch.loggers import WandbLogger
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
 from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
 
 from shortcutfm.batch import collate
 from shortcutfm.config import TrainingConfig
-from shortcutfm.criteria import (
-    CompositeCriterion,
-    NllCriterion,
-    SelfConditioningConsistencyCriterionDecorator, SelfConditioningFlowMatchingCriterionDecorator,
-    X0ConsistencyCrterion,
-    X0FlowMatchingCriterion,
-    FlowNllCriterion,
-)
-from shortcutfm.model.factory import TransformerNetModelFactory
-from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShorcutStampler, UniformSampler
+from shortcutfm.model.model import FlowMatchingModel
 from shortcutfm.text_datasets import TextDataset
-from shortcutfm.train.pl.callbacks import EMACallback, GradientMonitor
+from shortcutfm.train.pl.callbacks import GradientMonitor
 from shortcutfm.train.pl.train_unit import TrainModule
+from shortcutfm.train.pl.trainer_factory import create_criterion, get_ema_callback
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def get_lightning_trainer(cfg: TrainingConfig):
-    """Initializes the Lightning trainer using parsed config."""
+def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
+    """Create train and validation dataloaders from config.
 
-    # Initialize Model
-    model = TransformerNetModelFactory(cfg.model).build()
-    logger.info(f"Number of parameters: {sum(p.numel() for p in model.module.parameters()) // 1_000_000}M")
-
+    :param cfg: Training configuration
+    :type cfg: TrainingConfig
+    :return: Train and validation dataloaders
+    :rtype: tuple[DataLoader, DataLoader]
+    """
     logger.info("Loading dataset...")
     train_ds = Dataset.load_from_disk(cfg.training_data_path)
     train_text_ds = TextDataset(train_ds)
@@ -46,77 +39,6 @@ def get_lightning_trainer(cfg: TrainingConfig):
     val_text_ds = TextDataset(val_ds)
     logger.info(f"Validation dataset contains {len(val_ds)} samples.")
 
-    # Define Criterions
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model.config_name)
-    
-    # Create base flow matching criterion
-    flow_matching_criterion = X0FlowMatchingCriterion(
-        model, 
-        diffusion_steps=cfg.model.diffusion_steps,
-        tokenizer=tokenizer
-    )
-    nll_criterion = NllCriterion(model, cfg.model.diffusion_steps)
-    
-    # Apply self-conditioning decorator if sc_rate > 0
-    if cfg.model.sc_rate > 0:
-        flow_matching_criterion = SelfConditioningFlowMatchingCriterionDecorator(
-            flow_matching_criterion, 
-            self_conditioning_ratio=cfg.model.sc_rate
-        )
-
-    # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
-    if cfg.self_consistency_ratio > 0:
-        # Build criteria list for CompositeCriterion
-        criteria = [flow_matching_criterion]
-        weights = [cfg.flow_matching_loss_weight]
-
-        # Add consistency criterion with optional self-conditioning decorator
-        consistency_criterion = X0ConsistencyCrterion(model, cfg.model.diffusion_steps)
-        if cfg.model.sc_rate > 0:
-            consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
-                consistency_criterion, 
-                self_conditioning_ratio=cfg.model.sc_rate
-            )
-        criteria.append(consistency_criterion)
-        weights.append(cfg.consistency_loss_weight)
-
-        # Add NLL criterion
-        criteria.append(nll_criterion)
-        weights.append(cfg.nll_loss_weight)
-
-        # Create shortcut sampler
-        shortcut_sampler = ShortcutSampler(
-            diffusion_steps=cfg.model.diffusion_steps, 
-            min_shortcut_size=cfg.model.min_shortcut_size
-        )
-        time_and_shortcut_sampler = TimeAndShorcutStampler(
-            shortcut_sampler,
-            cfg.model.diffusion_steps,
-            cfg.model.min_shortcut_size
-        )
-
-        criterion = CompositeCriterion(
-            criteria=tuple(criteria),
-            criteria_weights=tuple(weights),
-            model=model,
-            diffusion_steps=cfg.model.diffusion_steps,
-            self_consistency_ratio=cfg.self_consistency_ratio,
-            sampler=time_and_shortcut_sampler,
-        )
-    else:
-        sampler = UniformSampler(cfg.model.diffusion_steps)
-        criterion = FlowNllCriterion(
-            flow_matching_criterion=flow_matching_criterion,
-            nll_criterion=nll_criterion,
-            model=model,
-            diffusion_steps=cfg.model.diffusion_steps,
-            sampler=sampler
-        )
-
-    # Create Lightning module
-    pl_model = TrainModule(criterion, cfg.optimizer.scheduler)
-
-    # Setup data
     train_dataloader = DataLoader(
         train_text_ds,
         batch_size=cfg.batch_size,
@@ -131,8 +53,19 @@ def get_lightning_trainer(cfg: TrainingConfig):
         shuffle=False
     )
 
-    # Configure WandB Logger for Lightning
-    wandb_logger = None
+    return train_dataloader, val_dataloader
+
+
+def create_wandb_logger(cfg: TrainingConfig, model: FlowMatchingModel) -> Optional[WandbLogger]:
+    """Create and configure WandB logger if enabled and not in dry run mode.
+
+    :param cfg: Training configuration
+    :type cfg: TrainingConfig
+    :param model: Model to watch in WandB
+    :type model: FlowMatchingModel
+    :return: Configured WandB logger or None if disabled or in dry run mode
+    :rtype: Optional[WandbLogger]
+    """
     if not cfg.dry_run and cfg.wandb.enabled:
         wandb_logger = WandbLogger(
             project=cfg.wandb.project_name,
@@ -142,23 +75,56 @@ def get_lightning_trainer(cfg: TrainingConfig):
         )
         wandb_logger.watch(model.module, log="all")
         wandb_logger.log_hyperparams(cfg.model_dump())
+        return wandb_logger
+    return None
 
+
+def setup_checkpoint_directory_and_save_config(cfg: TrainingConfig, wandb_logger: Optional[WandbLogger]) -> Path:
+    """Set up checkpoint directory and save training config.
+
+    :param cfg: Training configuration
+    :type cfg: TrainingConfig
+    :param wandb_logger: Optional WandB logger for run ID
+    :type wandb_logger: Optional[WandbLogger]
+    :return: Path to checkpoint directory
+    :rtype: Path
+    """
     # Configure checkpoint directory with wandb run ID if available
     checkpoint_dir = cfg.checkpoint.save_folder
     if wandb_logger is not None:
         checkpoint_dir = Path(checkpoint_dir) / f"run_{wandb_logger.experiment.id}"
-    
-    # Create checkpoint directory if it doesn't exist and save training config
+
+    # Create checkpoint directory if it doesn't exist
     checkpoint_dir = Path(checkpoint_dir)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save training config in the checkpoint directory
     config_path = checkpoint_dir / "training_config.yaml"
     with open(config_path, "w") as f:
         OmegaConf.save(cfg.model_dump(), f)
     logger.info(f"Saved training config to {config_path}")
 
-    # Configure Callbacks
+    return checkpoint_dir
+
+
+def get_lightning_trainer(cfg: TrainingConfig):
+    """Initializes the Lightning trainer using parsed config.
+
+    :param cfg: Training configuration
+    :type cfg: TrainingConfig
+    :return: Tuple containing trainer, training unit, and dataloaders
+    :rtype: tuple[pl.Trainer, TrainModule, DataLoader, DataLoader]
+    """
+    # Create Lightning module
+    criterion = create_criterion(cfg)
+    train_unit = TrainModule(criterion, cfg.optimizer.scheduler)
+
+    train_dataloader, val_dataloader = create_dataloaders(cfg)
+
+    wandb_logger = create_wandb_logger(cfg, train_unit.criterion.model)
+
+    checkpoint_dir = setup_checkpoint_directory_and_save_config(cfg, wandb_logger)
+
     callbacks = [
         ModelSummary(),
         ModelCheckpoint(
@@ -174,16 +140,9 @@ def get_lightning_trainer(cfg: TrainingConfig):
         GradientMonitor(),
     ]
 
-    # Add EMA callback if configured
-    if cfg.ema is not None:
-        callbacks.append(
-            EMACallback(
-                decay=cfg.ema.smoothing,
-                update_interval=cfg.ema.update_interval,
-            )
-        )
+    if ema_callback := get_ema_callback(cfg, cfg.checkpoint.path):
+        callbacks.append(ema_callback)
 
-    # Create Lightning Trainer
     trainer = pl.Trainer(
         max_steps=cfg.max_steps,
         logger=wandb_logger,
@@ -200,4 +159,4 @@ def get_lightning_trainer(cfg: TrainingConfig):
         limit_val_batches=cfg.limit_val_batches,
     )
 
-    return trainer, pl_model, train_dataloader, val_dataloader
+    return trainer, train_unit, train_dataloader, val_dataloader
