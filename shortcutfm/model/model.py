@@ -24,10 +24,10 @@ class FlowMatchingModel(Module, ABC):
         if shortcuts is None:
             shortcuts = torch.zeros_like(time_steps, device=x.device)
 
-        shortcut_for_emebd_layer = self._scale_shorcuts(shortcuts)
-        time_steps = self._scale_timesteps(time_steps)
+        shortcut_for_embedding_layer = self._scale_shortcuts(shortcuts)
+        time_steps = self._scale_time_steps(time_steps)
 
-        return self.module(x, time_steps, shortcut_for_emebd_layer)
+        return self.module(x, time_steps, shortcut_for_embedding_layer)
 
     def get_embeddings(self, input_ids: Tensor) -> Tensor:
         return self.module.get_embeddings(input_ids)
@@ -35,10 +35,10 @@ class FlowMatchingModel(Module, ABC):
     def compute_logits(self, hidden_repr: Tensor) -> Tensor:
         return self.module.compute_logits(hidden_repr)
 
-    def _scale_timesteps(self, time_steps: Tensor) -> Tensor:
+    def _scale_time_steps(self, time_steps: Tensor) -> Tensor:
         return scale_diffusion_input(time_steps, self.diffusion_steps)
 
-    def _scale_shorcuts(self, shortcuts: Tensor):
+    def _scale_shortcuts(self, shortcuts: Tensor):
         return torch.where(
             shortcuts == 0,
             shortcuts,
