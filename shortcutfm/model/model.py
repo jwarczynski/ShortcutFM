@@ -148,12 +148,12 @@ class TransformerNetModel(nn.Module):
         bsz, seq_len, *_ = x.size()
 
         time_embed = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-        shorcut_embed = self.shortcut_embedding(shortcuts)
+        shortcut_embedding = self.shortcut_embedding(shortcuts)
 
         x =  self.input_up_proj(x)
 
         # Add time and shortcut embeddings
-        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shorcut_embed.unsqueeze(1).expand(-1, seq_len, -1)
+        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shortcut_embedding.unsqueeze(1).expand(-1, seq_len, -1)
 
         # Add position embeddings if available
         if self.position_embeddings is not None:
