@@ -3,6 +3,19 @@
 
 dry_run: false
 
+infra:
+  cluster: "slurm"
+  folder: "jobs"
+  job_name: "exca"
+  mode: force
+  slurm_partition: "hgx"
+  gpus_per_node: 2
+  tasks_per_node: 2
+  slurm_use_srun: true
+  slurm_additional_parameters:
+    nodelist: "hgx2"
+
+
 # Data paths
 training_data_path: "datasets/tokenized/QQP-Official/train"
 validation_data_path: "datasets/tokenized/QQP-Official/valid"

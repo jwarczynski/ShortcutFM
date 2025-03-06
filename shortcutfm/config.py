@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Optional, Literal, Union
+from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, Field, FilePath, field_validator, ConfigDict, computed_field
+import exca
 from omegaconf import OmegaConf
+from pydantic import BaseModel, ConfigDict, Field, FilePath, computed_field, field_validator
 
 
 class EMAConfig(BaseModel):
@@ -10,6 +11,7 @@ class EMAConfig(BaseModel):
     smoothing: float = Field(default=0.99, description="EMA smoothing factor")
     half_life: Optional[float] = Field(default=None, description="Half-life for EMA decay")
     update_interval: int = Field(default=1, description="How often to update EMA weights")
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 class WandBConfig(BaseModel):
@@ -19,6 +21,7 @@ class WandBConfig(BaseModel):
     resume: str = Field(default="allow", description="WandB resume behavior")
     enabled: bool = Field(default=True, description="Whether to enable WandB logging")
     run_id: Optional[str] = Field(default=None, description="WandB run ID")
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 class CheckpointConfig(BaseModel):
@@ -31,8 +34,11 @@ class CheckpointConfig(BaseModel):
     save_top_k: int = Field(default=-1, description="Number of top checkpoints to save (-1 for all)")
     monitor: Optional[str] = Field(default=None, description="Metric to monitor for checkpoint selection")
     mode: str = Field(default="min", description="Mode for checkpoint selection")
-    path: Optional[FilePath] = Field(default=None,
-                                     description="Path to checkpoint file to resume from. None means start from scratch")
+    path: Optional[FilePath] = Field(
+        default=None,
+        description="Path to checkpoint file to resume from. None means start from scratch"
+    )
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 class ModelConfig(BaseModel):
@@ -62,12 +68,14 @@ class ModelConfig(BaseModel):
     predict_t: bool = Field(default=False, description="Whether to predict timestep")
     max_position_embeddings: Optional[int] = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 class BaseSchedulerConfig(BaseModel):
     """Base class for scheduler configurations"""
     lr: float = Field(default=3e-4, description="Target learning rate")
     weight_decay: float = Field(default=0.1, description="Weight decay factor")
+    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
 
 
 class MyleSchedulerConfig(BaseSchedulerConfig):
@@ -75,6 +83,7 @@ class MyleSchedulerConfig(BaseSchedulerConfig):
     type: Literal["myle"]
     warmup_steps: int = Field(..., description="Number of warmup steps")
     start_lr: float = Field(..., description="Initial learning rate")
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 class LinearSchedulerConfig(BaseSchedulerConfig):
@@ -83,6 +92,7 @@ class LinearSchedulerConfig(BaseSchedulerConfig):
     start_factor: float = Field(..., description="Start factor for linear scheduler")
     end_factor: float = Field(..., description="End factor for linear scheduler")
     total_steps: Optional[int] = Field(default=None, description="Total steps for linear scheduler")
+    model_config = ConfigDict(extra="forbid") # Add this line
 
 
 # Define the scheduler type union with discriminator
@@ -93,7 +103,7 @@ class OptimizerConfig(BaseModel):
     """Optimizer and learning rate scheduler configuration"""
     scheduler: SchedulerConfig = Field(..., description="Scheduler configuration", discriminator='type')
 
-    model_config = ConfigDict(validate_assignment=True)  # Validate values even after model creation
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Validate values even after model creation
 
 
 class TrainingConfig(BaseModel):
@@ -114,12 +124,16 @@ class TrainingConfig(BaseModel):
     accumulate_grad_batches: int = Field(default=8, description="Number of batches to accumulate gradients")
     deterministic: bool = Field(default=True, description="Whether to use deterministic training")
     seed: int = Field(default=44, description="Random seed")
-    limit_train_batches: Optional[int] = Field(default=None,
-                                               description="Number of training batches per epoch (-1 for all)")
-    limit_val_batches: Optional[int] = Field(default=None,
-                                             description="Number of validation batches per epoch (-1 for all)")
-    overfit_batches: Optional[Union[int, float]] = Field(
+    limit_train_batches: Optional[int] = Field(
         default=None,
+        description="Number of training batches per epoch (-1 for all)"
+    )
+    limit_val_batches: Optional[int] = Field(
+        default=None,
+        description="Number of validation batches per epoch (-1 for all)"
+    )
+    overfit_batches: Optional[Union[int, float]] = Field(
+        default=0.0,
         description="Number of batches to overfit on. Can be int (number of batches) or float (fraction of batches)"
     )
 
@@ -130,7 +144,7 @@ class TrainingConfig(BaseModel):
 
     # Component configurations
     model: ModelConfig = Field(default_factory=ModelConfig, description="Model configuration")
-    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig, description="Optimizer configuration")
+    optimizer: OptimizerConfig = Field(..., description="Optimizer configuration")
     wandb: WandBConfig = Field(default_factory=WandBConfig, description="Weights & Biases configuration")
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig, description="Checkpoint configuration")
     ema: EMAConfig = Field(default_factory=EMAConfig, description="EMA configuration")
@@ -138,25 +152,36 @@ class TrainingConfig(BaseModel):
     # Runtime settings
     dry_run: bool = Field(default=False, description="Whether this is a dry run")
     use_composer: bool = Field(default=False, description="Whether to use Composer for training")
+    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
+
+    infra: exca.TaskInfra = exca.TaskInfra()
+
+    @infra.apply
+    def train(self) -> None:
+        from shortcutfm.train.pl.trainer import get_lightning_trainer
+
+        trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(self)
+        if not self.dry_run:
+            trainer.fit(model, train_dataloader, ckpt_path=self.checkpoint.path)
 
 
 class GenerationConfig(BaseModel):
     """Configuration for model generation/inference."""
     # Path to training config YAML and the loaded config
     training_config_path: str = Field(description="Path to training config YAML file")
-    
+
     # Model checkpoint and weights
     checkpoint_path: str = Field(description="Path to model checkpoint")
     use_ema_weights: bool = Field(default=True, description="Whether to use EMA weights for generation")
-    
+
     # Data and batch settings
     test_data_path: str = Field(description="Path to test dataset")
     batch_size: int = Field(default=32, description="Batch size for generation")
     limit_test_batches: Optional[Union[float, int]] = Field(
-        default=None, 
+        default=None,
         description="None for full dataset, float for fraction, int for number of batches"
     )
-    
+
     # Generation settings
     generation_shortcut_size: int = Field(default=1, description="Size of generation shortcut")
     seed: int = Field(default=44, description="Random seed for reproducibility")
@@ -170,10 +195,10 @@ class GenerationConfig(BaseModel):
         """Load and return the training configuration."""
         if not Path(self.training_config_path).exists():
             raise ValueError(f"Training config file not found: {self.training_config_path}")
-        
+
         with open(self.training_config_path, "r") as f:
             yaml_cfg = OmegaConf.load(f)
-        
+
         return TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True))
 
     @field_validator('output_folder')

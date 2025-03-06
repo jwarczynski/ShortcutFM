@@ -10,7 +10,7 @@ from shortcutfm.train.pl.trainer import get_lightning_trainer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
+logging.getLogger("exca").setLevel(logging.DEBUG)
 
 def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
     """Parse and validate training config from YAML file"""
@@ -40,9 +40,4 @@ if __name__ == "__main__":
     cfg = parse_config(yaml_path, args_list)
     logger.info("Final Configuration:\n" + om.to_yaml(cfg.model_dump()))
 
-    seed_everything(cfg.seed)
-    trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
-    if not cfg.dry_run:
-        logger.info("Starting training...")
-        trainer.fit(model, train_dataloader, ckpt_path=cfg.checkpoint.path)
-        # trainer.fit(model, train_dataloader, val_dataloader)
+    cfg.train()
