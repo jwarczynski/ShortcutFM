@@ -15,7 +15,7 @@ class EMAConfig(BaseModel):
 class WandBConfig(BaseModel):
     """Weights & Biases logging configuration"""
     project_name: str = Field(default="test", description="Project name for logging")
-    run_name: str = Field(default="SFM_v0", description="Run name for logging")
+    run_name: Optional[str] = Field(default=None, description="Run name for logging")
     resume: str = Field(default="allow", description="WandB resume behavior")
     enabled: bool = Field(default=True, description="Whether to enable WandB logging")
     run_id: Optional[str] = Field(default=None, description="WandB run ID")
