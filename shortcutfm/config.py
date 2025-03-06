@@ -118,6 +118,10 @@ class TrainingConfig(BaseModel):
                                                description="Number of training batches per epoch (-1 for all)")
     limit_val_batches: Optional[int] = Field(default=None,
                                              description="Number of validation batches per epoch (-1 for all)")
+    overfit_batches: Optional[Union[int, float]] = Field(
+        default=None,
+        description="Number of batches to overfit on. Can be int (number of batches) or float (fraction of batches)"
+    )
 
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
