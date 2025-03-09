@@ -108,13 +108,13 @@ class FlowMatchingCriterion(Criterion):
         ).view(seqs.size())
 
     def denoise(
-        self, 
-        batch: EncoderBatch, 
-        shortcut_size: Optional[int] = None,
-        probe_every_step: bool = True,
-        return_decoded: bool = False,
-        return_logits: bool = False,
-        step_size: Optional[int] = None
+            self,
+            batch: EncoderBatch,
+            shortcut_size: Optional[int] = None,
+            probe_every_step: bool = True,
+            return_decoded: bool = False,
+            return_logits: bool = False,
+            step_size: Optional[int] = None
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """
         Denoises batch of examples with flexible probing and output options.
@@ -158,19 +158,19 @@ class FlowMatchingCriterion(Criterion):
         embeddings = self.model.get_embeddings(batch.seqs)
         noise = torch.randn_like(embeddings)
         self.x_t = torch.where(input_mask == 0, embeddings, noise)
-        
+
         # Pre-allocate tensor for predictions if probing every step
         num_steps = len(range(self.diffusion_steps, 0, -effective_step))
         if probe_every_step:
             if return_logits:
                 predictions = torch.zeros(
-                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1], self.model.vocab_size), 
+                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1], self.model.vocab_size),
                     dtype=torch.float,
                     device=batch.seqs.device
                 )
             else:
                 predictions = torch.zeros(
-                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
+                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]),
                     dtype=torch.long,
                     device=batch.seqs.device
                 )
@@ -212,7 +212,7 @@ class FlowMatchingCriterion(Criterion):
                 return [decoded[i:i + num_steps] for i in range(0, len(decoded), num_steps)]
             else:
                 return self.tokenizer.batch_decode(predictions, skip_special_tokens=True)
-        
+
         return predictions
 
     def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
@@ -894,13 +894,13 @@ class CompositeCriterion(Criterion):
         )
 
     def denoise(
-        self,
-        batch: EncoderBatch,
-        shortcut_size: Optional[int] = None,
-        probe_every_step: bool = True,
-        return_decoded: bool = False,
-        return_logits: bool = False,
-        step_size: Optional[int] = None
+            self,
+            batch: EncoderBatch,
+            shortcut_size: Optional[int] = None,
+            probe_every_step: bool = True,
+            return_decoded: bool = False,
+            return_logits: bool = False,
+            step_size: Optional[int] = None
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """
         Denoises batch of examples with flexible probing and output options.
@@ -932,7 +932,7 @@ class CompositeCriterion(Criterion):
         """
         # TODO: fix this terrible implementation (criteria[0])
         return self.criteria[0].denoise(
-            batch, 
+            batch,
             shortcut_size=shortcut_size,
             probe_every_step=probe_every_step,
             return_decoded=return_decoded,
@@ -994,13 +994,13 @@ class FlowNllCriterion(Criterion):
         )
 
     def denoise(
-        self,
-        batch: EncoderBatch,
-        shortcut_size: Optional[int] = None,
-        probe_every_step: bool = True,
-        return_decoded: bool = False,
-        return_logits: bool = False,
-        step_size: Optional[int] = None
+            self,
+            batch: EncoderBatch,
+            shortcut_size: Optional[int] = None,
+            probe_every_step: bool = True,
+            return_decoded: bool = False,
+            return_logits: bool = False,
+            step_size: Optional[int] = None
     ) -> np.ndarray[str, np.dtype[str]]:
         """
         Denoises batch of examples with flexible probing and output options.
@@ -1031,7 +1031,7 @@ class FlowNllCriterion(Criterion):
         :rtype: Union[Tensor, list[list[str]]]
         """
         return self.flow_matching_criterion.denoise(
-            batch, 
+            batch,
             shortcut_size=shortcut_size,
             probe_every_step=probe_every_step,
             return_decoded=return_decoded,

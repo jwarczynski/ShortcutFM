@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 
-import torch
 import numpy as np
+import torch
+
 
 class ShortcutSampler:
     def __init__(self, diffusion_steps, min_shortcut_size):
@@ -69,6 +70,7 @@ class ScheduleSampler(ABC):
     However, subclasses may override sample() to change how the resampled
     terms are reweighted, allowing for actual changes in the objective.
     """
+
     def __call__(self, batch_size, device):
         return self.sample(batch_size, device)
 
@@ -96,7 +98,7 @@ class ScheduleSampler(ABC):
         indices = torch.from_numpy(indices_np).long().to(device)
         weights_np = 1 / (len(p) * p[indices_np])
         weights = torch.from_numpy(weights_np).float().to(device)
-        return indices+1, weights
+        return indices + 1, weights
 
 
 class UniformSampler(ScheduleSampler):
