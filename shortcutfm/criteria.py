@@ -11,7 +11,7 @@ from typing_extensions import Optional, override
 
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
 from shortcutfm.model.model import FlowMatchingModel as Model
-from shortcutfm.shortcut_samplers import TimeAndShorcutStampler, ScheduleSampler
+from shortcutfm.shortcut_samplers import ScheduleSampler, TimeAndShortcutSampler
 
 
 class Criterion(Module, ABC):
@@ -821,7 +821,7 @@ class CompositeCriterion(Criterion):
             model: Model,
             diffusion_steps: int,
             self_consistency_ratio: float,
-            sampler: TimeAndShorcutStampler,
+            sampler: TimeAndShortcutSampler,
     ):
         assert len(criteria) == len(criteria_weights), \
             (f"criteria and criteria_weights must have the same length but got"

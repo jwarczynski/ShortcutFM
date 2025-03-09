@@ -17,7 +17,7 @@ from shortcutfm.criteria import (
 )
 from shortcutfm.model.factory import TransformerNetModelFactory
 from shortcutfm.model.model import FlowMatchingModel
-from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShorcutStampler, UniformSampler
+from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShortcutSampler, UniformSampler
 from shortcutfm.train.pl.callbacks import EMACallback
 from shortcutfm.train.pl.train_unit import TrainModule
 
@@ -109,7 +109,7 @@ def _create_composite_criterion(
         diffusion_steps=training_cfg.model.diffusion_steps,
         min_shortcut_size=training_cfg.model.min_shortcut_size
     )
-    time_and_shortcut_sampler = TimeAndShorcutStampler(
+    time_and_shortcut_sampler = TimeAndShortcutSampler(
         shortcut_sampler,
         training_cfg.model.diffusion_steps,
         training_cfg.model.min_shortcut_size

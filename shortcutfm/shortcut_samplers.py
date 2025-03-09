@@ -29,7 +29,7 @@ class ShortcutSampler:
         return shorcut_values[indices].to(device)
 
 
-class TimeAndShorcutStampler:
+class TimeAndShortcutSampler:
     def __init__(self, shortcut_sampler, diffusion_steps, min_shortcut_size):
         assert diffusion_steps % min_shortcut_size == 0, "diffusion_steps must be divisible by min_shortcut_size"
         assert diffusion_steps >= min_shortcut_size, "diffusion_steps must be greater than min_shortcut_size"
