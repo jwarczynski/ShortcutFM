@@ -24,7 +24,7 @@ from shortcutfm.train.pl.train_unit import TrainModule
 logger = logging.getLogger(__name__)
 
 
-def create_criterion(training_cfg: TrainingConfig) -> CompositeCriterion | FlowNllCriterion:
+def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeCriterion | FlowNllCriterion:
     """Create model, tokenizer and criterion based on training config.
 
     :param training_cfg: Training configuration containing model and training parameters
@@ -36,7 +36,7 @@ def create_criterion(training_cfg: TrainingConfig) -> CompositeCriterion | FlowN
     model = TransformerNetModelFactory(training_cfg.model).build()
 
     # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(training_cfg.model.config_name)
+    tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.config_name)
 
     # Create base flow matching criterion
     flow_matching_criterion = X0FlowMatchingCriterion(

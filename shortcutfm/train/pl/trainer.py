@@ -9,6 +9,7 @@ from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, Mo
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
 
 from shortcutfm.batch import collate
 from shortcutfm.config import TrainingConfig
@@ -116,8 +117,17 @@ def get_lightning_trainer(cfg: TrainingConfig):
     :rtype: tuple[pl.Trainer, TrainModule, DataLoader, DataLoader]
     """
     # Create Lightning module
-    criterion = create_criterion(cfg)
-    train_unit = TrainModule(criterion, cfg.optimizer.scheduler)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.model.config_name)
+    criterion = create_criterion(cfg, tokenizer=tokenizer)
+    train_unit = TrainModule(
+        criterion,
+        cfg.optimizer.scheduler,
+        tokenizer=tokenizer,
+        prediction_shortcut_size=cfg.prediction_shortcut_size,
+        denoising_step_size=cfg.denoising_step_size,
+        num_val_batches_to_log=cfg.num_val_batches_to_log,
+        num_timestep_bins=cfg.num_timestep_bins,
+    )
 
     train_dataloader, val_dataloader = create_dataloaders(cfg)
 

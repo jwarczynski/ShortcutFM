@@ -123,6 +123,12 @@ class TrainingConfig(BaseModel):
         description="Number of batches to overfit on. Can be int (number of batches) or float (fraction of batches)"
     )
 
+    # Denoising and logging settings
+    denoising_step_size: int = Field(default=32, description="Step size used during denoising process when shortcut_size is 0 or None")
+    num_val_batches_to_log: int = Field(default=1, description="Number of validation batches to log predictions for in WandB")
+    num_timestep_bins: int = Field(default=4, description="Number of linearly spaced bins for tracking losses at different timesteps")
+    prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
+
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
     consistency_loss_weight: Optional[float] = Field(default=1.0, description="Weight for consistency loss")
