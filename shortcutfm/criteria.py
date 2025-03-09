@@ -34,7 +34,7 @@ class Criterion(Module, ABC):
         for key, value in losses.items():
             masked_per_token_loss = loss_mask * value
             per_batch_loss = masked_per_token_loss.sum(-1) / loss_mask.sum(-1)
-            losses[key] = per_batch_loss.mean()
+            losses[key] = per_batch_loss
         return losses
 
     @abstractmethod
@@ -110,31 +110,49 @@ class FlowMatchingCriterion(Criterion):
     def denoise(
         self, 
         batch: EncoderBatch, 
-        shortcut_size: int,
+        shortcut_size: Optional[int] = None,
         probe_every_step: bool = True,
-        return_decoded: bool = False
-    ) -> Union[Tensor, list[list[str]]]:
+        return_decoded: bool = False,
+        return_logits: bool = False,
+        step_size: Optional[int] = None
+    ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """
         Denoises batch of examples with flexible probing and output options.
 
         :param batch: batch of examples to denoise
         :type batch: EncoderBatch
-        :param shortcut_size: shortcut size to use during denoising
-        :type shortcut_size: int
+        :param shortcut_size: shortcut size to use during denoising. If None or 0, step_size must be provided
+        :type shortcut_size: Optional[int]
         :param probe_every_step: whether to probe at every step or only at the final step
         :type probe_every_step: bool
         :param return_decoded: whether to return decoded sequences or token IDs
         :type return_decoded: bool
+        :param return_logits: whether to return logits instead of token IDs
+        :type return_logits: bool
+        :param step_size: step size to use during denoising when shortcut_size is None or 0
+        :type step_size: Optional[int]
 
         :returns: One of the following based on parameters:
-            - If return_decoded=False:
-                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len] with token IDs
-                - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
+            - If return_logits=True:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len, vocab_size] with logits
+                - If probe_every_step=False: Tensor[batch_size, seq_len, vocab_size] with logits
             - If return_decoded=True:
                 - If probe_every_step=True: List[List[str]] where outer list is batches, inner list is steps
                 - If probe_every_step=False: List[str] of decoded sequences
+            - Otherwise:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len] with token IDs
+                - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
         :rtype: Union[Tensor, list[list[str]]]
         """
+        if shortcut_size is None and step_size is None:
+            raise ValueError("Either shortcut_size or step_size must be provided")
+        if (shortcut_size == 0 or shortcut_size is None) and step_size is None:
+            raise ValueError("step_size must be provided when shortcut_size is 0 or None")
+
+        # Use step_size if shortcut_size is None or 0
+        effective_step = step_size if (shortcut_size is None or shortcut_size == 0) else shortcut_size
+        shortcut_size = shortcut_size or 0
+
         self._reset()
         input_mask = batch.input_ids_mask.unsqueeze(-1)
         embeddings = self.model.get_embeddings(batch.seqs)
@@ -142,16 +160,23 @@ class FlowMatchingCriterion(Criterion):
         self.x_t = torch.where(input_mask == 0, embeddings, noise)
         
         # Pre-allocate tensor for predictions if probing every step
-        num_steps = len(range(self.diffusion_steps, 0, -shortcut_size))
+        num_steps = len(range(self.diffusion_steps, 0, -effective_step))
         if probe_every_step:
-            predictions = torch.zeros(
-                (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
-                dtype=torch.long,
-                device=batch.seqs.device
-            )
+            if return_logits:
+                predictions = torch.zeros(
+                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1], self.model.vocab_size), 
+                    dtype=torch.float,
+                    device=batch.seqs.device
+                )
+            else:
+                predictions = torch.zeros(
+                    (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]), 
+                    dtype=torch.long,
+                    device=batch.seqs.device
+                )
 
         shortcuts = torch.tensor(shortcut_size, device=input_mask.device).repeat(input_mask.shape[0])
-        for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -shortcut_size, device=input_mask.device)):
+        for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -effective_step, device=input_mask.device)):
             t: Tensor = t.repeat(input_mask.shape[0])
             model_output = self.infere_model(
                 self.x_t,
@@ -166,19 +191,19 @@ class FlowMatchingCriterion(Criterion):
                 shortcuts,
                 input_mask
             )
-            x0_hat = self.x_t + (shortcuts / self.diffusion_steps)[:, None, None] * v_hat
+            x0_hat = self.x_t + (effective_step / self.diffusion_steps) * v_hat
             self.x_t = x0_hat
 
             # Get predictions if probing every step or if this is the last step
             if probe_every_step or step_idx == num_steps - 1:
-                step_predictions = self.probe(x0_hat)
+                step_predictions = self.probe(x0_hat, return_logits=return_logits)
                 if probe_every_step:
                     predictions[:, step_idx, :] = step_predictions
                 else:
                     predictions = step_predictions
 
         # Handle output format
-        if return_decoded:
+        if return_decoded and not return_logits:
             if probe_every_step:
                 # Reshape to [batch_size * num_steps, seq_len] for batch decoding
                 flat_preds = predictions.reshape(-1, predictions.shape[-1])
@@ -210,13 +235,22 @@ class FlowMatchingCriterion(Criterion):
     ) -> Tensor:
         """computes velocity based on models output for the denoising process"""
 
-    def probe(self, hidden_representation) -> Tensor:
-        """Predicts sequence of tokens based on hidden_representation"""
-        logtis = self.model.compute_logits(hidden_representation)
-        probs = torch.softmax(logtis, dim=-1)
+    def probe(self, hidden_representation, return_logits: bool = False) -> Tensor:
+        """Predicts sequence of tokens based on hidden_representation.
+        
+        :param hidden_representation: Hidden representation from the model
+        :type hidden_representation: Tensor
+        :param return_logits: Whether to return logits instead of token IDs
+        :type return_logits: bool
+        
+        :return: Either logits or token IDs
+        :rtype: Tensor
+        """
+        logits = self.model.compute_logits(hidden_representation)
+        if return_logits:
+            return logits
+        probs = torch.softmax(logits, dim=-1)
         tokens = torch.argmax(probs, dim=-1)
-        # seqs = self.tokenizer.batch_decode(tokens)
-        # return seqs
         return tokens
 
     def _reset(self):
@@ -261,6 +295,7 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
 
     @override
     def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
+        # TODO: restore input part
         return y_hat
 
     @override
@@ -814,7 +849,7 @@ class CompositeCriterion(Criterion):
         consistency_loss = self.criteria[1](consistency_batch)["consistency_loss"]
         embedding_loss = self.criteria[2](full_batch)["nll_loss"]
 
-        losses = [flow_matching_loss, consistency_loss, embedding_loss]  # no decoder_loss
+        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean()]  # no decoder_loss
         weighted_losses = [
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
@@ -825,7 +860,8 @@ class CompositeCriterion(Criterion):
             "consistency_loss": consistency_loss,
             "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
-            "loss": total_loss
+            "loss": total_loss,
+            "timestep": full_batch.t
         }
 
     def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
@@ -857,20 +893,52 @@ class CompositeCriterion(Criterion):
             FlowMatchingBatch.from_shortcut_fm_batch(full_batch)
         )
 
-    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> np.ndarray[str, np.dtype[str]]:
+    def denoise(
+        self,
+        batch: EncoderBatch,
+        shortcut_size: Optional[int] = None,
+        probe_every_step: bool = True,
+        return_decoded: bool = False,
+        return_logits: bool = False,
+        step_size: Optional[int] = None
+    ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """
-        Denoises batch of exapmles
+        Denoises batch of examples with flexible probing and output options.
 
-        :param batch: batch of exapmles to denoise
+        :param batch: batch of examples to denoise
         :type batch: EncoderBatch
-        :param shortcut_size: shorcut size to use during denoising
-        :type shortcut_size: int
+        :param shortcut_size: shortcut size to use during denoising. If None or 0, step_size must be provided
+        :type shortcut_size: Optional[int]
+        :param probe_every_step: whether to probe at every step or only at the final step
+        :type probe_every_step: bool
+        :param return_decoded: whether to return decoded sequences or token IDs
+        :type return_decoded: bool
+        :param return_logits: whether to return logits instead of token IDs
+        :type return_logits: bool
+        :param step_size: step size to use during denoising when shortcut_size is None or 0
+        :type step_size: Optional[int]
 
-        :returns: np.array of strings for each exmaple and timestep. Each row corresponds to single example
-        :rtype: ndarray
+        :returns: One of the following based on parameters:
+            - If return_logits=True:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len, vocab_size] with logits
+                - If probe_every_step=False: Tensor[batch_size, seq_len, vocab_size] with logits
+            - If return_decoded=True:
+                - If probe_every_step=True: List[List[str]] where outer list is batches, inner list is steps
+                - If probe_every_step=False: List[str] of decoded sequences
+            - Otherwise:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len] with token IDs
+                - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
+        :rtype: Union[Tensor, list[list[str]]]
         """
         # TODO: fix this terrible implementation (criteria[0])
-        return self.criteria[0].denoise(batch, shortcut_size)
+        return self.criteria[0].denoise(
+            batch, 
+            shortcut_size=shortcut_size,
+            probe_every_step=probe_every_step,
+            return_decoded=return_decoded,
+            return_logits=return_logits,
+            step_size=step_size
+        )
 
 
 class FlowNllCriterion(Criterion):
@@ -896,14 +964,15 @@ class FlowNllCriterion(Criterion):
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
         embedding_loss = self.nll(fm_batch)["nll_loss"]
 
-        losses = [flow_matching_loss, embedding_loss]  # no decoder_loss
+        losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
         total_loss = sum(losses)
 
         return {
             "flow_matching_loss": flow_matching_loss,
             "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
-            "loss": total_loss
+            "loss": total_loss,
+            "timestep": fm_batch.t
         }
 
     def _prepare_batch(self, batch: EncoderBatch) -> FlowMatchingBatch:
@@ -924,17 +993,48 @@ class FlowNllCriterion(Criterion):
             t
         )
 
-    def denoise(self, batch: EncoderBatch, shortcut_size: int) -> np.ndarray[str, np.dtype[str]]:
+    def denoise(
+        self,
+        batch: EncoderBatch,
+        shortcut_size: Optional[int] = None,
+        probe_every_step: bool = True,
+        return_decoded: bool = False,
+        return_logits: bool = False,
+        step_size: Optional[int] = None
+    ) -> np.ndarray[str, np.dtype[str]]:
         """
-        Denoises batch of exapmles
+        Denoises batch of examples with flexible probing and output options.
 
-        :param batch: batch of exapmles to denoise
+        :param batch: batch of examples to denoise
         :type batch: EncoderBatch
-        :param shortcut_size: shorcut size to use during denoising
-        :type shortcut_size: int
+        :param shortcut_size: shortcut size to use during denoising. If None or 0, step_size must be provided
+        :type shortcut_size: Optional[int]
+        :param probe_every_step: whether to probe at every step or only at the final step
+        :type probe_every_step: bool
+        :param return_decoded: whether to return decoded sequences or token IDs
+        :type return_decoded: bool
+        :param return_logits: whether to return logits instead of token IDs
+        :type return_logits: bool
+        :param step_size: step size to use during denoising when shortcut_size is None or 0
+        :type step_size: Optional[int]
 
-        :returns: np.array of strings for each exmaple and timestep. Each row corresponds to single example
-        :rtype: ndarray
+        :returns: One of the following based on parameters:
+            - If return_logits=True:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len, vocab_size] with logits
+                - If probe_every_step=False: Tensor[batch_size, seq_len, vocab_size] with logits
+            - If return_decoded=True:
+                - If probe_every_step=True: List[List[str]] where outer list is batches, inner list is steps
+                - If probe_every_step=False: List[str] of decoded sequences
+            - Otherwise:
+                - If probe_every_step=True: Tensor[batch_size, num_steps, seq_len] with token IDs
+                - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
+        :rtype: Union[Tensor, list[list[str]]]
         """
-        # TODO: fix this terrible implementation (criteria[0])
-        return self.flow_matching_criterion.denoise(batch, shortcut_size)
+        return self.flow_matching_criterion.denoise(
+            batch, 
+            shortcut_size=shortcut_size,
+            probe_every_step=probe_every_step,
+            return_decoded=return_decoded,
+            return_logits=return_logits,
+            step_size=step_size
+        )

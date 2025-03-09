@@ -68,7 +68,7 @@ def helper_tokenize(sentence_lst, vocab_dict, seq_len):
             end_token = group_lst['input_id_x'][i][-1]
             src = group_lst['input_id_x'][i][:-1]
             trg = group_lst['input_id_y'][i][:-1]
-            while len(src) + len(trg) > seq_len - 3:
+            while len(src) + len(trg) > seq_len - 2:
                 if len(src) > len(trg):
                     src.pop()
                 elif len(src) < len(trg):
@@ -125,7 +125,7 @@ def helper_tokenize(sentence_lst, vocab_dict, seq_len):
 
 def _collate_batch_helper(examples, pad_token_id, max_length, return_mask=False):
     result = torch.full([len(examples), max_length], pad_token_id, dtype=torch.int64).tolist()
-    mask_ = torch.full([len(examples), max_length], pad_token_id, dtype=torch.int64).tolist()
+    mask_ = torch.full([len(examples), max_length], 0, dtype=torch.int64).tolist()
     for i, example in enumerate(examples):
         curr_len = min(len(example), max_length)
         result[i][:curr_len] = example[:curr_len]
