@@ -12,6 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 logging.getLogger("exca").setLevel(logging.DEBUG)
 
+
 def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
     """Parse and validate training config from YAML file"""
     if not Path(config_path).exists():
@@ -22,11 +23,11 @@ def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
 
     # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
     merged_cfg = om.merge(yaml_cfg, om.from_cli(args_list))
-    
+
     # Convert to dict and validate with Pydantic
     config_dict = om.to_container(merged_cfg, resolve=True)
     training_config = TrainingConfig(**config_dict)
-    
+
     return training_config
 
 

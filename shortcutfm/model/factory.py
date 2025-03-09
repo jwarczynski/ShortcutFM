@@ -21,7 +21,7 @@ class TransformerNetModelModules:
     time_embed: nn.Sequential
     shortcut_embedding: nn.Embedding
     input_up_proj: Optional[nn.Sequential]
-    input_transformers: nn.Module
+    input_transformer: nn.Module
     position_embeddings: Optional[nn.Embedding] = None
     layer_norm: Optional[nn.LayerNorm] = None
     output_down_proj: Optional[nn.Sequential] = None
@@ -93,25 +93,25 @@ class TransformerNetModelFactory:
                 word_embedding = temp_bert.embeddings.word_embeddings
                 with torch.no_grad():
                     lm_head.weight = word_embedding.weight
-                input_transformers = temp_bert.encoder
+                input_transformer = temp_bert.encoder
                 position_embeddings = temp_bert.embeddings.position_embeddings
                 layer_norm = temp_bert.embeddings.LayerNorm
                 del temp_bert.embeddings
                 del temp_bert.pooler
             else:
                 print("Using randomly initialized BERT architecture...")
-                input_transformers = BertEncoder(config)
+                input_transformer = BertEncoder(config)
                 position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
                 layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         elif self.config.init_pretrained == "modern_bert":
             print("Initializing ModernBERT architecture...")
             from transformers import ModernBertModel
-            
+
             if self.config.use_pretrained_weights:
                 print("Using pretrained ModernBERT weights...")
                 temp_bert = ModernBertModel.from_pretrained(
-                    self.config.config_name, 
+                    self.config.config_name,
                     config=config,
                     trust_remote_code=True
                 )
@@ -119,11 +119,11 @@ class TransformerNetModelFactory:
                 with torch.no_grad():
                     lm_head.weight = word_embedding.weight
 
-                input_transformers = temp_bert
+                input_transformer = temp_bert
                 del temp_bert.embeddings
             else:
                 print("Using randomly initialized ModernBERT architecture...")
-                input_transformers = ModernBertModel(config)
+                input_transformer = ModernBertModel(config)
                 position_embeddings = None
                 layer_norm = None
 
@@ -146,7 +146,7 @@ class TransformerNetModelFactory:
             time_embed,
             shortcut_embedding,
             input_up_proj,
-            input_transformers,
+            input_transformer,
             position_embeddings,
             layer_norm,
             output_down_proj,

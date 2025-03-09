@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional
 
 import numpy as np
@@ -64,8 +64,8 @@ class TransformerNetModel(nn.Module):
     :type shortcut_embedding: nn.Embedding
     :param input_up_proj: Optional input projection layer
     :type input_up_proj: Optional[nn.Sequential]
-    :param input_transformers: Main transformer module
-    :type input_transformers: ModernBertModel | BertEncoder
+    :param input_transformer: Main transformer module
+    :type input_transformer: ModernBertModel | BertEncoder
     :param position_embeddings: Optional position embeddings layer
     :type position_embeddings: Optional[nn.Embedding]
     :param layer_norm: Optional layer normalization
@@ -98,7 +98,7 @@ class TransformerNetModel(nn.Module):
             time_embed: nn.Sequential,
             shortcut_embedding: nn.Embedding,
             input_up_proj: Optional[nn.Sequential],
-            input_transformers: BertEncoder | ModernBertModel,
+            input_transformer: BertEncoder | ModernBertModel,
             position_embeddings: Optional[nn.Embedding] = None,
             layer_norm: Optional[nn.LayerNorm] = None,
             output_down_proj: Optional[nn.Sequential] = None,
@@ -112,7 +112,7 @@ class TransformerNetModel(nn.Module):
         self.time_embed = time_embed
         self.shortcut_embedding = shortcut_embedding
         self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
-        self.input_transformer = input_transformers
+        self.input_transformer = input_transformer
         self.position_embeddings = position_embeddings
         self.layer_norm = layer_norm if layer_norm is not None else nn.Identity()
         self.output_down_proj = output_down_proj if output_down_proj is not None else nn.Identity()
@@ -150,10 +150,14 @@ class TransformerNetModel(nn.Module):
         time_embed = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
         shortcut_embedding = self.shortcut_embedding(shortcuts)
 
-        x =  self.input_up_proj(x)
+        x = self.input_up_proj(x)
 
         # Add time and shortcut embeddings
-        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shortcut_embedding.unsqueeze(1).expand(-1, seq_len, -1)
+        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shortcut_embedding.unsqueeze(1).expand(
+            -1,
+            seq_len,
+            -1
+        )
 
         # Add position embeddings if available
         if self.position_embeddings is not None:

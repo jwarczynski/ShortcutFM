@@ -11,7 +11,7 @@ class EMAConfig(BaseModel):
     smoothing: float = Field(default=0.99, description="EMA smoothing factor")
     half_life: Optional[float] = Field(default=None, description="Half-life for EMA decay")
     update_interval: int = Field(default=1, description="How often to update EMA weights")
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 class WandBConfig(BaseModel):
@@ -21,7 +21,7 @@ class WandBConfig(BaseModel):
     resume: str = Field(default="allow", description="WandB resume behavior")
     enabled: bool = Field(default=True, description="Whether to enable WandB logging")
     run_id: Optional[str] = Field(default=None, description="WandB run ID")
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 class CheckpointConfig(BaseModel):
@@ -38,7 +38,7 @@ class CheckpointConfig(BaseModel):
         default=None,
         description="Path to checkpoint file to resume from. None means start from scratch"
     )
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 class ModelConfig(BaseModel):
@@ -68,14 +68,14 @@ class ModelConfig(BaseModel):
     predict_t: bool = Field(default=False, description="Whether to predict timestep")
     max_position_embeddings: Optional[int] = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 class BaseSchedulerConfig(BaseModel):
     """Base class for scheduler configurations"""
     lr: float = Field(default=3e-4, description="Target learning rate")
     weight_decay: float = Field(default=0.1, description="Weight decay factor")
-    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Add extra="forbid" here
 
 
 class MyleSchedulerConfig(BaseSchedulerConfig):
@@ -83,7 +83,7 @@ class MyleSchedulerConfig(BaseSchedulerConfig):
     type: Literal["myle"]
     warmup_steps: int = Field(..., description="Number of warmup steps")
     start_lr: float = Field(..., description="Initial learning rate")
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 class LinearSchedulerConfig(BaseSchedulerConfig):
@@ -92,7 +92,7 @@ class LinearSchedulerConfig(BaseSchedulerConfig):
     start_factor: float = Field(..., description="Start factor for linear scheduler")
     end_factor: float = Field(..., description="End factor for linear scheduler")
     total_steps: Optional[int] = Field(default=None, description="Total steps for linear scheduler")
-    model_config = ConfigDict(extra="forbid") # Add this line
+    model_config = ConfigDict(extra="forbid")  # Add this line
 
 
 # Define the scheduler type union with discriminator
@@ -138,9 +138,18 @@ class TrainingConfig(BaseModel):
     )
 
     # Denoising and logging settings
-    denoising_step_size: int = Field(default=32, description="Step size used during denoising process when shortcut_size is 0 or None")
-    num_val_batches_to_log: int = Field(default=1, description="Number of validation batches to log predictions for in WandB")
-    num_timestep_bins: int = Field(default=4, description="Number of linearly spaced bins for tracking losses at different timesteps")
+    denoising_step_size: int = Field(
+        default=32,
+        description="Step size used during denoising process when shortcut_size is 0 or None"
+    )
+    num_val_batches_to_log: int = Field(
+        default=1,
+        description="Number of validation batches to log predictions for in WandB"
+    )
+    num_timestep_bins: int = Field(
+        default=4,
+        description="Number of linearly spaced bins for tracking losses at different timesteps"
+    )
     prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
 
     # Loss weights
@@ -162,7 +171,7 @@ class TrainingConfig(BaseModel):
 
     infra: exca.TaskInfra = exca.TaskInfra()
 
-    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Add extra="forbid" here
 
     @infra.apply
     def train(self) -> None:
