@@ -52,9 +52,13 @@ class TimeAndShortcutSampler:
         max_steps = self.diffusion_steps // shortcut_values
 
         # Ensure each batch element gets a proper sample
-        indices = torch.cat([
-            torch.randint(1, max_step + 1, (1,), device=device) for max_step in max_steps
-        ])
+        indices = torch.cat(
+            [
+                # 2 because for consistency target we need to be able to make to steps of size shortcut and do not go below timestep 0
+                # so smallest timestep must be at least 2 times the shortcut size
+                torch.randint(2, max_step + 1, (1,), device=device) for max_step in max_steps
+            ]
+        )
 
         timesteps = indices * shortcut_values
         return timesteps.to(torch.long), shortcut_values.to(torch.long)
