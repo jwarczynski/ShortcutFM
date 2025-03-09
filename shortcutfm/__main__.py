@@ -40,4 +40,14 @@ if __name__ == "__main__":
     cfg = parse_config(yaml_path, args_list)
     logger.info("Final Configuration:\n" + om.to_yaml(cfg.model_dump()))
 
-    cfg.train()
+    if cfg.use_exca:
+        if cfg.dry_run:
+            logger.info("Final config: \n" + om.to_yaml(cfg.model_dump()))
+        else:
+            cfg.train()
+    else:
+        seed_everything(cfg.seed)
+        trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
+        if not cfg.dry_run:
+            logger.info("Starting training...")
+            trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=cfg.checkpoint.path)

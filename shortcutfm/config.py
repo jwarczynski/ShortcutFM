@@ -156,11 +156,13 @@ class TrainingConfig(BaseModel):
     ema: EMAConfig = Field(default_factory=EMAConfig, description="EMA configuration")
 
     # Runtime settings
+    use_exca: bool = Field(default=False, description="Whether to use Exca for submitting tasks")
     dry_run: bool = Field(default=False, description="Whether this is a dry run")
     use_composer: bool = Field(default=False, description="Whether to use Composer for training")
-    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
 
     infra: exca.TaskInfra = exca.TaskInfra()
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid") # Add extra="forbid" here
 
     @infra.apply
     def train(self) -> None:
