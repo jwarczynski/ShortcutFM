@@ -389,7 +389,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
         # prepare self-conditioning input
         x_0_hat = self._modify_model_input(input_ids_mask, x_start)
 
-        if not self._should_apply_self_conditioning(t):
+        if not self._should_apply_self_conditioning():
             x_t = torch.cat((x_t, x_0_hat), dim=-1)
             return self.criterion._predict(
                 x_start=x_start, x_t=x_t, noise=noise, t=t, input_ids_mask=input_ids_mask
@@ -397,7 +397,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
 
         # TODO: model won't be quried at t + 1 during inference, but at t + d
         # TODO: draw a shorcut value from distribution?
-        t_next = t + 1
+        t_next = torch.where(t < self.diffusion_steps, t + 1, t)
         x_t_next, _ = self._interpolate_data_noise(x_start, t_next)
 
         x_t_next_zero_sc = torch.cat((x_t_next, x_0_hat), dim=-1)
@@ -412,9 +412,9 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
         y_hat = torch.cat((x_t, y_hat), dim=-1)
         return self.model(y_hat, t, torch.zeros_like(t))
 
-    def _should_apply_self_conditioning(self, t: Tensor) -> Tensor:
+    def _should_apply_self_conditioning(self) -> Tensor:
         """ Determines whether to apply self-conditioning based on the self_conditioning_ratio. """
-        return torch.rand(1) < self.self_conditioning_ratio and t < self.diffusion_steps
+        return torch.rand(1) < self.self_conditioning_ratio
 
     def _modify_model_input(self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Optional[Tensor] = None) -> Tensor:
         return self.criterion._modify_model_input(input_ids_mask.unsqueeze(-1), x_start, y_hat)
@@ -717,7 +717,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             input_ids_mask: Tensor,
     ) -> Tensor:
         """ Compute the model output. """
-        if not self._should_apply_self_conditioning(t, shortcut_size):
+        if not self._should_apply_self_conditioning():
             x_0_hat = self._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start)
             x_t = torch.cat((x_t, x_0_hat), dim=-1)
             y = self._criterion._predict(
@@ -730,7 +730,8 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             )
             return y
 
-        t_next = t + shortcut_size
+        # TODO: handle it better
+        t_next = torch.where(t + shortcut_size <= self.diffusion_steps, t + shortcut_size, t)
         x_t_next, noise = self._interpolate_data_noise(x_start, t_next)
         x_t_next = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, x_t_next)
         empty_self_conditioning_input = self._criterion._modify_model_input_or_output(
@@ -749,17 +750,14 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         y = self._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start, y)
         return y
 
-    def _should_apply_self_conditioning(self, t: Tensor, shortcut_size: Tensor) -> Tensor:
+    def _should_apply_self_conditioning(self) -> Tensor:
         """
         Determines whether to apply self-conditioning based on the self_conditioning_ratio.
 
         :returns:True if self-conditioning should be applied, False otherwise.
         :rtype: bool
         """
-        return (
-                torch.rand(1) < self.self_conditioning_ratio and
-                t + shortcut_size < self.diffusion_steps
-        )
+        return torch.rand(1) < self.self_conditioning_ratio
 
     def _modify_model_input_or_output(
             self,
