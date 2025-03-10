@@ -581,7 +581,9 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
-        step2_input = torch.where(input_ids_mask == 0, x_start, step1_prediction)
+        x_t = x_t[..., :embedding_dim]
+        step2_input =  x_t + (shorcut_size / self.diffusion_steps)[:, None, None] * step1_prediction
+        step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
     @override
@@ -680,8 +682,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         )
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
-        x_t = x_t[..., :embedding_dim]
-        x_0_hat = self._criterion._modify_model_input_or_output(input_ids_mask, x_t)
+        x_0_hat = torch.where(input_ids_mask == 0, x_start, step1_prediction)
         return torch.cat((original_result, x_0_hat), dim=-1)
 
     @override

@@ -112,7 +112,6 @@ def _create_composite_criterion(
     time_and_shortcut_sampler = TimeAndShortcutSampler(
         shortcut_sampler,
         training_cfg.model.diffusion_steps,
-        training_cfg.model.min_shortcut_size
     )
 
     return CompositeCriterion(

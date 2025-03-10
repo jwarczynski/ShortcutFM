@@ -24,10 +24,10 @@ class FlowMatchingModel(Module, ABC):
         if shortcuts is None:
             shortcuts = torch.zeros_like(time_steps, device=x.device)
 
-        shortcut_for_embedding_layer = self._scale_shortcuts(shortcuts)
+        shortcuts = self._scale_shortcuts(shortcuts)
         time_steps = self._scale_time_steps(time_steps)
 
-        return self.module(x, time_steps, shortcut_for_embedding_layer)
+        return self.module(x, time_steps, shortcuts)
 
     def get_embeddings(self, input_ids: Tensor) -> Tensor:
         return self.module.get_embeddings(input_ids)
@@ -39,11 +39,7 @@ class FlowMatchingModel(Module, ABC):
         return scale_diffusion_input(time_steps, self.diffusion_steps)
 
     def _scale_shortcuts(self, shortcuts: Tensor):
-        return torch.where(
-            shortcuts == 0,
-            shortcuts,
-            (torch.log2(shortcuts) - np.log2(self.min_shortcut_size) + 1).to(torch.int)
-        )
+        return scale_diffusion_input(shortcuts, self.diffusion_steps)
 
 
 def scale_diffusion_input(data: Tensor, diffusion_steps: int) -> Tensor:
@@ -51,54 +47,17 @@ def scale_diffusion_input(data: Tensor, diffusion_steps: int) -> Tensor:
 
 
 class TransformerNetModel(nn.Module):
-    """
-    The full Transformer module with attention and timestep embedding.
-
-    :param word_embedding: Word embedding layer
-    :type word_embedding: nn.Embedding
-    :param lm_head: Language model head
-    :type lm_head: nn.Linear
-    :param time_embed: Time embedding layer
-    :type time_embed: nn.Sequential
-    :param shortcut_embedding: Shortcut embedding layer
-    :type shortcut_embedding: nn.Embedding
-    :param input_up_proj: Optional input projection layer
-    :type input_up_proj: Optional[nn.Sequential]
-    :param input_transformer: Main transformer module
-    :type input_transformer: ModernBertModel | BertEncoder
-    :param position_embeddings: Optional position embeddings layer
-    :type position_embeddings: Optional[nn.Embedding]
-    :param layer_norm: Optional layer normalization
-    :type layer_norm: Optional[nn.LayerNorm]
-    :param output_down_proj: Optional output projection layer
-    :type output_down_proj: Optional[nn.Sequential]
-    :param config: Model configuration
-    :type config: ModelConfig
-    :param position_ids: Optional position IDs tensor
-    :type position_ids: Optional[Tensor]
-    """
-
-    config: ModelConfig
-    word_embedding: nn.Embedding
-    lm_head: nn.Linear
-    time_embed: nn.Sequential
-    shortcut_embedding: nn.Embedding
-    input_up_proj: nn.Module
-    input_transformer: BertEncoder | ModernBertModel
-    position_embeddings: Optional[nn.Embedding]
-    layer_norm: nn.Module
-    output_down_proj: nn.Module
-    dropout: nn.Dropout
-    hidden_size: int
+    """Transformer network model for flow matching."""
 
     def __init__(
             self,
+            *,
             word_embedding: nn.Embedding,
             lm_head: nn.Linear,
             time_embed: nn.Sequential,
-            shortcut_embedding: nn.Embedding,
-            input_up_proj: Optional[nn.Sequential],
             input_transformer: BertEncoder | ModernBertModel,
+            shortcut_embedding: Optional[nn.Module] = None,
+            input_up_proj: Optional[nn.Sequential] = None,
             position_embeddings: Optional[nn.Embedding] = None,
             layer_norm: Optional[nn.LayerNorm] = None,
             output_down_proj: Optional[nn.Sequential] = None,
@@ -110,7 +69,6 @@ class TransformerNetModel(nn.Module):
         self.word_embedding = word_embedding
         self.lm_head = lm_head
         self.time_embed = time_embed
-        self.shortcut_embedding = shortcut_embedding
         self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
         self.input_transformer = input_transformer
         self.position_embeddings = position_embeddings
@@ -119,6 +77,7 @@ class TransformerNetModel(nn.Module):
         self.dropout = nn.Dropout(config.dropout)
         self.hidden_size = config.hidden_size
         self.register_buffer("position_ids", position_ids)
+        self.register_module("shortcut_embedding", shortcut_embedding)
 
     def get_embeddings(self, input_ids):
         return self.word_embedding(input_ids)
@@ -147,17 +106,17 @@ class TransformerNetModel(nn.Module):
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
 
-        time_embed = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-        shortcut_embedding = self.shortcut_embedding(shortcuts)
-
+        timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
+        
         x = self.input_up_proj(x)
 
-        # Add time and shortcut embeddings
-        x = (
-                x +
-                time_embed.unsqueeze(1).expand(-1, seq_len, -1) +
-                shortcut_embedding.unsqueeze(1).expand(-1, seq_len, -1)
-        )
+        # Add time embedding
+        x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
+        
+        # Add shortcut embedding if available
+        if self.shortcut_embedding is not None:
+            shortcut_emb = self.shortcut_embedding(timestep_embedding(shortcuts, self.config.hidden_shortcut_dim))
+            x = x + shortcut_emb.unsqueeze(1).expand(-1, seq_len, -1)
 
         # Add position embeddings if available
         if self.position_embeddings is not None:

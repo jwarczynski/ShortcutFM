@@ -13,9 +13,9 @@ class ShortcutSampler:
 
         self.diffusion_steps = diffusion_steps
         self.min_shortcut_size = min_shortcut_size
-        self.max_shortcut_size = diffusion_steps // 2
+        self.max_shortcut_size = diffusion_steps // 2 # becasue during training we will query at the twice the shortcut size
         self.shortcut_values = 2 ** torch.arange(
-            int(np.log2(min_shortcut_size)), int(np.log2(self.max_shortcut_size)) + 1
+            1, int(np.log2(self.max_shortcut_size)) + 1
         ).to(torch.long)
 
     def __call__(self, batch_size, device):
@@ -31,14 +31,10 @@ class ShortcutSampler:
 
 
 class TimeAndShortcutSampler:
-    def __init__(self, shortcut_sampler, diffusion_steps, min_shortcut_size):
-        assert diffusion_steps % min_shortcut_size == 0, "diffusion_steps must be divisible by min_shortcut_size"
-        assert diffusion_steps >= min_shortcut_size, "diffusion_steps must be greater than min_shortcut_size"
+    def __init__(self, shortcut_sampler, diffusion_steps):
         assert diffusion_steps % 2 == 0, "diffusion_steps must be even"
-        assert min_shortcut_size % 2 == 0, "min_shortcut_size must be even"
 
         self.diffusion_steps = diffusion_steps
-        self.min_shortcut_size = min_shortcut_size
         self.shortcut_sampler = shortcut_sampler
 
     def __call__(self, batch_size, device):
