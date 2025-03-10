@@ -472,6 +472,49 @@ class ConsistencyCrterion(Criterion, ABC):
     ):
         super().__init__(model, difusion_steps)
 
+    @override
+    def compute_losses(self, batch: ShortcutFMBatch) -> dict[str, Tensor]:
+        target = self._compute_shortcut_target(
+            shortcut_size=batch.shortcut_size,
+            t=batch.t,
+            x_t=batch.x_t,
+            x_start=batch.x_start,
+            input_ids_mask=batch.input_ids_mask,
+        )
+        output = self._predict(
+            x_start=batch.x_start,
+            x_t=batch.x_t,
+            noise=batch.noise,
+            t=batch.t,
+            shortcut_size=batch.shortcut_size,
+            input_ids_mask=batch.input_ids_mask,
+        )
+
+        # TODO: pass loss_fn as argument
+        loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        return {
+            "consistency_loss": loss.mean(-1)
+        }
+
+    @torch.no_grad()
+    def _compute_shortcut_target(
+            self,
+            *,
+            shortcut_size: Tensor,
+            t: Tensor,
+            x_t: Tensor,
+            x_start: Tensor,
+            input_ids_mask: Tensor,
+    ):
+        input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_t)
+        step1_prediction = self.model(x_t, t, shortcut_size)
+
+        step2_input = self._prepare_2_shortcut_input(step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
+        step2_prediction = self.model(step2_input, t - shortcut_size, shortcut_size)
+
+        target = self._modify_target(step1_prediction, step2_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
+        return target.detach()
+
     @abstractmethod
     def _prepare_2_shortcut_input(
             self,
@@ -497,25 +540,6 @@ class ConsistencyCrterion(Criterion, ABC):
     ) -> Tensor:
         """ Modifies target based on two shorcuts predicitons """
 
-    @torch.no_grad()
-    def _compute_shortcut_target(
-            self,
-            *,
-            shortcut_size: Tensor,
-            t: Tensor,
-            x_t: Tensor,
-            x_start: Tensor,
-            input_ids_mask: Tensor,
-    ):
-        input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_t)
-        step1_prediction = self.model(x_t, t, shortcut_size)
-
-        step2_input = self._prepare_2_shortcut_input(step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
-        step2_prediction = self.model(step2_input, t - shortcut_size, shortcut_size)
-
-        target = self._modify_target(step1_prediction, step2_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
-        return target.detach()
-
     def _predict(
             self,
             *,
@@ -531,30 +555,6 @@ class ConsistencyCrterion(Criterion, ABC):
         y = self.model(x_t, t, 2 * shortcut_size)
         y = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, y)
         return y
-
-    @override
-    def compute_losses(self, batch: ShortcutFMBatch) -> dict[str, Tensor]:
-        target = self._compute_shortcut_target(
-            shortcut_size=batch.shortcut_size,
-            t=batch.t,
-            x_t=batch.x_t,
-            x_start=batch.x_start,
-            input_ids_mask=batch.input_ids_mask,
-        )
-        output = self._predict(
-            x_start=batch.x_start,
-            x_t=batch.x_t,
-            noise=batch.noise,
-            t=batch.t,
-            shortcut_size=batch.shortcut_size,
-            input_ids_mask=batch.input_ids_mask,
-        )
-
-        # TODO: pass loss_fn as argument
-        loss = torch.nn.functional.mse_loss(output, target, reduction="none")
-        return {
-            "consistency_loss": loss.mean(-1)
-        }
 
     @abstractmethod
     def _modify_model_input_or_output(
