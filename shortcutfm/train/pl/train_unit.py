@@ -204,7 +204,7 @@ class TrainModule(pl.LightningModule):
                     )
 
                 # Log the predictions table
-                if self.train_predictions:
+                if self.train_predictions and hasattr(self.logger, "log_table"):
                     columns = ["epoch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
                     self.logger.log_table(
                         "train/predictions",
@@ -293,7 +293,7 @@ class TrainModule(pl.LightningModule):
 
     def on_validation_end(self) -> None:
         """Log all predictions from the epoch to the table."""
-        if self.predictions:
+        if self.predictions and hasattr(self.logger, "log_table"):
             columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
             self.logger.log_table(
                 "val/predictions",
