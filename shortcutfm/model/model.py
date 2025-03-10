@@ -153,10 +153,10 @@ class TransformerNetModel(nn.Module):
         x = self.input_up_proj(x)
 
         # Add time and shortcut embeddings
-        x = x + time_embed.unsqueeze(1).expand(-1, seq_len, -1) + shortcut_embedding.unsqueeze(1).expand(
-            -1,
-            seq_len,
-            -1
+        x = (
+                x +
+                time_embed.unsqueeze(1).expand(-1, seq_len, -1) +
+                shortcut_embedding.unsqueeze(1).expand(-1, seq_len, -1)
         )
 
         # Add position embeddings if available
