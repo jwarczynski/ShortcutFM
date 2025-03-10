@@ -95,7 +95,7 @@ class TrainModule(pl.LightningModule):
 
         # Process each loss term except total loss
         for key, value in outputs.items():
-            if "loss" in key.lower() and key != "loss":
+            if "loss" in key.lower() and key not in ["loss", "embedding_loss"]:
                 # Initialize storage for this loss component if not exists
                 if key not in self.timestep_losses:
                     self.timestep_losses[key] = [[] for _ in range(len(self.timestep_bins) - 1)]
