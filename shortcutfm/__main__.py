@@ -37,18 +37,79 @@ if __name__ == "__main__":
         sys.exit(1)
 
     yaml_path, args_list = sys.argv[1], sys.argv[2:]
-
     cfg = parse_config(yaml_path, args_list)
-    logger.info("Final Configuration:\n" + om.to_yaml(cfg.model_dump()))
 
-    if cfg.use_exca:
-        if cfg.dry_run:
-            logger.info("Final config: \n" + om.to_yaml(cfg.model_dump()))
-        else:
-            cfg.train()
-    else:
+    if not cfg.use_exca:
         seed_everything(cfg.seed)
+        logger.info("Final Configuration:\n" + om.to_yaml(cfg.model_dump()))
         trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(cfg)
         if not cfg.dry_run:
             logger.info("Starting training...")
             trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=cfg.checkpoint.path)
+
+    else:
+        modern_bert_cfg = {
+            "model.init_pretrained": "modern_bert",
+            "model.config_name": "answerdotai/ModernBERT-base",
+            "model.vocab_size": 50368,
+            "model.word_embedding_std": 0.5,
+
+            "training_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/train",
+            "validation_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/valid",
+
+            "checkpoint.save_folder": "checkpoints/qqp/ModernBERT",
+        }
+
+        bert_base_cfg = {
+            "model.word_embedding_std": 0.5,
+
+            "training_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/train",
+            "validation_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/valid",
+
+            "checkpoint.save_folder": "checkpoints/qqp/bert-base",
+        }
+
+        with cfg.infra.job_array() as array:
+            for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
+                array.append(
+                    cfg.infra.clone_obj(
+                        {
+                            "infra.job_name": "sc_rate=0.5_consistency=0.0" + name,
+                            "wandb.run_name": "sc_rate=0.5_consistency=0.0" + name,
+                            **bert_cfg,
+                        }
+                    )
+                )
+                array.append(
+                    cfg.infra.clone_obj(
+                        {
+                            "model.sc_rate": 0.0,
+                            "infra.job_name": "sc_rate=0_consistency=0.0" + name,
+                            "wandb.run_name": "sc_rate=0_consistency=0.0" + name,
+                            **bert_cfg,
+                        }
+                    )
+                )
+                array.append(
+                    cfg.infra.clone_obj(
+                        {
+                            "model.sc_rate": 0.0,
+                            "self_consistency_ratio": 0.25,
+                            "infra.job_name": "sc_rate=0_consistency=0.25" + name,
+                            "prediction_shortcut_size": 32,
+                            "wandb.run_name": "sc_rate=0_consistency=0.25" + name,
+                            **bert_cfg,
+                        }
+                    )
+                )
+                array.append(
+                    cfg.infra.clone_obj(
+                        {
+                            "self_consistency_ratio": 0.25,
+                            "infra.job_name": "sc_rate=0.5_consistency=0.25" + name,
+                            "prediction_shortcut_size": 32,
+                            "wandb.run_name": "sc_rate=0.5_consistency=0.25" + name,
+                            **bert_cfg,
+                        }
+                    )
+                )
