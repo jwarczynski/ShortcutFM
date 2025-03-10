@@ -127,6 +127,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         denoising_step_size=cfg.denoising_step_size,
         num_val_batches_to_log=cfg.num_val_batches_to_log,
         num_timestep_bins=cfg.num_timestep_bins,
+        log_train_predictions_every_n_epochs=cfg.log_train_predictions_every_n_epochs,
     )
 
     train_dataloader, val_dataloader = create_dataloaders(cfg)

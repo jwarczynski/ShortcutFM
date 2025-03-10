@@ -151,6 +151,10 @@ class TrainingConfig(BaseModel):
         description="Number of linearly spaced bins for tracking losses at different timesteps"
     )
     prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
+    log_train_predictions_every_n_epochs: int = Field(
+        default=100,
+        description="Number of epochs between train prediction logging"
+    )
 
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
