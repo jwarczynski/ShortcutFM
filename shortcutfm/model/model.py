@@ -142,7 +142,7 @@ class TransformerNetModel(nn.Module):
             scores = -scores.permute(1, 2, 0).contiguous()
             return scores
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Only logits_mode 1 and 2 are supported")
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
