@@ -208,7 +208,9 @@ class TrainModule(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
         self._log_timestep_bin_losses()
-        self._process_train_batch_predictions()
+        # TODO: add parameter for this
+        if self.trainer.current_epoch % 100 == 0:
+           self._process_train_batch_predictions()
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.
