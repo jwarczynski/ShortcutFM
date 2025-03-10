@@ -740,7 +740,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         )
         x_t_next_zero_sc = torch.cat((x_t_next, empty_self_conditioning_input), dim=-1)
 
-        with torch.no_grad:
+        with torch.no_grad():
             y_hat = self.model(x_t_next_zero_sc, t_next, shortcut_size).detach()
         y_hat = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, y_hat)
 
