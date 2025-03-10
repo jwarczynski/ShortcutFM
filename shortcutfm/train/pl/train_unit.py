@@ -216,7 +216,7 @@ class TrainModule(pl.LightningModule):
         outputs = self(batch)
         self.log_dict(
             {
-                f"train/{k}": v.mean() for k, v in outputs.items()
+                f"val/{k}": v.mean() for k, v in outputs.items()
                 if "loss" in k.lower()
             },
             on_step=False, on_epoch=True, prog_bar=True
