@@ -60,12 +60,34 @@ class TrainModule(pl.LightningModule):
         bin_size = self.criterion.diffusion_steps // (len(self.timestep_bins) - 1)
         return min(timestep // bin_size, len(self.timestep_bins) - 2)
 
+    def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
+        outputs = self(batch)
+
+        # Store last batch of the epoch for full denoising
+        if batch_idx == 0:  # Use first batch for consistency
+            self.last_train_batch = batch
+
+        # Log only loss-related metrics
+        loss_metrics = {
+            f"train/{k}": v.mean() for k, v in outputs.items()
+            if "loss" in k.lower()
+        }
+        self.log_dict(
+            loss_metrics,
+            on_step=True, on_epoch=False, prog_bar=True
+        )
+
+        # Process and store timestep losses
+        self._process_timestep_losses(outputs)
+
+        return outputs["loss"].mean()
+
     def _process_timestep_losses(self, outputs: dict[str, Tensor]) -> None:
         """Process and store losses for each timestep bin.
-        
+
         This method processes the loss components for each timestep,
         bins them according to timestep values, and stores them for later logging.
-        
+
         :param outputs: Dictionary containing model outputs including losses and timesteps
         :type outputs: dict[str, Tensor]
         """
@@ -93,31 +115,16 @@ class TrainModule(pl.LightningModule):
                     if 0 <= bin_idx < len(self.timestep_bins) - 1:
                         self.timestep_losses[key][bin_idx].append(loss.item())
 
-    def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
-        outputs = self(batch)
-
-        # Store last batch of the epoch for full denoising
-        if batch_idx == 0:  # Use first batch for consistency
-            self.last_train_batch = batch
-
-        # Log only loss-related metrics
-        loss_metrics = {
-            f"train/{k}": v.mean() for k, v in outputs.items()
-            if "loss" in k.lower()
-        }
-        self.log_dict(
-            loss_metrics,
-            on_step=True, on_epoch=False, prog_bar=True
-        )
-
-        # Process and store timestep losses
-        self._process_timestep_losses(outputs)
-
-        return outputs["loss"].mean()
+    def on_train_epoch_end(self) -> None:
+        """Log average losses for each timestep bin and full denoising predictions for one batch."""
+        self._log_timestep_bin_losses()
+        # TODO: add parameter for this
+        if self.trainer.current_epoch % 100 == 0:
+           self._process_train_batch_predictions()
 
     def _log_timestep_bin_losses(self) -> None:
         """Log average losses for each timestep bin and clear the loss storage.
-        
+
         This method processes the accumulated losses for each timestep bin,
         computes their averages, logs them, and then clears the storage for the next epoch.
         """
@@ -146,7 +153,7 @@ class TrainModule(pl.LightningModule):
 
     def _process_train_batch_predictions(self) -> None:
         """Process and log predictions for the saved training batch.
-        
+
         This method performs full denoising on the last saved training batch,
         computes cross entropy loss, and logs the predictions along with their
         source and reference texts.
@@ -205,19 +212,28 @@ class TrainModule(pl.LightningModule):
                         data=self.train_predictions
                     )
 
-    def on_train_epoch_end(self) -> None:
-        """Log average losses for each timestep bin and full denoising predictions for one batch."""
-        self._log_timestep_bin_losses()
-        # TODO: add parameter for this
-        if self.trainer.current_epoch % 100 == 0:
-           self._process_train_batch_predictions()
+    def validation_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
+        outputs = self(batch)
+        self.log_dict(
+            {
+                f"train/{k}": v.mean() for k, v in outputs.items()
+                if "loss" in k.lower()
+            },
+            on_step=False, on_epoch=True, prog_bar=True
+        )
+
+        # Perform full denoising and log text for a few validation batches
+        if batch_idx < self.num_val_batches_to_log:
+            self._process_validation_predictions(batch, batch_idx)
+
+        return outputs["loss"]
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.
-        
+
         This method handles the full denoising process, computes cross entropy loss,
         and stores the predictions for later logging.
-        
+
         :param batch: The validation batch to process
         :type batch: EncoderBatch
         :param batch_idx: The index of the current batch
@@ -274,22 +290,6 @@ class TrainModule(pl.LightningModule):
         self.log(f"val/full_denoising_ce", ce_loss, on_step=False, on_epoch=True)
 
         return ce_loss.item()
-
-    def validation_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
-        outputs = self(batch)
-        self.log_dict(
-            {
-                f"train/{k}": v.mean() for k, v in outputs.items()
-                if "loss" in k.lower()
-            },
-            on_step=False, on_epoch=True, prog_bar=True
-        )
-
-        # Perform full denoising and log text for a few validation batches
-        if batch_idx < self.num_val_batches_to_log:
-            self._process_validation_predictions(batch, batch_idx)
-
-        return outputs["loss"]
 
     def on_validation_end(self) -> None:
         """Log all predictions from the epoch to the table."""
