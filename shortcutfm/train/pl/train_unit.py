@@ -189,7 +189,7 @@ class TrainModule(pl.LightningModule):
                 # Decode each part separately
                 source_text = self.tokenizer.batch_decode(source_tokens, skip_special_tokens=True)
                 reference_text = self.tokenizer.batch_decode(reference_tokens, skip_special_tokens=True)
-                predicted_text = self.tokenizer.batch_decode(predicted_tokens, skip_special_tokens=True)
+                predicted_text = self.tokenizer.batch_decode(predicted_tokens, skip_special_tokens=False)
 
                 for i, (src, ref, pred) in enumerate(zip(source_text, reference_text, predicted_text)):
                     self.train_predictions.append(
