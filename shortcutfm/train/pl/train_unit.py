@@ -351,7 +351,10 @@ class TrainModule(pl.LightningModule):
         )
 
         # Perform full denoising and log text for a few validation batches
-        if batch_idx < self.num_val_batches_to_log:
+        if (
+                batch_idx < self.num_val_batches_to_log and
+                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+        ):
             self._process_validation_predictions(batch, batch_idx)
 
         return outputs["loss"]
