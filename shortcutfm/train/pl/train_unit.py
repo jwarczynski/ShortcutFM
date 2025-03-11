@@ -181,11 +181,11 @@ class TrainModule(pl.LightningModule):
                 )
 
     def _process_batch_predictions(
-        self,
-        batch: EncoderBatch,
-        predictions_list: list,
-        batch_idx: Optional[int] = None,
-        stage: Literal["val", "train"] = None,
+            self,
+            batch: EncoderBatch,
+            predictions_list: list,
+            batch_idx: Optional[int] = None,
+            stage: Literal["val", "train"] = None,
     ) -> float:
         """Process a batch for predictions and store results.
 
@@ -241,9 +241,9 @@ class TrainModule(pl.LightningModule):
             return ce_loss.mean().item()
 
     def _compute_masked_cross_entropy(
-        self,
-        predictions: Tensor,
-        batch: EncoderBatch
+            self,
+            predictions: Tensor,
+            batch: EncoderBatch
     ) -> Tensor:
         """Compute masked cross entropy loss for predictions.
 
@@ -268,9 +268,9 @@ class TrainModule(pl.LightningModule):
         return ce_loss
 
     def _extract_text_parts(
-        self,
-        batch: EncoderBatch,
-        predicted_tokens: Tensor
+            self,
+            batch: EncoderBatch,
+            predicted_tokens: Tensor
     ) -> tuple[list[str], list[str], list[str]]:
         """Extract source, reference and predicted text parts.
 
@@ -297,12 +297,12 @@ class TrainModule(pl.LightningModule):
         return source_text, reference_text, predicted_text
 
     def _create_prediction_entries(
-        self,
-        source_text: list[str],
-        reference_text: list[str],
-        predicted_text: list[str],
-        ce_losses: Tensor,
-        batch_idx: Optional[int] = None
+            self,
+            source_text: list[str],
+            reference_text: list[str],
+            predicted_text: list[str],
+            ce_losses: Tensor,
+            batch_idx: Optional[int] = None
     ) -> list[list]:
         """Create prediction entries for logging.
 
