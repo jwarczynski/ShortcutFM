@@ -47,7 +47,7 @@ class ModelConfig(BaseModel):
     output_dims: int = Field(default=128, description="Output dimension size")
     hidden_size: int = Field(default=768, description="Hidden layer dimension size")
     hidden_t_dim: int = Field(default=128, description="Hidden time embedding dimension")
-    hidden_shortcut_dim: int = Field(default=128, description="Hidden time embedding dimension")
+    hidden_shortcut_dim: Optional[int] = Field(default=128, description="Hidden shortcut embedding dimension")
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=32, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
