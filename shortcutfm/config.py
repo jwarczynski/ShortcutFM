@@ -112,7 +112,6 @@ class TrainingConfig(BaseModel):
     # Data configuration
     batch_size: int = Field(default=256, description="Batch size for training")
     training_data_path: Path = Field(description="Path to training dataset")
-    # TODO:make it optional
     validation_data_path: Path = Field(description="Path to validation dataset")
 
     # Training process settings
