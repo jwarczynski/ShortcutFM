@@ -155,6 +155,10 @@ class TrainingConfig(BaseModel):
         default=100,
         description="Number of epochs between train prediction logging"
     )
+    log_train_predictions_from_n_epochs: int = Field(
+            default=1000,
+            description="Number of training epochs to start logging train predictions from"
+        )
 
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")

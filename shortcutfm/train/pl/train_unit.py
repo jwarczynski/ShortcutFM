@@ -28,7 +28,8 @@ class TrainModule(pl.LightningModule):
             denoising_step_size: int = 32,
             num_val_batches_to_log: int = 2,
             num_timestep_bins: int = 4,  # Number of bins for timestep logging
-            log_train_predictions_every_n_epochs: int = 100  # Number of epochs between train prediction logging
+            log_train_predictions_every_n_epochs: int = 100,  # Number of epochs between train prediction logging
+            log_train_predictions_from_n_epochs: int = 1000,  # Number of epochs between train prediction logging
     ) -> None:
         super().__init__()
         self.criterion = criterion
@@ -40,6 +41,7 @@ class TrainModule(pl.LightningModule):
         self.denoising_step_size = denoising_step_size
         self.num_val_batches_to_log = num_val_batches_to_log
         self.log_train_predictions_every_n_epochs = log_train_predictions_every_n_epochs
+        self.log_train_predictions_from_n_epochs = log_train_predictions_from_n_epochs
         self.predictions = []  # For validation predictions
         self.train_predictions = []  # For training predictions
         self.last_train_batch = None  # Store last batch for full denoising
@@ -120,8 +122,11 @@ class TrainModule(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
         self._log_timestep_bin_losses()
-        if self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0:
-           self._process_train_batch_predictions()
+        if (
+                self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
+                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+        ):
+            self._process_train_batch_predictions()
 
     def _log_timestep_bin_losses(self) -> None:
         """Log average losses for each timestep bin and clear the loss storage.
