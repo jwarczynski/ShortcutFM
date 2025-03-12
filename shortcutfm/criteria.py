@@ -336,7 +336,8 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
 
     @override
     def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
-        return batch.x_t + y_hat * self.scale_t(batch.t)
+        x0 = batch.x_t + y_hat
+        return torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, batch.x_start, x0)
 
     @override
     def compute_velocity(
