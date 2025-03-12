@@ -622,6 +622,9 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
             self, velocity, x_start, x_t, t, shorcut_size, input_ids_mask: Tensor
     ):
         t = self.scale_t(t).view(-1, 1, 1)
+        embedding_dim = velocity.size(-1)
+        input_ids_mask = input_ids_mask[..., :embedding_dim]
+        x_t = x_t[..., :embedding_dim]
         velocity = torch.where(input_ids_mask == 0, 0, velocity)
         return x_t + velocity * t
 
@@ -629,8 +632,11 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
     def _modify_target(
             self, step1_prediction, step2_prediction, x_start, _, __, ___, input_ids_mask: Tensor
     ):
-        step2_prediction = torch.where(input_ids_mask == 0, step1_prediction, step2_prediction)
-        return (step1_prediction + step2_prediction) / 2
+        embedding_dim = step1_prediction.size(-1)
+        input_ids_mask = input_ids_mask[..., :embedding_dim]
+        target =  (step1_prediction + step2_prediction) / 2
+        target = torch.where(input_ids_mask == 0, 0, target)
+        return target
 
     @override
     def _modify_model_input_or_output(
@@ -683,7 +689,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         )
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
-        x_0_hat = torch.where(input_ids_mask == 0, x_start, step1_prediction)
+        x_0_hat = self._modify_model_input_or_output(input_ids_mask, x_start, step1_prediction)
         return torch.cat((original_result, x_0_hat), dim=-1)
 
     @override
@@ -744,7 +750,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
 
         with torch.no_grad():
             y_hat = self.model(x_t_next_zero_sc, t_next, shortcut_size).detach()
-        y_hat = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, y_hat)
+        y_hat = self._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start, y_hat)
 
         x_t_sc = torch.cat((x_t, y_hat), dim=-1)
         y = self.model(x_t_sc, t, 2 * shortcut_size)
