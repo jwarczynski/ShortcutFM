@@ -12,7 +12,7 @@ from shortcutfm.criteria import (
     NllCriterion,
     SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
-    X0ConsistencyCrterion,
+    VelocityConsistencyCrterion, VelocityFlowMatchingCriterion, X0ConsistencyCrterion,
     X0FlowMatchingCriterion,
 )
 from shortcutfm.model.factory import TransformerNetModelFactory
@@ -39,11 +39,7 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.config_name)
 
     # Create base flow matching criterion
-    flow_matching_criterion = X0FlowMatchingCriterion(
-        model,
-        diffusion_steps=training_cfg.model.diffusion_steps,
-        tokenizer=tokenizer
-    )
+    flow_matching_criterion = create_flow_matching_criterion(model, tokenizer, training_cfg)
 
     # Apply self-conditioning decorator if sc_rate > 0
     if training_cfg.model.sc_rate > 0:
@@ -69,6 +65,25 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     return criterion
 
 
+def create_flow_matching_criterion(model, tokenizer, training_cfg):
+    if training_cfg.model.parametrization == "x0":
+        flow_matching_criterion = X0FlowMatchingCriterion(
+            model,
+            diffusion_steps=training_cfg.model.diffusion_steps,
+            tokenizer=tokenizer
+        )
+    elif training_cfg.model.parametrization == "velocity":
+        flow_matching_criterion = VelocityFlowMatchingCriterion(
+            model,
+            diffusion_steps=training_cfg.model.diffusion_steps,
+            tokenizer=tokenizer
+        )
+    else:
+        raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
+
+    return flow_matching_criterion
+
+
 def _create_composite_criterion(
         flow_matching_criterion: X0FlowMatchingCriterion,
         model: FlowMatchingModel,
@@ -90,7 +105,7 @@ def _create_composite_criterion(
     weights = [training_cfg.flow_matching_loss_weight]
 
     # Add consistency criterion with optional self-conditioning decorator
-    consistency_criterion = X0ConsistencyCrterion(model, training_cfg.model.diffusion_steps)
+    consistency_criterion = create_consistency_criterion(model, training_cfg)
     if training_cfg.model.sc_rate > 0:
         consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
             consistency_criterion,
@@ -122,6 +137,17 @@ def _create_composite_criterion(
         self_consistency_ratio=training_cfg.self_consistency_ratio,
         sampler=time_and_shortcut_sampler,
     )
+
+
+def create_consistency_criterion(model, training_cfg):
+    if training_cfg.model.parametrization == "x0":
+        consistency_criterion = X0ConsistencyCrterion(model, training_cfg.model.diffusion_steps)
+    elif training_cfg.model.parametrization == "velocity":
+        consistency_criterion = VelocityConsistencyCrterion(model, training_cfg.model.diffusion_steps)
+    else:
+        raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
+
+    return consistency_criterion
 
 
 def _create_flow_nll_criterion(

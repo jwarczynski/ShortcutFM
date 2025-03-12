@@ -69,6 +69,7 @@ class ModelConfig(BaseModel):
     predict_t: bool = Field(default=False, description="Whether to predict timestep")
     max_position_embeddings: Optional[int] = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
+    parametrization: Literal["x0", "velocity"] = Field(default="x0", description="Parametrization for diffusion")
     model_config = ConfigDict(extra="forbid")  # Add this line
 
 
