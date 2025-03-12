@@ -60,10 +60,10 @@ class FlowMatchingCriterion(Criterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
         self.tokenizer = tokenizer
         self.x_t = None
 
@@ -319,10 +319,10 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
     ):
-        super().__init__(model, difusion_steps, tokenizer)
+        super().__init__(model, diffusion_steps, tokenizer)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -468,9 +468,9 @@ class ConsistencyCrterion(Criterion, ABC):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
 
     @override
     def compute_losses(self, batch: ShortcutFMBatch) -> dict[str, Tensor]:
@@ -612,9 +612,9 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
     def __init__(
             self,
             model: Model,
-            difusion_steps,
+            diffusion_steps,
     ):
-        super().__init__(model, difusion_steps)
+        super().__init__(model, diffusion_steps)
 
     @override
     def _prepare_2_shortcut_input(
