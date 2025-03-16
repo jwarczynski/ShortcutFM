@@ -8,6 +8,7 @@ from torch import Tensor
 from torch.nn import functional as F
 from torch.optim import AdamW
 from transformers import PreTrainedTokenizer
+import wandb
 
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
@@ -54,6 +55,10 @@ class TrainModule(pl.LightningModule):
         # Initialize dictionaries to store losses for each component and bin
         self.timestep_losses = {}  # Will be populated with loss components in training_step
 
+        # Initialize lists to store exact timesteps and shortcuts for histogram logging
+        self.timesteps_for_histogram = []
+        self.shortcuts_for_histogram = []
+
         self.save_hyperparameters(ignore=['criterion', 'prediction_strategy', 'tokenizer'])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
@@ -75,6 +80,12 @@ class TrainModule(pl.LightningModule):
             loss_metrics,
             on_step=True, on_epoch=False, prog_bar=True
         )
+
+        # Store exact timesteps and shortcuts for histogram logging
+        if "timestep" in outputs:
+            self.timesteps_for_histogram.extend(outputs["timestep"].detach().cpu().numpy().tolist())
+        if "shortcut" in outputs:
+            self.shortcuts_for_histogram.extend(outputs["shortcut"].detach().cpu().numpy().tolist())
 
         # Process and store timestep losses
         self._process_timestep_losses(outputs)
@@ -122,6 +133,8 @@ class TrainModule(pl.LightningModule):
     def on_train_epoch_end(self) -> None:
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
         self._log_timestep_bin_losses()
+        self._log_sampling_histograms()
+            
         if (
                 self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
                 self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
@@ -156,6 +169,28 @@ class TrainModule(pl.LightningModule):
             key: [[] for _ in range(len(self.timestep_bins) - 1)]
             for key in self.timestep_losses.keys()
         }
+
+    def _log_sampling_histograms(self) -> None:
+        """Log histograms of timesteps and shortcuts sampled during training.
+        
+        This method creates and logs histograms to track the distribution of:
+        - Timesteps that were sampled during training
+        - Shortcut sizes that were used
+        It also logs the count of samples for each.
+        """
+        if self.timesteps_for_histogram:
+            self.logger.experiment.log({
+                "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
+                "train/timesteps_count": len(self.timesteps_for_histogram)
+            })
+            self.timesteps_for_histogram = []  # Clear for next epoch
+            
+        if self.shortcuts_for_histogram:
+            self.logger.experiment.log({
+                "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
+                "train/shortcuts_count": len(self.shortcuts_for_histogram)
+            })
+            self.shortcuts_for_histogram = []  # Clear for next epoch
 
     def _process_train_batch_predictions(self) -> None:
         """Process and log predictions for the saved training batch.
