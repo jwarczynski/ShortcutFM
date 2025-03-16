@@ -1,15 +1,35 @@
-from abc import ABC
-from typing import Optional
+from abc import ABC, abstractmethod
+from typing import Optional, override
 
 import numpy as np
 import torch
 from torch import Tensor, nn
 from torch.nn import Module
-from transformers import ModernBertModel
-from transformers.models.bert.modeling_bert import BertEncoder
 
 from shortcutfm.config import ModelConfig
 from shortcutfm.nn import timestep_embedding
+
+
+class BackboneTransformer(nn.Module, ABC):
+    def __init__(self, encoder: nn.Module):
+        super().__init__()
+        self.encoder = encoder
+
+    @abstractmethod
+    def forward(self, x: Tensor) -> Tensor:
+        """computes last hidden states of the transformer"""
+
+
+class ModernBertBackbone(BackboneTransformer):
+    @override
+    def forward(self, x: Tensor) -> Tensor:
+        return self.encoder(inputs_embeds=x).last_hidden_state
+
+
+class BertEncoderBackbone(BackboneTransformer):
+    @override
+    def forward(self, x: Tensor) -> Tensor:
+        return self.encoder(hidden_states=x).last_hidden_state
 
 
 class FlowMatchingModel(Module, ABC):
@@ -55,7 +75,7 @@ class TransformerNetModel(nn.Module):
             word_embedding: nn.Embedding,
             lm_head: nn.Linear,
             time_embed: nn.Sequential,
-            input_transformer: BertEncoder | ModernBertModel,
+            backbone_transformer: BackboneTransformer,
             shortcut_embedding: Optional[nn.Module] = None,
             input_up_proj: Optional[nn.Sequential] = None,
             position_embeddings: Optional[nn.Embedding] = None,
@@ -70,7 +90,7 @@ class TransformerNetModel(nn.Module):
         self.lm_head = lm_head
         self.time_embed = time_embed
         self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
-        self.input_transformer = input_transformer
+        self.backbone_transformer = backbone_transformer
         self.position_embeddings = position_embeddings
         self.layer_norm = layer_norm if layer_norm is not None else nn.Identity()
         self.output_down_proj = output_down_proj if output_down_proj is not None else nn.Identity()
@@ -107,12 +127,12 @@ class TransformerNetModel(nn.Module):
         bsz, seq_len, *_ = x.size()
 
         timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-        
+
         x = self.input_up_proj(x)
 
         # Add time embedding
         x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
-        
+
         # Add shortcut embedding if available
         if self.shortcut_embedding is not None:
             shortcut_emb = self.shortcut_embedding(timestep_embedding(shortcuts, self.config.hidden_shortcut_dim))
@@ -124,10 +144,35 @@ class TransformerNetModel(nn.Module):
             x = x + self.position_embeddings(position_ids)
 
         x = self.dropout(self.layer_norm(x))
-        if isinstance(self.input_transformer, BertEncoder):
-            hidden_states = self.input_transformer(hidden_states=x).last_hidden_state
-        else:  # ModernBert
-            hidden_states = self.input_transformer(inputs_embeds=x).last_hidden_state
+        hidden_states = self.backbone_transformer(x)
+        hidden_states = self.output_down_proj(hidden_states)
+
+        return hidden_states
+
+
+class StackedEmbeddingTransformerNetModel(TransformerNetModel):
+
+    @override
+    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
+        bsz, seq_len, *_ = x.size()
+
+        # Add position embeddings if available
+        if self.position_embeddings is not None:
+            position_ids = self.position_ids[:, :seq_len]
+            x = x + self.position_embeddings(position_ids)
+
+        # Add time embedding
+        timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
+        x = torch.cat((x, timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)), dim=-1)
+
+        # Add shortcut embedding if available
+        if self.shortcut_embedding is not None:
+            shortcut_emb = self.shortcut_embedding(timestep_embedding(shortcuts, self.config.hidden_shortcut_dim))
+            x = torch.cat((x, shortcut_emb.unsqueeze(1).expand(-1, seq_len, -1)), dim=-1)
+
+        x = self.input_up_proj(x)
+        x = self.dropout(self.layer_norm(x))
+        hidden_states = self.backbone_transformer(x)
         hidden_states = self.output_down_proj(hidden_states)
 
         return hidden_states

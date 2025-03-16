@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, override
 
 import torch
 from torch import Tensor, nn
@@ -8,7 +8,13 @@ from transformers import AutoConfig, BertModel, ModernBertModel
 from transformers.models.bert.modeling_bert import BertEncoder
 
 from shortcutfm.config import ModelConfig
-from shortcutfm.model.model import FlowMatchingModel, TransformerNetModel
+from shortcutfm.model.model import (
+    BackboneTransformer,
+    BertEncoderBackbone,
+    FlowMatchingModel,
+    ModernBertBackbone,
+    StackedEmbeddingTransformerNetModel, TransformerNetModel,
+)
 
 
 @dataclass
@@ -18,7 +24,7 @@ class TransformerNetModelModules:
     word_embedding: nn.Embedding
     lm_head: nn.Linear
     time_embed: nn.Sequential
-    input_transformer: nn.Module  # Can be BertEncoder or BertModel.encoder
+    backbone_transformer: nn.Module  # Can be BertEncoder or BertModel.encoder
     shortcut_embedding: Optional[nn.Module] = None
     input_up_proj: Optional[nn.Sequential] = None
     position_embeddings: Optional[nn.Embedding] = None
@@ -55,13 +61,17 @@ class TransformerNetModelFactory:
         :rtype: FlowMatchingModel
         """
         modules = self._create_modules()
-        module = TransformerNetModel(**modules.__dict__, config=self.config)
+        module = self.create_module(modules)
 
         return FlowMatchingModel(
             module=module,
             diffusion_steps=self.config.diffusion_steps,
             min_shortcut_size=self.config.min_shortcut_size
         )
+
+    def create_module(self, modules):
+        module = TransformerNetModel(**modules.__dict__, config=self.config)
+        return module
 
     def _create_modules(self) -> TransformerNetModelModules:
         """Creates all necessary modules based on the configuration.
@@ -82,7 +92,7 @@ class TransformerNetModelFactory:
         input_up_proj = self._create_input_projection()
 
         # Create transformer backbone
-        input_transformers, position_embeddings, layer_norm = self._create_transformer_backbone(word_embedding)
+        backbone_transformer, position_embeddings, layer_norm = self._create_transformer_backbone(word_embedding)
 
         # Create output projection if needed
         output_down_proj = self._create_output_projection()
@@ -96,7 +106,7 @@ class TransformerNetModelFactory:
             time_embed=time_embed,
             shortcut_embedding=shortcut_embedding,
             input_up_proj=input_up_proj,
-            input_transformer=input_transformers,
+            backbone_transformer=backbone_transformer,
             position_embeddings=position_embeddings,
             layer_norm=layer_norm,
             output_down_proj=output_down_proj,
@@ -158,7 +168,7 @@ class TransformerNetModelFactory:
     def _create_transformer_backbone(
             self,
             word_embedding: nn.Embedding
-    ) -> Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
+    ) -> Tuple[BackboneTransformer, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
         """Create transformer backbone based on configuration.
 
         :param word_embedding: Word embedding layer
@@ -176,7 +186,7 @@ class TransformerNetModelFactory:
     def _create_bert_backbone(
             self,
             word_embedding: nn.Embedding
-    ) -> Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
+    ) -> Tuple[BertEncoderBackbone, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
         """Create BERT-style transformer backbone.
 
         :param word_embedding: Word embedding layer
@@ -191,8 +201,10 @@ class TransformerNetModelFactory:
             input_transformers = temp_bert.encoder
             position_embeddings = temp_bert.embeddings.position_embeddings
             layer_norm = temp_bert.embeddings.LayerNorm
+            backbone_trasnformer = BertEncoderBackbone(input_transformers)
         else:
             input_transformers = BertEncoder(self.bert_config)
+            backbone_trasnformer = BertEncoderBackbone(input_transformers)
             position_embeddings = nn.Embedding(
                 self.bert_config.max_position_embeddings,
                 self.bert_config.hidden_size
@@ -202,12 +214,12 @@ class TransformerNetModelFactory:
                 eps=self.bert_config.layer_norm_eps
             )
 
-        return input_transformers, position_embeddings, layer_norm
+        return backbone_trasnformer, position_embeddings, layer_norm
 
     def _create_modern_bert_backbone(
             self,
             word_embedding: nn.Embedding
-    ) -> Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
+    ) -> Tuple[ModernBertBackbone, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
         """Create ModernBERT-style transformer backbone.
 
         :param word_embedding: Word embedding layer
@@ -224,10 +236,12 @@ class TransformerNetModelFactory:
             with torch.no_grad():
                 word_embedding.weight = temp_bert.embeddings.weight
             input_transformers = temp_bert
+            backbone_trasnformer = ModernBertBackbone(input_transformers)
         else:
             input_transformers = ModernBertModel(self.bert_config)
+            backbone_trasnformer = ModernBertBackbone(input_transformers)
 
-        return input_transformers, None, None
+        return backbone_trasnformer, None, None
 
     def _create_output_projection(self) -> Optional[nn.Sequential]:
         """Create output projection if dimensions don't match.
@@ -250,3 +264,83 @@ class TransformerNetModelFactory:
         :rtype: Tensor
         """
         return torch.arange(self.bert_config.max_position_embeddings).expand((1, -1))
+
+
+class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
+    """Factory class to create TransformerNetModel instances with stacked embeddings from configuration."""
+
+    @override
+    def create_module(self, modules):
+        module = StackedEmbeddingTransformerNetModel(**modules.__dict__, config=self.config)
+        return module
+
+
+    @override
+    def _create_input_projection(self) -> Optional[nn.Sequential]:
+        """Create input projection if dimensions don't match.
+
+        :return: Input projection network or None if not needed
+        :rtype: Optional[nn.Sequential]
+        """
+        input_dims = (
+                (self.config.input_dims * 2 if self.config.sc_rate > 0 else self.config.input_dims)
+                + self.config.hidden_t_dim
+                + (self.config.hidden_shortcut_dim if self.config.hidden_shortcut_dim is not None else 0)
+        )
+
+        return nn.Sequential(
+            nn.Linear(input_dims, self.bert_config.hidden_size),
+            nn.Tanh(),
+            nn.Linear(self.bert_config.hidden_size, self.bert_config.hidden_size),
+        )
+
+    @override
+    def _create_time_embedding(self, input_dim, scale_factor: int = 4) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Linear(self.config.hidden_t_dim, self.config.hidden_t_dim * scale_factor),
+            nn.Tanh(),
+            nn.Linear(self.config.hidden_t_dim * scale_factor, self.config.hidden_t_dim),
+        )
+
+    @override
+    def _create_shortcut_embedding(self):
+        return nn.Sequential(
+            nn.Linear(self.config.hidden_shortcut_dim, self.config.hidden_shortcut_dim * 4),
+            nn.Tanh(),
+            nn.Linear(self.config.hidden_shortcut_dim * 4, self.config.hidden_shortcut_dim),
+        )
+
+    @override
+    def _create_bert_backbone(
+            self,
+            word_embedding: nn.Embedding
+    ) -> Tuple[BertEncoderBackbone, Optional[nn.Embedding], Optional[nn.LayerNorm]]:
+        """Create BERT-style transformer backbone.
+
+        :param word_embedding: Word embedding layer
+        :type word_embedding: nn.Embedding
+        :return: Tuple of (input_transformers, position_embeddings, layer_norm)
+        :rtype: Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]
+        """
+        if self.config.use_pretrained_weights:
+            temp_bert = BertModel.from_pretrained(self.config.config_name, config=self.bert_config)
+            with torch.no_grad():
+                word_embedding.weight = temp_bert.embeddings.word_embeddings.weight
+            input_transformers = temp_bert.encoder
+            position_embeddings = temp_bert.embeddings.position_embeddings
+            layer_norm = temp_bert.embeddings.LayerNorm
+            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+        else:
+            input_transformers = BertEncoder(self.bert_config)
+            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+            input_dims = self.config.input_dims * 2 if self.config.sc_rate > 0 else self.config.input_dims
+            position_embeddings = nn.Embedding(
+                self.bert_config.max_position_embeddings,
+                input_dims
+            )
+            layer_norm = nn.LayerNorm(
+                self.bert_config.hidden_size,
+                eps=self.bert_config.layer_norm_eps
+            )
+
+        return backbone_trasnformer, position_embeddings, layer_norm
