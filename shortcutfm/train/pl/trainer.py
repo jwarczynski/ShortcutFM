@@ -45,13 +45,17 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
         batch_size=cfg.batch_size,
         collate_fn=collate,
         shuffle=True,
+        num_workers=8,
+        persistent_workers=True,
     )
 
     val_dataloader = DataLoader(
         val_text_ds,
         batch_size=cfg.batch_size,
         collate_fn=collate,
-        shuffle=False
+        shuffle=False,
+        num_workers=8,
+        persistent_workers=True,
     )
 
     return train_dataloader, val_dataloader
