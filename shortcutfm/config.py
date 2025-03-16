@@ -38,7 +38,7 @@ class CheckpointConfig(BaseModel):
         default=None,
         description="Path to checkpoint file to resume from. None means start from scratch"
     )
-    model_config = ConfigDict(extra="forbid")  # Add this line
+    model_config = ConfigDict(extra="forbid")
 
 
 class ModelConfig(BaseModel):
@@ -77,7 +77,7 @@ class BaseSchedulerConfig(BaseModel):
     """Base class for scheduler configurations"""
     lr: float = Field(default=3e-4, description="Target learning rate")
     weight_decay: float = Field(default=0.1, description="Weight decay factor")
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Add extra="forbid" here
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
 
 class MyleSchedulerConfig(BaseSchedulerConfig):
@@ -85,7 +85,7 @@ class MyleSchedulerConfig(BaseSchedulerConfig):
     type: Literal["myle"]
     warmup_steps: int = Field(..., description="Number of warmup steps")
     start_lr: float = Field(..., description="Initial learning rate")
-    model_config = ConfigDict(extra="forbid")  # Add this line
+    model_config = ConfigDict(extra="forbid")
 
 
 class LinearSchedulerConfig(BaseSchedulerConfig):
@@ -94,7 +94,7 @@ class LinearSchedulerConfig(BaseSchedulerConfig):
     start_factor: float = Field(..., description="Start factor for linear scheduler")
     end_factor: float = Field(..., description="End factor for linear scheduler")
     total_steps: Optional[int] = Field(default=None, description="Total steps for linear scheduler")
-    model_config = ConfigDict(extra="forbid")  # Add this line
+    model_config = ConfigDict(extra="forbid")
 
 
 # Define the scheduler type union with discriminator
@@ -105,7 +105,7 @@ class OptimizerConfig(BaseModel):
     """Optimizer and learning rate scheduler configuration"""
     scheduler: SchedulerConfig = Field(..., description="Scheduler configuration", discriminator='type')
 
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Validate values even after model creation
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
 
 class TrainingConfig(BaseModel):
@@ -157,9 +157,9 @@ class TrainingConfig(BaseModel):
         description="Number of epochs between train prediction logging"
     )
     log_train_predictions_from_n_epochs: int = Field(
-            default=1000,
-            description="Number of training epochs to start logging train predictions from"
-        )
+        default=1000,
+        description="Number of training epochs to start logging train predictions from"
+    )
 
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
@@ -180,7 +180,7 @@ class TrainingConfig(BaseModel):
 
     infra: exca.TaskInfra = exca.TaskInfra()
 
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")  # Add extra="forbid" here
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     @infra.apply
     def train(self) -> None:
