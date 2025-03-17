@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 
 import torch
@@ -115,6 +116,8 @@ def collate(batch: list[dict[str, Tensor]]) -> EncoderBatch:
     Returns:
         An EncoderBatch object containing the collated tensors.
     """
+
+    random.shuffle(batch)
 
     # Transpose the list of dictionaries into a dictionary of lists
     transposed_batch = {k: [item[k] for item in batch] for k in batch[0]}
