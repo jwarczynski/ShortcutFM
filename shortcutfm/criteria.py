@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import zip_longest
-from typing import Union
+from typing import Callable, Union
 
 import numpy as np
 import torch
@@ -62,10 +62,12 @@ class FlowMatchingCriterion(Criterion):
             model: Model,
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
+            reduce_fn: Callable = torch.mean,
     ):
         super().__init__(model, diffusion_steps)
         self.tokenizer = tokenizer
         self.x_t = None
+        self.reduce_fn = reduce_fn
 
     def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
         target = self._compute_target(batch)
@@ -82,7 +84,7 @@ class FlowMatchingCriterion(Criterion):
         decoder_loss = self._compute_nll_loss(x_start_predicted, batch.seqs)
 
         return {
-            "flow_matching_loss": fm_loss.mean(-1),
+            "flow_matching_loss": self.reduce_fn(fm_loss, dim=-1),
             "decoder_loss": decoder_loss
         }
 
@@ -280,8 +282,9 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
             model: Model,
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
+            reduce_fn: Callable = torch.mean,
     ):
-        super().__init__(model, diffusion_steps, tokenizer)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -321,8 +324,9 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
             model: Model,
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
+            reduce_fn: Callable = torch.mean,
     ):
-        super().__init__(model, diffusion_steps, tokenizer)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -361,7 +365,7 @@ class FlowMatchinCriterionDecorator(FlowMatchingCriterion, ABC):
             self,
             criterion: FlowMatchingCriterion,
     ):
-        super().__init__(criterion.model, criterion.diffusion_steps, criterion.tokenizer)
+        super().__init__(criterion.model, criterion.diffusion_steps, criterion.tokenizer, criterion.reduce_fn)
         self.criterion = criterion
 
 
@@ -470,8 +474,10 @@ class ConsistencyCrterion(Criterion, ABC):
             self,
             model: Model,
             diffusion_steps,
+            reduce_fn: Callable = torch.mean,
     ):
         super().__init__(model, diffusion_steps)
+        self.reduce_fn = reduce_fn
 
     @override
     def compute_losses(self, batch: ShortcutFMBatch) -> dict[str, Tensor]:
@@ -491,10 +497,9 @@ class ConsistencyCrterion(Criterion, ABC):
             input_ids_mask=batch.input_ids_mask,
         )
 
-        # TODO: pass loss_fn as argument
         loss = torch.nn.functional.mse_loss(output, target, reduction="none")
         return {
-            "consistency_loss": loss.mean(-1)
+            "consistency_loss": self.reduce_fn(loss, dim=-1)
         }
 
     @torch.no_grad()
@@ -572,8 +577,9 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
             self,
             model: Model,
             diffusion_steps,
+            reduce_fn: Callable = torch.mean,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, reduce_fn)
 
     @override
     def _prepare_2_shortcut_input(
@@ -614,8 +620,9 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
             self,
             model: Model,
             diffusion_steps,
+            reduce_fn: Callable = torch.mean,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, reduce_fn)
 
     @override
     def _prepare_2_shortcut_input(
@@ -655,7 +662,7 @@ class ConsistencyCriterionDecorator(ConsistencyCrterion, ABC):
             self,
             criterion: ConsistencyCrterion,
     ):
-        super().__init__(criterion.model, criterion.diffusion_steps)
+        super().__init__(criterion.model, criterion.diffusion_steps, criterion.reduce_fn)
         self._criterion = criterion
 
 

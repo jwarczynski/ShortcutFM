@@ -124,6 +124,7 @@ class TrainingConfig(BaseModel):
     check_val_every_n_epoch: Optional[int] = Field(default=5, description="How often to run validation")
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
     max_steps: int = Field(default=60000, description="Maximum training steps")
+    reduce_fn: str = Field(default="mean", description="Reduce function")
     gradient_clipping: float = Field(default=2.0, description="Gradient clipping value")
     accumulate_grad_batches: int = Field(default=8, description="Number of batches to accumulate gradients")
     deterministic: bool = Field(default=True, description="Whether to use deterministic training")

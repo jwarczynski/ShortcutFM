@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import torch
 from transformers import AutoTokenizer
@@ -68,24 +68,39 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     return criterion
 
 
-def create_flow_matching_criterion(model, tokenizer, training_cfg):
+def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):
+    reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
+
     if training_cfg.model.parametrization == "x0":
         flow_matching_criterion = X0FlowMatchingCriterion(
             model,
             diffusion_steps=training_cfg.model.diffusion_steps,
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
+            reduce_fn=reduce_fn,
         )
     elif training_cfg.model.parametrization == "velocity":
         flow_matching_criterion = VelocityFlowMatchingCriterion(
             model,
             diffusion_steps=training_cfg.model.diffusion_steps,
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
+            reduce_fn=reduce_fn,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
 
     return flow_matching_criterion
 
+
+def get_reduction_fn(reduce_fn: str) -> Callable[[torch.Tensor, int], torch.Tensor]:
+    reduce_fn_map = {
+        "mean": torch.mean,
+        "sum": torch.sum,
+    }
+    reduce_fn = reduce_fn_map.get(reduce_fn, None)
+    if reduce_fn is None:
+        raise ValueError(f"Unknown reduce_fn: {reduce_fn}")
+
+    return reduce_fn
 
 def _create_composite_criterion(
         flow_matching_criterion: X0FlowMatchingCriterion,
@@ -143,10 +158,12 @@ def _create_composite_criterion(
 
 
 def create_consistency_criterion(model, training_cfg):
+    reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
+
     if training_cfg.model.parametrization == "x0":
-        consistency_criterion = X0ConsistencyCrterion(model, training_cfg.model.diffusion_steps)
+        consistency_criterion = X0ConsistencyCrterion(model, training_cfg.model.diffusion_steps, reduce_fn)
     elif training_cfg.model.parametrization == "velocity":
-        consistency_criterion = VelocityConsistencyCrterion(model, training_cfg.model.diffusion_steps)
+        consistency_criterion = VelocityConsistencyCrterion(model, training_cfg.model.diffusion_steps, reduce_fn)
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
 
