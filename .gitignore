@@ -4,6 +4,7 @@ __pycache__
 diffusion_models/*
 generation_outputs/*
 srun_logs/*
+jobs
 wandb/*
 /scripts/*.slurm
 
