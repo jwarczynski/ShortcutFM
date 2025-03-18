@@ -869,7 +869,8 @@ class CompositeCriterion(Criterion):
             "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
             "loss": total_loss,
-            "timestep": full_batch.t
+            "timestep": full_batch.t,
+            "shortcut": consistency_batch.shortcut_size,
         }
 
     def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
