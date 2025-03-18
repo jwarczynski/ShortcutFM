@@ -156,11 +156,12 @@ class TransformerNetModelFactory:
         :return: Input projection network or None if not needed
         :rtype: Optional[nn.Sequential]
         """
+        activation = self.create_activation(self.config.projection_activation)
         input_dims = self.config.input_dims * (2 if self.config.sc_rate > 0 else 1)
         if input_dims != self.bert_config.hidden_size:
             return nn.Sequential(
                 nn.Linear(input_dims, self.bert_config.hidden_size),
-                nn.Tanh(),
+                activation,
                 nn.Linear(self.bert_config.hidden_size, self.bert_config.hidden_size),
             )
         return None
@@ -249,13 +250,34 @@ class TransformerNetModelFactory:
         :return: Output projection network or None if not needed
         :rtype: Optional[nn.Sequential]
         """
+        activation = self.create_activation(self.config.projection_activation)
         if self.config.output_dims != self.bert_config.hidden_size:
             return nn.Sequential(
                 nn.Linear(self.bert_config.hidden_size, self.bert_config.hidden_size),
-                nn.Tanh(),
+                activation,
                 nn.Linear(self.bert_config.hidden_size, self.config.output_dims),
             )
         return None
+
+    def create_activation(self, activation: str) -> nn.Module:
+        """Create activation function based on configuration.
+
+        :param activation: Activation function name
+        :type activation: str
+        :return: Activation function module
+        :rtype: nn.Module
+        """
+        if activation.lower() == "silu" or activation.lower() == "swish":  # Handle both names
+            return nn.SiLU()
+        elif activation.lower() == "gelu":
+            return nn.GELU()
+        elif activation.lower() == "tanh":
+            return nn.Tanh()
+        elif activation.lower() == "relu":
+            return nn.ReLU()
+        else:
+            raise ValueError(f"Invalid activation function: {activation}")
+
 
     def _create_position_ids(self) -> Tensor:
         """Create position IDs tensor.

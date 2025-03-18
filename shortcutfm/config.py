@@ -50,6 +50,9 @@ class ModelConfig(BaseModel):
     hidden_size: int = Field(default=768, description="Hidden layer dimension size")
     hidden_t_dim: int = Field(default=128, description="Hidden time embedding dimension")
     hidden_shortcut_dim: Optional[int] = Field(default=128, description="Hidden shortcut embedding dimension")
+    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
+        default="gelu", description="Activation function for projection layers"
+    )
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=32, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
