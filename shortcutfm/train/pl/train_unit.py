@@ -1,3 +1,4 @@
+from itertools import islice
 from typing import Literal, Optional
 
 import lightning as pl
@@ -337,7 +338,8 @@ class TrainModule(pl.LightningModule):
             reference_text: list[str],
             predicted_text: list[str],
             ce_losses: Tensor,
-            batch_idx: Optional[int] = None
+            batch_idx: Optional[int] = None,
+            max_entries: int = 8,
     ) -> list[list]:
         """Create prediction entries for logging.
 
@@ -355,7 +357,9 @@ class TrainModule(pl.LightningModule):
         :rtype: list[list]
         """
         entries = []
-        for i, (src, ref, pred, ce_loss) in enumerate(zip(source_text, reference_text, predicted_text, ce_losses)):
+        for i, (src, ref, pred, ce_loss) in enumerate(
+                islice(zip(source_text, reference_text, predicted_text, ce_losses), max_entries)
+        ):
             prediction_entry = [
                 self.current_epoch,
                 src.strip(),  # Remove any padding artifacts
