@@ -135,12 +135,7 @@ class TrainModule(pl.LightningModule):
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
         self._log_timestep_bin_losses()
         self._log_sampling_histograms()
-            
-        if (
-                self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
-                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
-        ):
-            self._process_train_batch_predictions()
+        self._process_train_batch_predictions()
 
     def _log_timestep_bin_losses(self) -> None:
         """Log average losses for each timestep bin and clear the loss storage.
@@ -200,11 +195,16 @@ class TrainModule(pl.LightningModule):
         computes cross entropy loss, and logs the predictions along with their
         source and reference texts.
         """
+        log_text = (
+                self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
+                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+        )
         if self.last_train_batch is not None:
             self._process_batch_predictions(
                 batch=self.last_train_batch,
                 predictions_list=self.train_predictions,
                 stage="train",
+                create_entries=log_text,
             )
 
             # Log the predictions table
@@ -222,6 +222,7 @@ class TrainModule(pl.LightningModule):
             predictions_list: list,
             batch_idx: Optional[int] = None,
             stage: Literal["val", "train"] = None,
+            create_entries: bool = True,
     ) -> float:
         """Process a batch for predictions and store results.
 
@@ -252,23 +253,24 @@ class TrainModule(pl.LightningModule):
             # Compute masked cross entropy loss
             ce_loss = self._compute_masked_cross_entropy(predictions, batch)
 
-            # Get token IDs for decoding
-            predicted_tokens = predictions.argmax(dim=-1)
+            if create_entries:
+                # Get token IDs for decoding
+                predicted_tokens = predictions.argmax(dim=-1)
 
-            # Extract text parts
-            source_text, reference_text, predicted_text = self._extract_text_parts(
-                batch, predicted_tokens
-            )
+                # Extract text parts
+                source_text, reference_text, predicted_text = self._extract_text_parts(
+                    batch, predicted_tokens
+                )
 
-            # Create and store prediction entries
-            prediction_entries = self._create_prediction_entries(
-                source_text=source_text,
-                reference_text=reference_text,
-                predicted_text=predicted_text,
-                ce_losses=ce_loss,
-                batch_idx=batch_idx
-            )
-            predictions_list.extend(prediction_entries)
+                # Create and store prediction entries
+                prediction_entries = self._create_prediction_entries(
+                    source_text=source_text,
+                    reference_text=reference_text,
+                    predicted_text=predicted_text,
+                    ce_losses=ce_loss,
+                    batch_idx=batch_idx
+                )
+                predictions_list.extend(prediction_entries)
 
             # Log cross entropy if stage is provided
             if stage:
