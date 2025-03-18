@@ -1,3 +1,5 @@
+import random
+from lightning import seed_everything
 from pathlib import Path
 from typing import Literal, Optional, Union
 
@@ -187,6 +189,8 @@ class TrainingConfig(BaseModel):
     def train(self) -> None:
         from shortcutfm.train.pl.trainer import get_lightning_trainer
 
+        seed_everything(self.seed)
+        random.seed(self.seed)
         trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(self)
         if not self.dry_run:
             trainer.fit(model, train_dataloader, ckpt_path=self.checkpoint.path)
