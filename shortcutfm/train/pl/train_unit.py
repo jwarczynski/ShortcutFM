@@ -109,7 +109,7 @@ class TrainModule(pl.LightningModule):
 
         # Process each loss term except total loss
         for key, value in outputs.items():
-            if "loss" in key.lower() and key not in ["loss", "embedding_loss"]:
+            if "loss" in key.lower() and key not in ["loss", "embedding_loss", "isotropy_loss"]:
                 # Initialize storage for this loss component if not exists
                 if key not in self.timestep_losses:
                     self.timestep_losses[key] = [[] for _ in range(len(self.timestep_bins) - 1)]
@@ -136,6 +136,7 @@ class TrainModule(pl.LightningModule):
         self._log_timestep_bin_losses()
         self._log_sampling_histograms()
         self._process_train_batch_predictions()
+        self.log_anisotropy()
 
     def _log_timestep_bin_losses(self) -> None:
         """Log average losses for each timestep bin and clear the loss storage.
@@ -380,6 +381,20 @@ class TrainModule(pl.LightningModule):
             entries.append(prediction_entry)
 
         return entries
+
+    def log_anisotropy(self):
+        """Log the anisotropy of the model embeddings."""
+        if hasattr(self.criterion.model.module, "word_embedding"):
+            embedding_weights = self.criterion.model.module.word_embedding.weight
+            anisotropy = self._calculate_anisotropy(embedding_weights)
+            self.log("train/anisotropy", anisotropy, on_step=False, on_epoch=True)
+
+    @torch.no_grad()
+    def _calculate_anisotropy(self, model_emb):
+        model_emb = model_emb / torch.norm(model_emb, dim=-1, keepdim=True)
+        cos_similarity = torch.mm(model_emb, model_emb.T).sum() - model_emb.size(0)
+        anisotropy = cos_similarity / model_emb.size(0) / (model_emb.size(0) - 1)
+        return anisotropy
 
     def validation_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
         outputs = self(batch)

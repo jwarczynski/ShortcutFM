@@ -826,6 +826,24 @@ class NllCriterion(Criterion):
             "nll_loss": loss
         }
 
+class IsotropyCriterion(Criterion):
+
+    def __call__(self, *args, **kwargs):
+        return self.compute_losses(*args, **kwargs)
+
+    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        embedding_weights = self.model.module.word_embedding.weight
+        return {
+            "isotropy_loss": isotropy_loss(embedding_weights)
+        }
+
+
+def isotropy_loss(embeddings):
+    norm_emb = embeddings / torch.norm(embeddings, dim=-1, keepdim=True)
+    cos_sim = torch.mm(norm_emb, norm_emb.T)
+    off_diag = cos_sim - torch.eye(cos_sim.size(0), device=cos_sim.device)
+    return torch.mean(off_diag ** 2)
+
 
 class CompositeCriterion(Criterion):
 
@@ -863,8 +881,9 @@ class CompositeCriterion(Criterion):
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
         consistency_loss = self.criteria[1](consistency_batch)["consistency_loss"]
         embedding_loss = self.criteria[2](full_batch)["nll_loss"]
+        isotropy_loss = self.criteria[3](batch)["isotropy_loss"]
 
-        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean()]  # no decoder_loss
+        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(), isotropy_loss]  # no decoder_loss
         weighted_losses = [
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
@@ -875,6 +894,7 @@ class CompositeCriterion(Criterion):
             "consistency_loss": consistency_loss,
             "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
+            "isotropy_loss": isotropy_loss,
             "loss": total_loss,
             "timestep": full_batch.t,
             "shortcut": consistency_batch.shortcut_size,

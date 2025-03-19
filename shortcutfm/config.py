@@ -172,6 +172,7 @@ class TrainingConfig(BaseModel):
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")
     consistency_loss_weight: Optional[float] = Field(default=1.0, description="Weight for consistency loss")
     nll_loss_weight: Optional[float] = Field(default=1.0, description="Weight for negative log likelihood loss")
+    isotropy_loss_weight: Optional[float] = Field(default=1.0, description="Weight for isotropy loss")
 
     # Component configurations
     model: ModelConfig = Field(default_factory=ModelConfig, description="Model configuration")

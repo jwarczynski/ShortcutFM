@@ -9,7 +9,7 @@ from shortcutfm.config import TrainingConfig
 from shortcutfm.criteria import (
     CompositeCriterion,
     FlowNllCriterion,
-    NllCriterion,
+    IsotropyCriterion, NllCriterion,
     SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
     VelocityConsistencyCrterion, VelocityFlowMatchingCriterion, X0ConsistencyCrterion,
@@ -146,6 +146,10 @@ def _create_composite_criterion(
         shortcut_sampler,
         training_cfg.model.diffusion_steps,
     )
+
+    isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
+    criteria.append(IsotropyCriterion(model, training_cfg.model.diffusion_steps))
+    weights.append(isotropy_loss_wieght)
 
     return CompositeCriterion(
         criteria=tuple(criteria),
