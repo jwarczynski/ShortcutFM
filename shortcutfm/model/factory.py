@@ -93,6 +93,8 @@ class TransformerNetModelFactory:
 
         # Create transformer backbone
         backbone_transformer, position_embeddings, layer_norm = self._create_transformer_backbone(word_embedding)
+        if self.config.freeze_word_embedding:
+            word_embedding.weight.requires_grad = False
 
         # Create output projection if needed
         output_down_proj = self._create_output_projection()
