@@ -890,11 +890,11 @@ class CompositeCriterion(Criterion):
         total_loss = sum(weighted_losses)
 
         return {
-            "flow_matching_loss": flow_matching_loss,
-            "consistency_loss": consistency_loss,
-            "embedding_loss": embedding_loss,
+            "flow_matching_loss": weighted_losses[0],
+            "consistency_loss": weighted_losses[1],
+            "embedding_loss": weighted_losses[2],
             "decoder_loss": decoder_loss,
-            "isotropy_loss": isotropy_loss,
+            "isotropy_loss": weighted_losses[3],
             "loss": total_loss,
             "timestep": full_batch.t,
             "shortcut": consistency_batch.shortcut_size,
