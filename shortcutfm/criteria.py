@@ -990,6 +990,7 @@ class FlowNllCriterion(Criterion):
         self.flow_matching_criterion = flow_matching_criterion
         self.nll = nll_criterion
         self.sampler = sampler
+        print("initialized FlowNllCriterion")
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         return self.compute_losses(batch)
@@ -1001,14 +1002,15 @@ class FlowNllCriterion(Criterion):
         flow_and_decoder_loses = self.flow_matching_criterion(fm_batch)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        embedding_loss = self.nll(fm_batch)["nll_loss"]
+        # embedding_loss = self.nll(fm_batch)["nll_loss"]
 
-        losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
+        # losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
+        losses = [flow_matching_loss.mean()]
         total_loss = sum(losses)
 
         return {
             "flow_matching_loss": flow_matching_loss,
-            "embedding_loss": embedding_loss,
+            # "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
             "loss": total_loss,
             "timestep": fm_batch.t
