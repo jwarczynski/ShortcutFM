@@ -180,7 +180,7 @@ class TrainingConfig(BaseModel):
     optimizer: OptimizerConfig = Field(..., description="Optimizer configuration")
     wandb: WandBConfig = Field(default_factory=WandBConfig, description="Weights & Biases configuration")
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig, description="Checkpoint configuration")
-    ema: EMAConfig = Field(default_factory=EMAConfig, description="EMA configuration")
+    ema: Optional[EMAConfig] = Field(default_factory=EMAConfig, description="EMA configuration")
 
     # Runtime settings
     use_exca: bool = Field(default=False, description="Whether to use Exca for submitting tasks")
