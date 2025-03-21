@@ -1029,7 +1029,7 @@ class FlowNllCriterion(Criterion):
             batch.padding_mask,
             batch.input_ids_mask,
             embeddings,
-            embeddings,
+            x_t,
             noise,
             t
         )
