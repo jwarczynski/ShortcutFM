@@ -32,9 +32,12 @@ class Criterion(Module, ABC):
         losses = self.compute_losses(batch)
         loss_mask = padding_mask * input_ids_mask
         for key, value in losses.items():
-            masked_per_token_loss = loss_mask * value
-            per_batch_loss = masked_per_token_loss.sum(-1) / loss_mask.sum(-1)
+            # masked_per_token_loss = loss_mask * value
+            masked_per_token_loss = value
+            # per_batch_loss = masked_per_token_loss.sum(-1) / loss_mask.sum(-1)
+            per_batch_loss = masked_per_token_loss.mean(-1)
             losses[key] = per_batch_loss
+            print(f"per batch {key}: {per_batch_loss}")
         return losses
 
     @abstractmethod
