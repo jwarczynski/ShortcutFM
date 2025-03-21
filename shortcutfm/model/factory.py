@@ -95,6 +95,9 @@ class TransformerNetModelFactory:
         backbone_transformer, position_embeddings, layer_norm = self._create_transformer_backbone(word_embedding)
         if self.config.freeze_word_embedding:
             word_embedding.weight.requires_grad = False
+            lm_head.weight.requires_grad = True
+            print(f"word emebedding reuires grad: {word_embedding.weight.requires_grad}")
+            print(f"lm head requires grad: {lm_head.weight.requires_grad}")
 
         # Create output projection if needed
         output_down_proj = self._create_output_projection()
@@ -122,12 +125,21 @@ class TransformerNetModelFactory:
         :rtype: Tuple[nn.Embedding, nn.Linear]
         """
         input_dims = self.config.input_dims
-        word_embedding = nn.Embedding(self.config.vocab_size, input_dims)
+        vocab_size = self.config.vocab_size
+
+        # Create word embedding layer
+        word_embedding = nn.Embedding(vocab_size, input_dims)
         nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
 
-        lm_head = nn.Linear(input_dims, self.config.vocab_size, bias=True)
+        # Create lm_head with conditional weight sharing
+        lm_head = nn.Linear(input_dims, vocab_size, bias=True)
         with torch.no_grad():
-            lm_head.weight = word_embedding.weight
+            if self.config.freeze_word_embedding:
+                # Independent weights: copy word_embedding weights to lm_head
+                lm_head.weight.copy_(word_embedding.weight)
+            else:
+                # Shared weights: tie lm_head weights to word_embedding for efficiency
+                lm_head.weight = word_embedding.weight
 
         return word_embedding, lm_head
 
@@ -280,7 +292,6 @@ class TransformerNetModelFactory:
         else:
             raise ValueError(f"Invalid activation function: {activation}")
 
-
     def _create_position_ids(self) -> Tensor:
         """Create position IDs tensor.
 
@@ -297,7 +308,6 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
     def create_module(self, modules):
         module = StackedEmbeddingTransformerNetModel(**modules.__dict__, config=self.config)
         return module
-
 
     @override
     def _create_input_projection(self) -> Optional[nn.Sequential]:
