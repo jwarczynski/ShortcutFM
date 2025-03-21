@@ -129,7 +129,7 @@ class TrainingConfig(BaseModel):
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
     max_steps: int = Field(default=60000, description="Maximum training steps")
     reduce_fn: str = Field(default="mean", description="Reduce function")
-    gradient_clipping: float = Field(default=2.0, description="Gradient clipping value")
+    gradient_clipping: Optional[float] = Field(default=None, description="Gradient clipping value")
     accumulate_grad_batches: int = Field(default=8, description="Number of batches to accumulate gradients")
     deterministic: bool = Field(default=True, description="Whether to use deterministic training")
     seed: int = Field(default=44, description="Random seed")
