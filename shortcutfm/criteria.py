@@ -70,7 +70,8 @@ class FlowMatchingCriterion(Criterion):
         self.reduce_fn = reduce_fn
 
     def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
-        target = self._compute_target(batch)
+        # target = self._compute_target(batch)
+        target = torch.ones_like(batch.x_start)
         output = self._predict(
             x_start=batch.x_start,
             x_t=batch.x_t,
