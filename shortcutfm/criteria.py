@@ -20,7 +20,7 @@ class Criterion(Module, ABC):
         self.model = model
         self.diffusion_steps = diffusion_steps
 
-    def __call__(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         """ Compute the losses. """
         return self.losses_with_mask(batch)
 
@@ -828,7 +828,7 @@ class NllCriterion(Criterion):
 
 class IsotropyCriterion(Criterion):
 
-    def __call__(self, *args, **kwargs):
+    def forward(self, *args, **kwargs):
         return self.compute_losses(*args, **kwargs)
 
     def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
@@ -868,7 +868,7 @@ class CompositeCriterion(Criterion):
         self.self_consistency_ratio = self_consistency_ratio
         self.sampler = sampler
 
-    def __call__(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         return self.compute_losses(batch)
 
     @override
@@ -990,6 +990,9 @@ class FlowNllCriterion(Criterion):
         self.flow_matching_criterion = flow_matching_criterion
         self.nll = nll_criterion
         self.sampler = sampler
+
+    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        return self.compute_losses(batch)
 
     @override
     def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:

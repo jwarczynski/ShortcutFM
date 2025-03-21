@@ -39,7 +39,7 @@ class FlowMatchingModel(Module, ABC):
         self.diffusion_steps = diffusion_steps
         self.min_shortcut_size = min_shortcut_size
 
-    def __call__(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
         """ Forward pass of the model. """
         if shortcuts is None:
             shortcuts = torch.zeros_like(time_steps, device=x.device)

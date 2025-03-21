@@ -63,7 +63,7 @@ class TrainModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['criterion', 'prediction_strategy', 'tokenizer'])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
-        return self.criterion.compute_losses(batch)
+        return self.criterion(batch)
 
     def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
         outputs = self(batch)
