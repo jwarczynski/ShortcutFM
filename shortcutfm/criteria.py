@@ -48,7 +48,7 @@ class Criterion(Module, ABC):
         t = t.view(-1, 1, 1)  # Reshape to (batch_size, 1, 1) to match x_start
 
         if noise is None:
-            noise = torch.rand(x_start.size(), device=x_start.device)
+            noise = torch.randn_like(x_start)
 
         return x_start + (noise - x_start) * t, noise
 
