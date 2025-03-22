@@ -38,7 +38,6 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     # ) if not training_cfg.model.stacked_embeddings else StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
     factory = FFNFactory(training_cfg.model)
     model = factory.build()
-    return model
 
     # Initialize tokenizer
     tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.config_name)
