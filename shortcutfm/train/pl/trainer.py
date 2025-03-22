@@ -137,7 +137,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
 
     train_dataloader, val_dataloader = create_dataloaders(cfg)
 
-    wandb_logger = create_wandb_logger(cfg, train_unit.criterion.model)
+    wandb_logger = create_wandb_logger(cfg, criterion)
 
     checkpoint_dir = setup_checkpoint_directory_and_save_config(cfg, wandb_logger)
 
