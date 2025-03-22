@@ -34,7 +34,7 @@ class TrainModule(pl.LightningModule):
             log_train_predictions_from_n_epochs: int = 1000,  # Number of epochs between train prediction logging
     ) -> None:
         super().__init__()
-        self.model = criterion
+        self.criterion = criterion
         self.optimizer_config = optimizer_config
 
         self.tokenizer = tokenizer
@@ -49,9 +49,9 @@ class TrainModule(pl.LightningModule):
         self.last_train_batch = None  # Store last batch for full denoising
 
         # Setup timestep bins using linear spacing
-        # max_timestep = self.criterion.diffusion_steps  # Maximum timestep value
+        max_timestep = self.criterion.diffusion_steps  # Maximum timestep value
         # Create linearly spaced bin edges
-        # self.timestep_bins = np.linspace(0, max_timestep, num_timestep_bins + 1, dtype=int)
+        self.timestep_bins = np.linspace(0, max_timestep, num_timestep_bins + 1, dtype=int)
 
         # Initialize dictionaries to store losses for each component and bin
         self.timestep_losses = {}  # Will be populated with loss components in training_step
@@ -63,10 +63,7 @@ class TrainModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['criterion', 'prediction_strategy', 'tokenizer'])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
-        embeddings = self.model.get_embeddings(batch.seqs)
-        output = self.model(embeddings, torch.zeros(batch.seqs.shape[0], device=embeddings.device))
-        fm_loss = torch.nn.functional.mse_loss(output, embeddings, reduction="none")
-        return {"loss": fm_loss}
+        return self.criterion(batch)
 
     def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
         outputs = self(batch)
@@ -92,7 +89,7 @@ class TrainModule(pl.LightningModule):
             self.shortcuts_for_histogram.extend(outputs["shortcut"].detach().cpu().numpy().tolist())
 
         # Process and store timestep losses
-        # self._process_timestep_losses(outputs)
+        self._process_timestep_losses(outputs)
 
         return outputs["loss"].mean()
 
@@ -136,11 +133,10 @@ class TrainModule(pl.LightningModule):
 
     def on_train_epoch_end(self) -> None:
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
-        # self._log_timestep_bin_losses()
-        # self._log_sampling_histograms()
-        # self._process_train_batch_predictions()
-        # self.log_anisotropy()
-        pass
+        self._log_timestep_bin_losses()
+        self._log_sampling_histograms()
+        self._process_train_batch_predictions()
+        self.log_anisotropy()
 
     def _log_timestep_bin_losses(self) -> None:
         """Log average losses for each timestep bin and clear the loss storage.
@@ -411,11 +407,11 @@ class TrainModule(pl.LightningModule):
         )
 
         # Perform full denoising and log text for a few validation batches
-        # if (
-        #         batch_idx < self.num_val_batches_to_log and
-        #         self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
-        # ):
-        #     self._process_validation_predictions(batch, batch_idx)
+        if (
+                batch_idx < self.num_val_batches_to_log and
+                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+        ):
+            self._process_validation_predictions(batch, batch_idx)
 
         return outputs["loss"]
 
@@ -439,15 +435,15 @@ class TrainModule(pl.LightningModule):
             stage="val"
         )
 
-    # def on_validation_end(self) -> None:
-    #     """Log all predictions from the epoch to the table."""
-    #     if self.predictions and hasattr(self.logger, "log_table"):
-    #         columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
-    #         self.logger.log_table(
-    #             "val/predictions",
-    #             columns=columns,
-    #             data=self.predictions
-    #         )
+    def on_validation_end(self) -> None:
+        """Log all predictions from the epoch to the table."""
+        if self.predictions and hasattr(self.logger, "log_table"):
+            columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
+            self.logger.log_table(
+                "val/predictions",
+                columns=columns,
+                data=self.predictions
+            )
 
     def test_step(self, batch: EncoderBatch, batch_idx: int) -> tuple[Tensor, Tensor]:
         """Run test step and return both input sequences and model predictions.
@@ -471,7 +467,7 @@ class TrainModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(
-            self.model.module.parameters(),
+            self.criterion.model.module.parameters(),
             lr=self.optimizer_config.lr,
             weight_decay=self.optimizer_config.weight_decay
         )
