@@ -15,7 +15,7 @@ from shortcutfm.criteria import (
     VelocityConsistencyCrterion, VelocityFlowMatchingCriterion, X0ConsistencyCrterion,
     X0FlowMatchingCriterion,
 )
-from shortcutfm.model.factory import StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory
+from shortcutfm.model.factory import FFNFactory, StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory
 from shortcutfm.model.model import FlowMatchingModel
 from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShortcutSampler, UniformSampler
 from shortcutfm.train.pl.callbacks import EMACallback
@@ -33,9 +33,10 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     :rtype: CompositeCriterion | FlowNllCriterion
     """
     # Initialize model
-    factory = TransformerNetModelFactory(
-        training_cfg.model
-    ) if not training_cfg.model.stacked_embeddings else StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
+    # factory = TransformerNetModelFactory(
+    #     training_cfg.model
+    # ) if not training_cfg.model.stacked_embeddings else StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
+    factory = FFNFactory(training_cfg.model)
     model = factory.build()
     return model
 

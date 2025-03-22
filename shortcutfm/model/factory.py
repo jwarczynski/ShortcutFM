@@ -378,3 +378,70 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
             )
 
         return backbone_trasnformer, position_embeddings, layer_norm
+
+
+class FFNBackbone(nn.Module):
+    """Feed-forward network backbone for TransformerNetModel."""
+
+    def __init__(
+            self,
+            input_dims: int,
+            hidden_dims: int,
+            num_layers: int,
+            emb: nn.Embedding,
+            lm_head: nn.Linear
+            ):
+        super().__init__()
+
+        self.word_embedding = emb
+        self.lm_head = lm_head
+
+        self.layers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(input_dims if i == 0 else hidden_dims, hidden_dims),
+                    nn.ReLU(),
+                )
+                for i in range(num_layers)
+            ]
+        )
+
+    def forward(self, x: Tensor, t, s) -> Tensor:
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
+        # return self.lm_head(x)
+
+    def get_embeddings(self, x: Tensor) -> Tensor:
+        return self.word_embedding(x)
+
+    def compute_logits(self, hidden_repr: Tensor) -> Tensor:
+        return self.lm_head(hidden_repr)
+
+
+
+class FFNFactory(TransformerNetModelFactory):
+    """Factory class to create TransformerNetModel instances with FFN."""
+
+    def build(self) -> FlowMatchingModel:
+        """Builds and returns a TransformerNetModel instance.
+
+        :return: Configured FlowMatchingModel instance
+        :rtype: FlowMatchingModel
+        """
+
+        word_embedding, lm_head = self._create_word_embeddings()
+        ffn = FFNBackbone(
+            768,
+            768,
+            3,
+            word_embedding,
+            lm_head
+        )
+
+        return FlowMatchingModel(
+            module=ffn,
+            diffusion_steps=self.config.diffusion_steps,
+            min_shortcut_size=self.config.min_shortcut_size
+        )
