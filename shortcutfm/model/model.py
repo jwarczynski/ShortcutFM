@@ -32,7 +32,7 @@ class BertEncoderBackbone(BackboneTransformer):
         return self.encoder(hidden_states=x).last_hidden_state
 
 
-class FlowMatchingModel(Module, ABC):
+class FlowMatchingModel(Module):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.module = module
