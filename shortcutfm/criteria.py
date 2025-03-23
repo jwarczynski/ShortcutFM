@@ -37,7 +37,6 @@ class Criterion(Module, ABC):
             # per_batch_loss = masked_per_token_loss.sum(-1) / loss_mask.sum(-1)
             per_batch_loss = masked_per_token_loss.mean(-1)
             losses[key] = per_batch_loss
-            print(f"per batch {key}: {per_batch_loss}")
         return losses
 
     @abstractmethod
@@ -993,7 +992,6 @@ class FlowNllCriterion(Criterion):
         self.flow_matching_criterion = flow_matching_criterion
         self.nll = nll_criterion
         self.sampler = sampler
-        print("initialized FlowNllCriterion")
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         return self.compute_losses(batch)
