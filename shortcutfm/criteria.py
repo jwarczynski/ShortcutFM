@@ -618,7 +618,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
-        step2_input =  x_t + (shorcut_size / self.diffusion_steps)[:, None, None] * step1_prediction
+        step2_input = x_t + (shorcut_size / self.diffusion_steps)[:, None, None] * step1_prediction
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
@@ -671,7 +671,7 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
     ):
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
-        target =  (step1_prediction + step2_prediction) / 2
+        target = (step1_prediction + step2_prediction) / 2
         target = torch.where(input_ids_mask == 0, 0, target)
         return target
 
@@ -916,7 +916,8 @@ class CompositeCriterion(Criterion):
         embedding_loss = self.criteria[2](full_batch)["nll_loss"]
         isotropy_loss = self.criteria[3](batch)["isotropy_loss"]
 
-        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(), isotropy_loss]  # no decoder_loss
+        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(),
+                  isotropy_loss]  # no decoder_loss
         weighted_losses = [
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
