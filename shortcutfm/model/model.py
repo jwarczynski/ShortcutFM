@@ -32,6 +32,34 @@ class BertEncoderBackbone(BackboneTransformer):
         return self.encoder(hidden_states=x).last_hidden_state
 
 
+class FFNBackbone(BackboneTransformer):
+    """Feed-forward network backbone for TransformerNetModel."""
+
+    def __init__(
+            self,
+            input_dims: int,
+            hidden_dims: int,
+            num_layers: int,
+    ):
+        super().__init__(None)
+
+        self.layers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(input_dims if i == 0 else hidden_dims, hidden_dims),
+                    nn.ReLU(),
+                )
+                for i in range(num_layers)
+            ]
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
+
+
 class FlowMatchingModel(Module):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
         super().__init__(*args, **kwargs)
