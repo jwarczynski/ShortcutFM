@@ -103,14 +103,7 @@ class TransformerNetModelFactory:
         return TransformerNetModel(
             word_embedding=word_embedding,
             lm_head=lm_head,
-            time_embed=time_embed,
-            shortcut_embedding=shortcut_embedding,
-            input_up_proj=input_up_proj,
             backbone_transformer=backbone_transformer,
-            position_embeddings=position_embeddings,
-            layer_norm=layer_norm,
-            output_down_proj=output_down_proj,
-            position_ids=position_ids,
             config=self.config
         )
 

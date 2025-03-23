@@ -76,6 +76,7 @@ class FFNModule(Module):
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
         return self.backbone(x)
 
+
 class FlowMatchingModel(Module):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -118,30 +119,14 @@ class TransformerNetModel(Module):
             *,
             word_embedding: nn.Embedding,
             lm_head: nn.Linear,
-            time_embed: nn.Sequential,
             backbone_transformer: BackboneTransformer,
-            shortcut_embedding: Optional[nn.Module] = None,
-            input_up_proj: Optional[nn.Sequential] = None,
-            position_embeddings: Optional[nn.Embedding] = None,
-            layer_norm: Optional[nn.LayerNorm] = None,
-            output_down_proj: Optional[nn.Sequential] = None,
             config: ModelConfig = None,
-            position_ids: Optional[Tensor] = None,
     ):
         super().__init__()
         self.config = config
         self.word_embedding = word_embedding
         self.lm_head = lm_head
-        self.time_embed = time_embed
-        self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
         self.backbone_transformer = backbone_transformer
-        self.position_embeddings = position_embeddings
-        self.layer_norm = layer_norm if layer_norm is not None else nn.Identity()
-        self.output_down_proj = output_down_proj if output_down_proj is not None else nn.Identity()
-        self.dropout = nn.Dropout(config.dropout)
-        self.hidden_size = config.hidden_size
-        self.register_buffer("position_ids", position_ids)
-        self.register_module("shortcut_embedding", shortcut_embedding)
 
     def get_embeddings(self, input_ids):
         return self.word_embedding(input_ids)
@@ -150,8 +135,7 @@ class TransformerNetModel(Module):
         return self.lm_head(hidden_repr)
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
-        hidden_states = self.backbone_transformer(x)
-        return hidden_states
+        return self.backbone_transformer(x)
 
 
 class StackedEmbeddingTransformerNetModel(TransformerNetModel):
