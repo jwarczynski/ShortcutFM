@@ -83,6 +83,10 @@ class FlowMatchingCriterion(Criterion):
         )
 
         fm_loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        if self.training_cfg.normalize_flow_matching_loss:
+            target_norms = torch.norm(target, dim=-1, keepdim=True)  # Shape: (batch_size, seq_len, 1)
+            fm_loss = fm_loss / (target_norms + 1e-10)
+
         x_start_predicted = self.get_x0_from_predicition(output, batch)
         decoder_loss = self._compute_nll_loss(x_start_predicted, batch.seqs)
 
