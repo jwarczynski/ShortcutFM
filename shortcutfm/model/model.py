@@ -60,6 +60,22 @@ class FFNBackbone(BackboneTransformer):
         return x
 
 
+class FFNModule(Module):
+    def __init__(self, word_embedding: nn.Embedding, lm_head: nn.Linear, backbone: BackboneTransformer):
+        super().__init__()
+        self.word_embedding = word_embedding
+        self.lm_head = lm_head
+        self.backbone = backbone
+
+    def get_embeddings(self, input_ids):
+        return self.word_embedding(input_ids)
+
+    def compute_logits(self, hidden_repr):
+        return self.lm_head(hidden_repr)
+
+    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
+        return self.backbone(x)
+
 class FlowMatchingModel(Module):
     def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
         super().__init__(*args, **kwargs)

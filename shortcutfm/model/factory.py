@@ -11,7 +11,7 @@ from shortcutfm.config import ModelConfig
 from shortcutfm.model.model import (
     BackboneTransformer,
     BertEncoderBackbone,
-    FFNBackbone, FlowMatchingModel,
+    FFNBackbone, FFNModule, FlowMatchingModel,
     ModernBertBackbone,
     StackedEmbeddingTransformerNetModel, TransformerNetModel,
 )
@@ -383,6 +383,13 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
+    def build(self) -> FlowMatchingModel:
+        """Builds and returns a TransformerNetModel instance."""
+        emb, lm_head = self._create_word_embeddings()
+        backbone = self._create_transformer_backbone(word_embedding=emb)[0]
+        module = FFNModule(emb, lm_head, backbone)
+        return FlowMatchingModel(module, self.config.diffusion_steps, self.config.min_shortcut_size)
+
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
         """Create word embeddings and language model head.
 
@@ -408,7 +415,6 @@ class FFNFactory(TransformerNetModelFactory):
 
         return word_embedding, lm_head
 
-
     @override
     def _create_transformer_backbone(
             self,
@@ -429,5 +435,3 @@ class FFNFactory(TransformerNetModelFactory):
         )
 
         return ffn, None, None
-
-
