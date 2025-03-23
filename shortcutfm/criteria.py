@@ -1065,7 +1065,7 @@ class FlowNllCriterion(Criterion):
             padding_mask=batch.padding_mask,
             input_ids_mask=batch.input_ids_mask,
             x_start=embeddings,
-            x_t=embeddings,
+            x_t=x_t,
             noise=noise,
             t=t
         )
