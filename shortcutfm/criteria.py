@@ -1039,13 +1039,12 @@ class FlowNllCriterion(Criterion):
         embedding_loss = self.nll(fm_batch)["nll_loss"]
         zero_loss = flow_and_decoder_loses["zeros_loss"]
 
-        # losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
-        losses = [flow_matching_loss.mean()]
+        losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
         total_loss = sum(losses)
 
         return {
             "flow_matching_loss": flow_matching_loss,
-            # "embedding_loss": embedding_loss,
+            "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
             "zeros_loss": zero_loss,
             "loss": total_loss,
