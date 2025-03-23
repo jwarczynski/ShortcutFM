@@ -129,7 +129,10 @@ class TransformerNetModel(Module):
         self.backbone_transformer = backbone_transformer
 
     def get_embeddings(self, input_ids):
-        return self.word_embedding(input_ids)
+        word_embeddings = self.word_embedding(input_ids)
+        if self.config.normalize_word_embedding:
+            word_embeddings = word_embeddings / (word_embeddings.norm(dim=-1, keepdim=True) + 1e-10)
+        return word_embeddings
 
     def compute_logits(self, hidden_repr):
         return self.lm_head(hidden_repr)

@@ -77,6 +77,7 @@ class ModelConfig(BaseModel):
     parametrization: Literal["x0", "velocity"] = Field(default="x0", description="Parametrization for diffusion")
     stacked_embeddings: bool = Field(default=False, description="Whether to stack embeddings")
     freeze_word_embedding: bool = Field(default=False, description="Whether to freeze word embeddings")
+    normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
     model_config = ConfigDict(extra="forbid")
 
 
