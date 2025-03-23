@@ -110,7 +110,7 @@ def scale_diffusion_input(data: Tensor, diffusion_steps: int) -> Tensor:
     return data.float() * (1.0 / diffusion_steps)
 
 
-class TransformerNetModel(nn.Module):
+class TransformerNetModel(Module):
     """Transformer network model for flow matching."""
 
     def __init__(
@@ -147,49 +147,10 @@ class TransformerNetModel(nn.Module):
         return self.word_embedding(input_ids)
 
     def compute_logits(self, hidden_repr):
-        if self.config.logits_mode == 1:
-            return self.lm_head(hidden_repr)
-        elif self.config.logits_mode == 2:  # standard cosine similarity
-            text_emb = hidden_repr
-            emb_norm = (self.lm_head.weight ** 2).sum(-1).view(-1, 1)  # vocab
-            text_emb_t = torch.transpose(text_emb.view(-1, text_emb.size(-1)), 0, 1)  # shoruct_size, bsz*seqlen
-            arr_norm = (text_emb ** 2).sum(-1).view(-1, 1)  # bsz*seqlen, 1
-            dist = emb_norm + arr_norm.transpose(0, 1) - 2.0 * torch.mm(
-                self.lm_head.weight,
-                text_emb_t
-            )  # (vocab, shoruct_size) x (shoruct_size, bsz*seqlen)
-            scores = torch.sqrt(torch.clamp(dist, 0.0, np.inf)).view(
-                emb_norm.size(0), hidden_repr.size(0),
-                hidden_repr.size(1)
-            )  # vocab, bsz*seqlen
-            scores = -scores.permute(1, 2, 0).contiguous()
-            return scores
-        else:
-            raise NotImplementedError("Only logits_mode 1 and 2 are supported")
+        return self.lm_head(hidden_repr)
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
-        bsz, seq_len, *_ = x.size()
-
-        # timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-        # x = self.input_up_proj(x)
-
-        # Add time embedding
-        # x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
-
-        # Add shortcut embedding if available
-        if self.shortcut_embedding is not None:
-            shortcut_emb = self.shortcut_embedding(timestep_embedding(shortcuts, self.config.hidden_shortcut_dim))
-            x = x + shortcut_emb.unsqueeze(1).expand(-1, seq_len, -1)
-
-        # Add position embeddings if available
-        if self.position_embeddings is not None:
-            position_ids = self.position_ids[:, :seq_len]
-            x = x + self.position_embeddings(position_ids)
-
-        # x = self.dropout(self.layer_norm(x))
         hidden_states = self.backbone_transformer(x)
-        # hidden_states = self.output_down_proj(hidden_states)
-
         return hidden_states
 
 
@@ -198,6 +159,9 @@ class StackedEmbeddingTransformerNetModel(TransformerNetModel):
     @override
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
+        # x = torch.zeros_like(x)
+        # time_steps = torch.zeros_like(time_steps)
+        # shortcuts = torch.zeros_like(shortcuts)
 
         # Add position embeddings if available
         if self.position_embeddings is not None:
