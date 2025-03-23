@@ -61,55 +61,101 @@ if __name__ == "__main__":
         }
 
         bert_base_cfg = {
-            "model.word_embedding_std": 0.5,
+            "model.word_embedding_std": 1.0,
 
             "training_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/train",
             "validation_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/valid",
 
-            "checkpoint.save_folder": "checkpoints/qqp/bert-base",
+            "checkpoint.save_folder": "checkpoints/qqp/bert-base/stacked",
         }
 
         with cfg.infra.job_array() as array:
-            for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
-                array.append(
-                    cfg.infra.clone_obj(
-                        {
-                            "infra.job_name": "sc_rate=0.5_consistency=0.0" + name,
-                            "wandb.run_name": "sc_rate=0.5_consistency=0.0" + name,
-                            **bert_cfg,
-                        }
-                    )
-                )
-                array.append(
-                    cfg.infra.clone_obj(
-                        {
-                            "model.sc_rate": 0.0,
-                            "infra.job_name": "sc_rate=0_consistency=0.0" + name,
-                            "wandb.run_name": "sc_rate=0_consistency=0.0" + name,
-                            **bert_cfg,
-                        }
-                    )
-                )
-                array.append(
-                    cfg.infra.clone_obj(
-                        {
-                            "model.sc_rate": 0.0,
-                            "self_consistency_ratio": 0.25,
-                            "infra.job_name": "sc_rate=0_consistency=0.25" + name,
-                            "prediction_shortcut_size": 32,
-                            "wandb.run_name": "sc_rate=0_consistency=0.25" + name,
-                            **bert_cfg,
-                        }
-                    )
-                )
-                array.append(
-                    cfg.infra.clone_obj(
-                        {
-                            "self_consistency_ratio": 0.25,
-                            "infra.job_name": "sc_rate=0.5_consistency=0.25" + name,
-                            "prediction_shortcut_size": 32,
-                            "wandb.run_name": "sc_rate=0.5_consistency=0.25" + name,
-                            **bert_cfg,
-                        }
-                    )
-                )
+            # for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
+            for name, bert_cfg in zip(("base",), [bert_base_cfg]):
+                # for gc in [0.5, 0.1]:
+                for gc in [None]:
+                    # for activation in ["gelu", "tanh"]:
+                    for activation in ["gelu"]:
+                        for lr in [3e-3]:
+                            for freeze_emb in [True]:
+                                for num_overfit_batches in [2]:
+                            # for isotropy_loss_weight in [100, 1000]:
+                            # for isotropy_loss_weight in [100, 1000]:
+                            #     for nll_loss_weight in [10]:
+                                    array.append(
+                                        cfg.infra.clone_obj(
+                                            {
+                                                "overfit_batches": num_overfit_batches,
+                                                # "nll_loss_weight": nll_loss_weight,
+                                                # "isotropy_loss_weight": isotropy_loss_weight,
+                                                "optimizer.scheduler.lr": lr,
+                                                "model.projection_activation": activation,
+                                                "model.freeze_word_embedding": freeze_emb,
+                                                "gradient_clipping": gc,
+                                                "prediction_shortcut_size": 32,
+                                                # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
+                                                # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
+                                                **bert_cfg,
+                                            }
+                                        )
+                                    )
+                                # array.append(
+                                #         cfg.infra.clone_obj(
+                                #             {
+                                #                 "overfit_batches": num_overfit_batches,
+                                #                 # "nll_loss_weight": nll_loss_weight,
+                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
+                                #                 "optimizer.scheduler.lr": lr,
+                                #                 "model.sc_rate": 0.5,
+                                #                 "model.projection_activation": activation,
+                                #                 "model.freeze_word_embedding": freeze_emb,
+                                #                 "gradient_clipping": gc,
+                                #                 "prediction_shortcut_size": 32,
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
+                                #                 **bert_cfg,
+                                #             }
+                                #         )
+                                #     )
+                                #
+                                # array.append(
+                                #         cfg.infra.clone_obj(
+                                #             {
+                                #                 "overfit_batches": num_overfit_batches,
+                                #                 # "nll_loss_weight": nll_loss_weight,
+                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
+                                #                 "optimizer.scheduler.lr": lr,
+                                #                 "model.sc_rate": 0.0,
+                                #                 "self_consistency_ratio": 0.25,
+                                #                 "model.hidden_shortcut_dim": 128,
+                                #                 "model.projection_activation": activation,
+                                #                 "model.freeze_word_embedding": freeze_emb,
+                                #                 "gradient_clipping": gc,
+                                #                 "prediction_shortcut_size": 32,
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
+                                #                 **bert_cfg,
+                                #             }
+                                #         )
+                                #     )
+                                #
+                                # array.append(
+                                #         cfg.infra.clone_obj(
+                                #             {
+                                #                 "overfit_batches": num_overfit_batches,
+                                #                 # "nll_loss_weight": nll_loss_weight,
+                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
+                                #                 "optimizer.scheduler.lr": lr,
+                                #                 "model.sc_rate": 0.5,
+                                #                 "self_consistency_ratio": 0.25,
+                                #                 "model.hidden_shortcut_dim": 128,
+                                #                 "model.projection_activation": activation,
+                                #                 "model.freeze_word_embedding": freeze_emb,
+                                #                 "gradient_clipping": gc,
+                                #                 "prediction_shortcut_size": 32,
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
+                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
+                                #                 **bert_cfg,
+                                #             }
+                                #         )
+                                #     )
