@@ -7,11 +7,11 @@ from torch import tensor
 
 from shortcutfm.batch import FlowMatchingBatch
 from shortcutfm.criteria import (
-    ConsistencyCrterion,
+    ConsistencyCriterion,
     NllCriterion, SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
-    VelocityConsistencyCrterion,
-    X0ConsistencyCrterion,
+    VelocityConsistencyCriterion,
+    X0ConsistencyCriterion,
     X0FlowMatchingCriterion,
 )
 
@@ -214,11 +214,11 @@ class TestFlowMatchingCriterion(unittest.TestCase):
 
     def test_trying_ConsistencyCrterion_initiation_throw_error(self):
         with pytest.raises(TypeError):
-            ConsistencyCrterion(self.model, 2048)
+            ConsistencyCriterion(self.model, 2048)
 
     def test_x0_consistency_criterion(self):
         """Test if the consistency _criterion correctly processes inputs."""
-        criterion = X0ConsistencyCrterion(self.model, 2048)
+        criterion = X0ConsistencyCriterion(self.model, 2048)
         target = criterion._compute_shortcut_target(
             shortcut_size=self.shortcut_size,
             t=self.t,
@@ -251,7 +251,7 @@ class TestFlowMatchingCriterion(unittest.TestCase):
         assert not target.requires_grad, "Target should not require gradients"
 
     def test_velocity_consistency_criterion(self):
-        criterion = VelocityConsistencyCrterion(self.model, 2048)
+        criterion = VelocityConsistencyCriterion(self.model, 2048)
         target = criterion._compute_shortcut_target(
             shortcut_size=self.shortcut_size,
             t=self.t,
@@ -294,7 +294,7 @@ class TestFlowMatchingCriterion(unittest.TestCase):
 
     def test_self_conditioning_consitency_x0_decorator_with_self_conditoning(self):
         torch.random.manual_seed(0)  # ensure deterministic results resulting in self-conditioning
-        x0_consistency_criterion = X0ConsistencyCrterion(self.model, 2048)
+        x0_consistency_criterion = X0ConsistencyCriterion(self.model, 2048)
         decorator = SelfConditioningConsistencyCriterionDecorator(x0_consistency_criterion, 0.5)
         target = decorator._compute_shortcut_target(
             shortcut_size=self.shortcut_size,
@@ -348,7 +348,7 @@ class TestFlowMatchingCriterion(unittest.TestCase):
     def test_self_conditioning_consitency_x0_decorator_without_self_conditoning(self):
         """Test if the self-conditioning consistency _criterion decorator correctly processes inputs."""
         torch.random.manual_seed(44)  # ensure deterministic results resulting in no self-conditioning
-        x0_consistency_criterion = X0ConsistencyCrterion(self.model, 2048)
+        x0_consistency_criterion = X0ConsistencyCriterion(self.model, 2048)
         decorator = SelfConditioningConsistencyCriterionDecorator(x0_consistency_criterion, 0.5)
         target = decorator._compute_shortcut_target(
             shortcut_size=self.shortcut_size,

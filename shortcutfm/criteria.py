@@ -369,7 +369,7 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
         return torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
 
 
-class FlowMatchinCriterionDecorator(FlowMatchingCriterion, ABC):
+class FlowMatchingCriterionDecorator(FlowMatchingCriterion, ABC):
     def __init__(
             self,
             criterion: FlowMatchingCriterion,
@@ -384,7 +384,7 @@ class FlowMatchinCriterionDecorator(FlowMatchingCriterion, ABC):
         self.criterion = criterion
 
 
-class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorator):
+class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecorator):
 
     def __init__(
             self,
@@ -484,7 +484,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchinCriterionDecorat
         self.y_hat = None
 
 
-class ConsistencyCrterion(Criterion, ABC):
+class ConsistencyCriterion(Criterion, ABC):
     def __init__(
             self,
             model: Model,
@@ -588,7 +588,7 @@ class ConsistencyCrterion(Criterion, ABC):
         """ Modify model input based on input_ids_mask. Used for self-conditioning. """
 
 
-class X0ConsistencyCrterion(ConsistencyCrterion):
+class X0ConsistencyCriterion(ConsistencyCriterion):
     def __init__(
             self,
             model: Model,
@@ -632,7 +632,7 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
         return torch.where(input_ids_mask == 0, x_start, y_hat).to(x_start.device)
 
 
-class VelocityConsistencyCrterion(ConsistencyCrterion):
+class VelocityConsistencyCriterion(ConsistencyCriterion):
     def __init__(
             self,
             model: Model,
@@ -675,10 +675,10 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
         return torch.where(input_ids_mask == 0, 0, y_hat).to(x_start.device)
 
 
-class ConsistencyCriterionDecorator(ConsistencyCrterion, ABC):
+class ConsistencyCriterionDecorator(ConsistencyCriterion, ABC):
     def __init__(
             self,
-            criterion: ConsistencyCrterion,
+            criterion: ConsistencyCriterion,
     ):
         super().__init__(criterion.model, criterion.diffusion_steps, criterion.reduce_fn, criterion.training_cfg)
         self._criterion = criterion
@@ -688,7 +688,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
 
     def __init__(
             self,
-            criterion: ConsistencyCrterion,
+            criterion: ConsistencyCriterion,
             self_conditioning_ratio: float,
     ):
         super().__init__(criterion)
