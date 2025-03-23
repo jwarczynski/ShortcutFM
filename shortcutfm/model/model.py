@@ -154,12 +154,11 @@ class TransformerNetModel(nn.Module):
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
 
-        timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-
-        x = self.input_up_proj(x)
+        # timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
+        # x = self.input_up_proj(x)
 
         # Add time embedding
-        x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
+        # x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
 
         # Add shortcut embedding if available
         if self.shortcut_embedding is not None:
@@ -171,9 +170,9 @@ class TransformerNetModel(nn.Module):
             position_ids = self.position_ids[:, :seq_len]
             x = x + self.position_embeddings(position_ids)
 
-        x = self.dropout(self.layer_norm(x))
+        # x = self.dropout(self.layer_norm(x))
         hidden_states = self.backbone_transformer(x)
-        hidden_states = self.output_down_proj(hidden_states)
+        # hidden_states = self.output_down_proj(hidden_states)
 
         return hidden_states
 

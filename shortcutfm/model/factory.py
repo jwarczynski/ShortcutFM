@@ -383,6 +383,32 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
+    def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
+        """Create word embeddings and language model head.
+
+        :return: Tuple of (word_embedding, lm_head)
+        :rtype: Tuple[nn.Embedding, nn.Linear]
+        """
+        input_dims = 768
+        vocab_size = self.config.vocab_size
+
+        # Create word embedding layer
+        word_embedding = nn.Embedding(vocab_size, input_dims)
+        nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
+
+        # Create lm_head with conditional weight sharing
+        lm_head = nn.Linear(input_dims, vocab_size, bias=True)
+        with torch.no_grad():
+            if self.config.freeze_word_embedding:
+                # Independent weights: copy word_embedding weights to lm_head
+                lm_head.weight.copy_(word_embedding.weight)
+            else:
+                # Shared weights: tie lm_head weights to word_embedding for efficiency
+                lm_head.weight = word_embedding.weight
+
+        return word_embedding, lm_head
+
+
     @override
     def _create_transformer_backbone(
             self,
@@ -399,7 +425,7 @@ class FFNFactory(TransformerNetModelFactory):
         ffn = FFNBackbone(
             768,
             768,
-            1,
+            3,
         )
 
         return ffn, None, None
