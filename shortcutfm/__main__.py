@@ -77,85 +77,23 @@ if __name__ == "__main__":
                     # for activation in ["gelu", "tanh"]:
                     for activation in ["gelu"]:
                         for lr in [3e-3]:
-                            for freeze_emb in [True]:
-                                for num_overfit_batches in [2]:
-                            # for isotropy_loss_weight in [100, 1000]:
-                            # for isotropy_loss_weight in [100, 1000]:
-                            #     for nll_loss_weight in [10]:
-                                    array.append(
-                                        cfg.infra.clone_obj(
-                                            {
-                                                "overfit_batches": num_overfit_batches,
-                                                # "nll_loss_weight": nll_loss_weight,
-                                                # "isotropy_loss_weight": isotropy_loss_weight,
-                                                "optimizer.scheduler.lr": lr,
-                                                "model.projection_activation": activation,
-                                                "model.freeze_word_embedding": freeze_emb,
-                                                "gradient_clipping": gc,
-                                                "prediction_shortcut_size": 32,
-                                                # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
-                                                # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
-                                                **bert_cfg,
-                                            }
-                                        )
-                                    )
-                                # array.append(
-                                #         cfg.infra.clone_obj(
-                                #             {
-                                #                 "overfit_batches": num_overfit_batches,
-                                #                 # "nll_loss_weight": nll_loss_weight,
-                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
-                                #                 "optimizer.scheduler.lr": lr,
-                                #                 "model.sc_rate": 0.5,
-                                #                 "model.projection_activation": activation,
-                                #                 "model.freeze_word_embedding": freeze_emb,
-                                #                 "gradient_clipping": gc,
-                                #                 "prediction_shortcut_size": 32,
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
-                                #                 **bert_cfg,
-                                #             }
-                                #         )
-                                #     )
-                                #
-                                # array.append(
-                                #         cfg.infra.clone_obj(
-                                #             {
-                                #                 "overfit_batches": num_overfit_batches,
-                                #                 # "nll_loss_weight": nll_loss_weight,
-                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
-                                #                 "optimizer.scheduler.lr": lr,
-                                #                 "model.sc_rate": 0.0,
-                                #                 "self_consistency_ratio": 0.25,
-                                #                 "model.hidden_shortcut_dim": 128,
-                                #                 "model.projection_activation": activation,
-                                #                 "model.freeze_word_embedding": freeze_emb,
-                                #                 "gradient_clipping": gc,
-                                #                 "prediction_shortcut_size": 32,
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
-                                #                 **bert_cfg,
-                                #             }
-                                #         )
-                                #     )
-                                #
-                                # array.append(
-                                #         cfg.infra.clone_obj(
-                                #             {
-                                #                 "overfit_batches": num_overfit_batches,
-                                #                 # "nll_loss_weight": nll_loss_weight,
-                                #                 # "isotropy_loss_weight": isotropy_loss_weight,
-                                #                 "optimizer.scheduler.lr": lr,
-                                #                 "model.sc_rate": 0.5,
-                                #                 "self_consistency_ratio": 0.25,
-                                #                 "model.hidden_shortcut_dim": 128,
-                                #                 "model.projection_activation": activation,
-                                #                 "model.freeze_word_embedding": freeze_emb,
-                                #                 "gradient_clipping": gc,
-                                #                 "prediction_shortcut_size": 32,
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_zero",
-                                #                 # "wandb.run_name": f"lr{lr}_mean_{activation}_ilw{isotropy_loss_weight}_nll{nll_loss_weight}",
-                                #                 **bert_cfg,
-                                #             }
-                                #         )
-                                #     )
+                            for freeze_emb in [False]:
+                                for num_overfit_batches in [2, 32, 1024]:
+                                    for arch in ["transformer", "ffn"]:
+                                        for norm_emb in [False]:
+                                            array.append(
+                                                cfg.infra.clone_obj(
+                                                    {
+                                                        "overfit_batches": num_overfit_batches,
+                                                        "architecture": arch,
+                                                        "optimizer.scheduler.lr": lr,
+                                                        "model.projection_activation": activation,
+                                                        "model.freeze_word_embedding": freeze_emb,
+                                                        "model.normalize_word_embedding": norm_emb,
+                                                        "gradient_clipping": gc,
+                                                        "prediction_shortcut_size": 32,
+                                                        "wandb.run_name": f"sum_normFMLoss_real_xt_{arch}_normalize={norm_emb}_of={num_overfit_batches}",
+                                                        **bert_cfg,
+                                                    }
+                                                )
+                                            )
