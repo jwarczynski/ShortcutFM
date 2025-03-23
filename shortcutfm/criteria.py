@@ -10,15 +10,17 @@ from transformers import PreTrainedTokenizerBase
 from typing_extensions import Optional, override
 
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
+from shortcutfm.config import TrainingConfig
 from shortcutfm.model.model import FlowMatchingModel as Model
 from shortcutfm.shortcut_samplers import ScheduleSampler, TimeAndShortcutSampler
 
 
 class Criterion(Module, ABC):
-    def __init__(self, model: Model, diffusion_steps: int, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, model: Model, diffusion_steps: int, training_cfg: TrainingConfig = None, ):
+        super().__init__()
         self.model = model
         self.diffusion_steps = diffusion_steps
+        self.training_cfg = training_cfg
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         """ Compute the losses. """
@@ -65,8 +67,9 @@ class FlowMatchingCriterion(Criterion):
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, training_cfg)
         self.tokenizer = tokenizer
         self.x_t = None
         self.reduce_fn = reduce_fn
@@ -285,8 +288,9 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -327,8 +331,9 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
             diffusion_steps,
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -367,7 +372,13 @@ class FlowMatchinCriterionDecorator(FlowMatchingCriterion, ABC):
             self,
             criterion: FlowMatchingCriterion,
     ):
-        super().__init__(criterion.model, criterion.diffusion_steps, criterion.tokenizer, criterion.reduce_fn)
+        super().__init__(
+            criterion.model,
+            criterion.diffusion_steps,
+            criterion.tokenizer,
+            criterion.reduce_fn,
+            criterion.training_cfg
+        )
         self.criterion = criterion
 
 
@@ -477,8 +488,9 @@ class ConsistencyCrterion(Criterion, ABC):
             model: Model,
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model=model, diffusion_steps=diffusion_steps, training_cfg=training_cfg)
         self.reduce_fn = reduce_fn
 
     @override
@@ -580,8 +592,9 @@ class X0ConsistencyCrterion(ConsistencyCrterion):
             model: Model,
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps, reduce_fn)
+        super().__init__(model, diffusion_steps, reduce_fn, training_cfg=training_cfg)
 
     @override
     def _prepare_2_shortcut_input(
@@ -623,8 +636,9 @@ class VelocityConsistencyCrterion(ConsistencyCrterion):
             model: Model,
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps, reduce_fn)
+        super().__init__(model, diffusion_steps, reduce_fn, training_cfg)
 
     @override
     def _prepare_2_shortcut_input(
@@ -664,7 +678,7 @@ class ConsistencyCriterionDecorator(ConsistencyCrterion, ABC):
             self,
             criterion: ConsistencyCrterion,
     ):
-        super().__init__(criterion.model, criterion.diffusion_steps, criterion.reduce_fn)
+        super().__init__(criterion.model, criterion.diffusion_steps, criterion.reduce_fn, criterion.training_cfg)
         self._criterion = criterion
 
 
@@ -812,8 +826,9 @@ class NllCriterion(Criterion):
             self,
             model: Model,
             diffusion_steps,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, training_cfg)
 
     @override
     def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
@@ -827,6 +842,7 @@ class NllCriterion(Criterion):
         return {
             "nll_loss": loss
         }
+
 
 class IsotropyCriterion(Criterion):
 
@@ -857,12 +873,13 @@ class CompositeCriterion(Criterion):
             diffusion_steps: int,
             self_consistency_ratio: float,
             sampler: TimeAndShortcutSampler,
+            training_cfg: TrainingConfig = None,
     ):
         assert len(criteria) == len(criteria_weights), \
             (f"criteria and criteria_weights must have the same length but got"
              f" {len(criteria)} and {len(criteria_weights)}")
 
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, training_cfg=training_cfg)
         self.model = model
         self.diffusion_steps = diffusion_steps
         self.criteria = criteria
@@ -987,8 +1004,9 @@ class FlowNllCriterion(Criterion):
             model: Model,
             diffusion_steps,
             sampler: ScheduleSampler,
+            training_cfg: TrainingConfig = None,
     ):
-        super().__init__(model, diffusion_steps)
+        super().__init__(model, diffusion_steps, training_cfg=training_cfg)
         self.flow_matching_criterion = flow_matching_criterion
         self.nll = nll_criterion
         self.sampler = sampler

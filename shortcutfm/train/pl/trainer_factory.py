@@ -78,6 +78,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             diffusion_steps=training_cfg.model.diffusion_steps,
             tokenizer=tokenizer,
             reduce_fn=reduce_fn,
+            training_cfg=training_cfg,
         )
     elif training_cfg.model.parametrization == "velocity":
         flow_matching_criterion = VelocityFlowMatchingCriterion(
@@ -85,6 +86,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             diffusion_steps=training_cfg.model.diffusion_steps,
             tokenizer=tokenizer,
             reduce_fn=reduce_fn,
+            training_cfg=training_cfg,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
@@ -134,7 +136,7 @@ def _create_composite_criterion(
     weights.append(training_cfg.consistency_loss_weight)
 
     # Add NLL criterion
-    nll_criterion = NllCriterion(model, training_cfg.model.diffusion_steps)
+    nll_criterion = NllCriterion(model, training_cfg.model.diffusion_steps, training_cfg)
     criteria.append(nll_criterion)
     weights.append(training_cfg.nll_loss_weight)
 
@@ -159,6 +161,7 @@ def _create_composite_criterion(
         diffusion_steps=training_cfg.model.diffusion_steps,
         self_consistency_ratio=training_cfg.self_consistency_ratio,
         sampler=time_and_shortcut_sampler,
+        training_cfg=training_cfg,
     )
 
 
@@ -166,9 +169,9 @@ def create_consistency_criterion(model, training_cfg):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
 
     if training_cfg.model.parametrization == "x0":
-        consistency_criterion = X0ConsistencyCrterion(model, training_cfg.model.diffusion_steps, reduce_fn)
+        consistency_criterion = X0ConsistencyCriterion(model, training_cfg.model.diffusion_steps, reduce_fn, training_cfg)
     elif training_cfg.model.parametrization == "velocity":
-        consistency_criterion = VelocityConsistencyCrterion(model, training_cfg.model.diffusion_steps, reduce_fn)
+        consistency_criterion = VelocityConsistencyCriterion(model, training_cfg.model.diffusion_steps, reduce_fn, training_cfg)
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
 
@@ -191,14 +194,15 @@ def _create_flow_nll_criterion(
     :return: Flow NLL criterion combining flow matching and NLL losses
     :rtype: FlowNllCriterion
     """
-    nll_criterion = NllCriterion(model, training_cfg.model.diffusion_steps)
+    nll_criterion = NllCriterion(model, training_cfg.model.diffusion_steps, training_cfg)
     sampler = UniformSampler(training_cfg.model.diffusion_steps)
     return FlowNllCriterion(
         flow_matching_criterion=flow_matching_criterion,
         nll_criterion=nll_criterion,
         model=model,
         diffusion_steps=training_cfg.model.diffusion_steps,
-        sampler=sampler
+        sampler=sampler,
+        training_cfg=training_cfg,
     )
 
 
