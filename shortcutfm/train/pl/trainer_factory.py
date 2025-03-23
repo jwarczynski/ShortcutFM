@@ -12,7 +12,7 @@ from shortcutfm.criteria import (
     IsotropyCriterion, NllCriterion,
     SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
-    VelocityConsistencyCrterion, VelocityFlowMatchingCriterion, X0ConsistencyCrterion,
+    VelocityConsistencyCriterion, VelocityFlowMatchingCriterion, X0ConsistencyCriterion,
     X0FlowMatchingCriterion,
 )
 from shortcutfm.model.factory import FFNFactory, StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory

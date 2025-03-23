@@ -14,7 +14,7 @@ from shortcutfm.batch import collate
 from shortcutfm.criteria import (
     CompositeCriterion,
     NllCriterion, SelfConditioningConsistencyCriterionDecorator, SelfConditioningFlowMatchingCriterionDecorator,
-    X0ConsistencyCrterion, X0FlowMatchingCriterion,
+    X0ConsistencyCriterion, X0FlowMatchingCriterion,
 )
 from shortcutfm.model.config import TransformerNetModelConfig
 from shortcutfm.model.factory import TransformerNetModelFactory
@@ -56,7 +56,7 @@ def get_composer_trainer(cfg):
     self_conditioning_flow_matching_cirterion = SelfConditioningFlowMatchingCriterionDecorator(
         flow_matching_criterion, self_conditioning_ratio=cfg.model_config.sc_rate
     )
-    consistency_criterion = X0ConsistencyCrterion(model, cfg.model_config.diffusion_steps)
+    consistency_criterion = X0ConsistencyCriterion(model, cfg.model_config.diffusion_steps)
     slef_conditioning_consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
         consistency_criterion, self_conditioning_ratio=cfg.model_config.sc_rate
     )
