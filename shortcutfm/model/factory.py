@@ -379,13 +379,13 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
-    @override
-    def create_module(self) -> FlowMatchingModel:
-        """Builds and returns a TransformerNetModel instance."""
-        emb, lm_head = self._create_word_embeddings()
-        backbone = self._create_transformer_backbone(word_embedding=emb)[0]
-        module = FFNModule(emb, lm_head, backbone)
-        return FlowMatchingModel(module, self.config.diffusion_steps, self.config.min_shortcut_size)
+    # @override
+    # def create_module(self) -> FlowMatchingModel:
+    #     """Builds and returns a TransformerNetModel instance."""
+    #     emb, lm_head = self._create_word_embeddings()
+    #     backbone = self._create_transformer_backbone(word_embedding=emb)[0]
+    #     module = FFNModule(emb, lm_head, backbone)
+    #     return FlowMatchingModel(module, self.config.diffusion_steps, self.config.min_shortcut_size)
 
     @override
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
