@@ -183,6 +183,10 @@ class TrainingConfig(BaseModel):
     wandb: WandBConfig = Field(default_factory=WandBConfig, description="Weights & Biases configuration")
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig, description="Checkpoint configuration")
     ema: Optional[EMAConfig] = Field(default_factory=EMAConfig, description="EMA configuration")
+    architecture: Literal["transformer", "stacked", "ffn"] = Field(
+        default="transformer",
+        description="Model architecture"
+    )
 
     # Runtime settings
     use_exca: bool = Field(default=False, description="Whether to use Exca for submitting tasks")

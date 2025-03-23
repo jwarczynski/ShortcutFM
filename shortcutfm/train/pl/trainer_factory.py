@@ -32,11 +32,7 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     :return: Composite criterion with flow matching and optional consistency components
     :rtype: CompositeCriterion | FlowNllCriterion
     """
-    # Initialize model
-    # factory = TransformerNetModelFactory(
-    #     training_cfg.model
-    # ) if not training_cfg.model.stacked_embeddings else StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
-    factory = FFNFactory(training_cfg.model)
+    factory = create_factory(training_cfg)
     model = factory.build()
 
     # Initialize tokenizer
@@ -68,6 +64,12 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
 
     return criterion
 
+def create_factory(training_cfg: TrainingConfig):
+    match training_cfg.architecture:
+        case "transformer": return TransformerNetModelFactory(training_cfg.model)
+        case "stacked": return StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
+        case "ffn": return FFNFactory(training_cfg.model)
+        case _: raise ValueError(f"Unknown architecture: {training_cfg.architecture}")
 
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
