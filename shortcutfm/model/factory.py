@@ -60,8 +60,7 @@ class TransformerNetModelFactory:
         :return: Configured FlowMatchingModel instance
         :rtype: FlowMatchingModel
         """
-        modules = self._create_modules()
-        module = self.create_module(modules)
+        module = self.create_module()
 
         return FlowMatchingModel(
             module=module,
@@ -69,11 +68,7 @@ class TransformerNetModelFactory:
             min_shortcut_size=self.config.min_shortcut_size
         )
 
-    def create_module(self, modules):
-        module = TransformerNetModel(**modules.__dict__, config=self.config)
-        return module
-
-    def _create_modules(self) -> TransformerNetModelModules:
+    def create_module(self) -> TransformerNetModel:
         """Creates all necessary modules based on the configuration.
 
         :return: Dataclass containing all model modules
@@ -105,7 +100,7 @@ class TransformerNetModelFactory:
         # Create position IDs
         position_ids = self._create_position_ids()
 
-        return TransformerNetModelModules(
+        return TransformerNetModel(
             word_embedding=word_embedding,
             lm_head=lm_head,
             time_embed=time_embed,
@@ -115,7 +110,8 @@ class TransformerNetModelFactory:
             position_embeddings=position_embeddings,
             layer_norm=layer_norm,
             output_down_proj=output_down_proj,
-            position_ids=position_ids
+            position_ids=position_ids,
+            config=self.config
         )
 
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
@@ -383,13 +379,15 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
-    def build(self) -> FlowMatchingModel:
+    @override
+    def create_module(self) -> FlowMatchingModel:
         """Builds and returns a TransformerNetModel instance."""
         emb, lm_head = self._create_word_embeddings()
         backbone = self._create_transformer_backbone(word_embedding=emb)[0]
         module = FFNModule(emb, lm_head, backbone)
         return FlowMatchingModel(module, self.config.diffusion_steps, self.config.min_shortcut_size)
 
+    @override
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
         """Create word embeddings and language model head.
 
