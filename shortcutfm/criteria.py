@@ -1028,13 +1028,13 @@ class FlowNllCriterion(Criterion):
         x_t = torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, embeddings, x_t)
 
         return FlowMatchingBatch(
-            batch.seqs,
-            batch.padding_mask,
-            batch.input_ids_mask,
-            embeddings,
-            x_t,
-            noise,
-            t
+            seqs=batch.seqs,
+            padding_mask=batch.padding_mask,
+            input_ids_mask=batch.input_ids_mask,
+            x_start=embeddings,
+            x_t=x_t,
+            noise=noise,
+            t=t
         )
 
     def denoise(
