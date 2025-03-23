@@ -372,13 +372,18 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
-    # @override
-    # def create_module(self) -> FlowMatchingModel:
-    #     """Builds and returns a TransformerNetModel instance."""
-    #     emb, lm_head = self._create_word_embeddings()
-    #     backbone = self._create_transformer_backbone(word_embedding=emb)[0]
-    #     module = FFNModule(emb, lm_head, backbone)
-    #     return FlowMatchingModel(module, self.config.diffusion_steps, self.config.min_shortcut_size)
+    @override
+    def create_module(self) -> TransformerNetModel:
+        """Builds and returns a TransformerNetModel instance."""
+        emb, lm_head = self._create_word_embeddings()
+        backbone = self._create_transformer_backbone(word_embedding=emb)[0]
+        if self.config.freeze_word_embedding:
+            emb.weight.requires_grad = False
+            lm_head.weight.requires_grad = True
+            print(f"word emebedding reuires grad: {emb.weight.requires_grad}")
+            print(f"lm head requires grad: {lm_head.weight.requires_grad}")
+        # module = FFNModule(emb, lm_head, backbone)
+        return TransformerNetModel(word_embedding=emb, lm_head=lm_head, backbone_transformer=backbone, config=self.config)
 
     @override
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
