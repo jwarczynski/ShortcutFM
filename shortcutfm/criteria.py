@@ -82,6 +82,17 @@ class FlowMatchingCriterion(Criterion):
             input_ids_mask=batch.input_ids_mask,
         )
 
+        with torch.no_grad():
+            zeros = torch.zeros_like(batch.x_start)
+            out_zero = self._predict(
+                x_start=batch.x_start,
+                x_t=zeros,
+                noise=batch.noise,
+                t=batch.t,
+                input_ids_mask=batch.input_ids_mask,
+            )
+            zero_loss = torch.nn.functional.mse_loss(out_zero, target, reduction="none")
+
         fm_loss = torch.nn.functional.mse_loss(output, target, reduction="none")
         if self.training_cfg.normalize_flow_matching_loss:
             target_norms = torch.norm(target, dim=-1, keepdim=True)  # Shape: (batch_size, seq_len, 1)
@@ -92,7 +103,8 @@ class FlowMatchingCriterion(Criterion):
 
         return {
             "flow_matching_loss": self.reduce_fn(fm_loss, dim=-1),
-            "decoder_loss": decoder_loss
+            "decoder_loss": decoder_loss,
+            "zeros_loss": self.reduce_fn(zero_loss, dim=-1),
         }
 
     def _predict(
@@ -1023,7 +1035,8 @@ class FlowNllCriterion(Criterion):
         flow_and_decoder_loses = self.flow_matching_criterion(fm_batch)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        # embedding_loss = self.nll(fm_batch)["nll_loss"]
+        embedding_loss = self.nll(fm_batch)["nll_loss"]
+        zero_loss = flow_and_decoder_loses["zeros_loss"]
 
         # losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
         losses = [flow_matching_loss.mean()]
@@ -1033,6 +1046,7 @@ class FlowNllCriterion(Criterion):
             "flow_matching_loss": flow_matching_loss,
             # "embedding_loss": embedding_loss,
             "decoder_loss": decoder_loss,
+            "zeros_loss": zero_loss,
             "loss": total_loss,
             "timestep": fm_batch.t
         }
