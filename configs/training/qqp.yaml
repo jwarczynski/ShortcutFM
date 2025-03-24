@@ -15,7 +15,7 @@ infra:
   cpus_per_task: 16
   slurm_use_srun: true
   slurm_additional_parameters:
-    nodelist: "hgx2"
+    nodelist: "hgx1"
 
 
 # Data paths

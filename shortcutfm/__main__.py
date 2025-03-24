@@ -78,22 +78,27 @@ if __name__ == "__main__":
                     for activation in ["gelu"]:
                         for lr in [3e-3]:
                             for freeze_emb in [False]:
-                                for num_overfit_batches in [2, 32, 1024]:
-                                    for arch in ["transformer", "ffn"]:
+                                for num_overfit_batches in [2]:
+                                    for arch in ["transformer"]:
                                         for norm_emb in [False]:
-                                            array.append(
-                                                cfg.infra.clone_obj(
-                                                    {
-                                                        "overfit_batches": num_overfit_batches,
-                                                        "architecture": arch,
-                                                        "optimizer.scheduler.lr": lr,
-                                                        "model.projection_activation": activation,
-                                                        "model.freeze_word_embedding": freeze_emb,
-                                                        "model.normalize_word_embedding": norm_emb,
-                                                        "gradient_clipping": gc,
-                                                        "prediction_shortcut_size": 32,
-                                                        "wandb.run_name": f"sum_normFMLoss_real_xt_{arch}_normalize={norm_emb}_of={num_overfit_batches}",
-                                                        **bert_cfg,
-                                                    }
-                                                )
-                                            )
+                                            for input_dims in [128, 768]:
+                                                for sc in [0.0, 0.5]:
+                                                    array.append(
+                                                        cfg.infra.clone_obj(
+                                                            {
+                                                                "overfit_batches": num_overfit_batches,
+                                                                "architecture": arch,
+                                                                "optimizer.scheduler.lr": lr,
+                                                                "model.input_dims": input_dims,
+                                                                "model.output_dims": input_dims,
+                                                                "model.projection_activation": activation,
+                                                                "model.sc_rate": sc,
+                                                                "model.freeze_word_embedding": freeze_emb,
+                                                                "model.normalize_word_embedding": norm_emb,
+                                                                "gradient_clipping": gc,
+                                                                "prediction_shortcut_size": 32,
+                                                                "wandb.run_name": f"ovf={num_overfit_batches}_sc={sc}_dims={input_dims}",
+                                                                **bert_cfg,
+                                                            }
+                                                        )
+                                                    )
