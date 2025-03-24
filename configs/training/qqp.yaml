@@ -19,9 +19,9 @@ infra:
 
 
 # Data paths
-training_data_path: "datasets/tokenized/QQP-Official/train"
-validation_data_path: "datasets/tokenized/QQP-Official/valid"
-check_val_every_n_epoch: 5000
+training_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/train"
+validation_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
+check_val_every_n_epoch: 2000
 val_interval: null
 
 denoising_step_size: 32  # Step size for denoising process
@@ -35,23 +35,23 @@ limit_train_batches: null
 limit_val_batches: 2
 overfit_batches: 2
 
-max_steps: 5000
+max_steps: 2000
 gradient_clipping: null
-reduce_fn: "sum"
+reduce_fn: "mean"
 
-batch_size: 2
+batch_size: 8
 accumulate_grad_batches: 2
 
 architecture: "transformer"
 
 seed: 44
 
-normalize_flow_matching_loss: true
+normalize_flow_matching_loss: false
 
 flow_matching_loss_weight: 1.0
 consistency_loss_weight: 1.0
 nll_loss_weight: 1.0
-isotropy_loss_weight: 1.0
+isotropy_loss_weight: 0.0
 
 self_consistency_ratio: 0.0
 model:
@@ -61,8 +61,8 @@ model:
   freeze_word_embedding: false
   vocab_size: 30522
   word_embedding_std: 1.0
-  input_dims: 768
-  output_dims: 768
+  input_dims: 128
+  output_dims: 128
   sc_rate: 0.0
   parametrization: "x0"
   stacked_embeddings: false
@@ -74,18 +74,18 @@ model:
 # Optimizer configuration
 optimizer:
   scheduler:
-    lr: 3e-3
+    lr: 3e-4
     type: "linear"
     start_factor: 1.0
-    end_factor: 1.0
+    end_factor: 0.01
     total_steps: 5000
 
-ema: null
+#ema: null
 
 # WandB configuration
 wandb:
   project_name: "test_v2"
-  run_name: "ffn_inside_criterion"
+#  run_name: "ffn_inside_criterion"
   enabled: true
 
 # Checkpoint configuration
