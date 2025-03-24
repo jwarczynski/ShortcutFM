@@ -329,7 +329,8 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
             shortcut_size: Tensor,
             input_mask: Tensor
     ) -> Tensor:
-        v_hat = x0_hat - x_t
+        t = self.scale_t(t).view(-1, 1, 1)
+        v_hat = (x0_hat - x_t) / t
         assert torch.all(v_hat[input_mask.expand_as(v_hat) == 0] == 0), "v_hat is not zero where input_mask is zero"
         return v_hat
 
