@@ -60,7 +60,8 @@ class TransformerNetModelFactory:
         :return: Configured FlowMatchingModel instance
         :rtype: FlowMatchingModel
         """
-        module = self.create_module()
+        modules = self._create_modules()
+        module = self.create_module(modules)
 
         return FlowMatchingModel(
             module=module,
@@ -68,7 +69,11 @@ class TransformerNetModelFactory:
             min_shortcut_size=self.config.min_shortcut_size
         )
 
-    def create_module(self) -> TransformerNetModel:
+    def create_module(self, modules):
+        module = TransformerNetModel(**modules.__dict__, config=self.config)
+        return module
+
+    def _create_modules(self) -> TransformerNetModelModules:
         """Creates all necessary modules based on the configuration.
 
         :return: Dataclass containing all model modules
@@ -100,11 +105,17 @@ class TransformerNetModelFactory:
         # Create position IDs
         position_ids = self._create_position_ids()
 
-        return TransformerNetModel(
+        return TransformerNetModelModules(
             word_embedding=word_embedding,
             lm_head=lm_head,
+            time_embed=time_embed,
+            shortcut_embedding=shortcut_embedding,
+            input_up_proj=input_up_proj,
             backbone_transformer=backbone_transformer,
-            config=self.config
+            position_embeddings=position_embeddings,
+            layer_norm=layer_norm,
+            output_down_proj=output_down_proj,
+            position_ids=position_ids
         )
 
     def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
@@ -205,10 +216,10 @@ class TransformerNetModelFactory:
             input_transformers = temp_bert.encoder
             position_embeddings = temp_bert.embeddings.position_embeddings
             layer_norm = temp_bert.embeddings.LayerNorm
-            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+            backbone_transformer = BertEncoderBackbone(input_transformers)
         else:
             input_transformers = BertEncoder(self.bert_config)
-            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+            backbone_transformer = BertEncoderBackbone(input_transformers)
             position_embeddings = nn.Embedding(
                 self.bert_config.max_position_embeddings,
                 self.bert_config.hidden_size
@@ -218,7 +229,7 @@ class TransformerNetModelFactory:
                 eps=self.bert_config.layer_norm_eps
             )
 
-        return backbone_trasnformer, position_embeddings, layer_norm
+        return backbone_transformer, position_embeddings, layer_norm
 
     def _create_modern_bert_backbone(
             self,
@@ -352,10 +363,10 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
             input_transformers = temp_bert.encoder
             position_embeddings = temp_bert.embeddings.position_embeddings
             layer_norm = temp_bert.embeddings.LayerNorm
-            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+            backbone_transformer = BertEncoderBackbone(input_transformers)
         else:
             input_transformers = BertEncoder(self.bert_config)
-            backbone_trasnformer = BertEncoderBackbone(input_transformers)
+            backbone_transformer = BertEncoderBackbone(input_transformers)
             input_dims = self.config.input_dims * 2 if self.config.sc_rate > 0 else self.config.input_dims
             position_embeddings = nn.Embedding(
                 self.bert_config.max_position_embeddings,
@@ -366,14 +377,14 @@ class StackedEmbeddingTransformerNetModelFactory(TransformerNetModelFactory):
                 eps=self.bert_config.layer_norm_eps
             )
 
-        return backbone_trasnformer, position_embeddings, layer_norm
+        return backbone_transformer, position_embeddings, layer_norm
 
 
 class FFNFactory(TransformerNetModelFactory):
     """Factory class to create TransformerNetModel instances with FFN."""
 
     @override
-    def create_module(self) -> TransformerNetModel:
+    def _create_modules(self) -> TransformerNetModelModules:
         """Builds and returns a TransformerNetModel instance."""
         emb, lm_head = self._create_word_embeddings()
         backbone = self._create_transformer_backbone(word_embedding=emb)[0]
@@ -385,33 +396,6 @@ class FFNFactory(TransformerNetModelFactory):
         # module = FFNModule(emb, lm_head, backbone)
         return TransformerNetModel(word_embedding=emb, lm_head=lm_head, backbone_transformer=backbone, config=self.config)
 
-    @override
-    def _create_word_embeddings(self) -> Tuple[nn.Embedding, nn.Linear]:
-        """Create word embeddings and language model head.
-
-        :return: Tuple of (word_embedding, lm_head)
-        :rtype: Tuple[nn.Embedding, nn.Linear]
-        """
-        input_dims = 768
-        vocab_size = self.config.vocab_size
-
-        # Create word embedding layer
-        word_embedding = nn.Embedding(vocab_size, input_dims)
-        nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
-
-        # Create lm_head with conditional weight sharing
-        lm_head = nn.Linear(input_dims, vocab_size, bias=True)
-        with torch.no_grad():
-            if self.config.freeze_word_embedding:
-                # Independent weights: copy word_embedding weights to lm_head
-                lm_head.weight.copy_(word_embedding.weight)
-            else:
-                # Shared weights: tie lm_head weights to word_embedding for efficiency
-                lm_head.weight = word_embedding.weight
-
-        return word_embedding, lm_head
-
-    @override
     def _create_transformer_backbone(
             self,
             word_embedding: nn.Embedding

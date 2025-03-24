@@ -119,14 +119,30 @@ class TransformerNetModel(Module):
             *,
             word_embedding: nn.Embedding,
             lm_head: nn.Linear,
+            time_embed: nn.Sequential,
             backbone_transformer: BackboneTransformer,
+            shortcut_embedding: Optional[nn.Module] = None,
+            input_up_proj: Optional[nn.Sequential] = None,
+            position_embeddings: Optional[nn.Embedding] = None,
+            layer_norm: Optional[nn.LayerNorm] = None,
+            output_down_proj: Optional[nn.Sequential] = None,
             config: ModelConfig = None,
+            position_ids: Optional[Tensor] = None,
     ):
         super().__init__()
         self.config = config
         self.word_embedding = word_embedding
         self.lm_head = lm_head
+        self.time_embed = time_embed
+        self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
         self.backbone_transformer = backbone_transformer
+        self.position_embeddings = position_embeddings
+        self.layer_norm = layer_norm if layer_norm is not None else nn.Identity()
+        self.output_down_proj = output_down_proj if output_down_proj is not None else nn.Identity()
+        self.dropout = nn.Dropout(config.dropout)
+        self.hidden_size = config.hidden_size
+        self.register_buffer("position_ids", position_ids)
+        self.register_module("shortcut_embedding", shortcut_embedding)
 
     def get_embeddings(self, input_ids):
         word_embeddings = self.word_embedding(input_ids)
@@ -138,7 +154,29 @@ class TransformerNetModel(Module):
         return self.lm_head(hidden_repr)
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
-        return self.backbone_transformer(x)
+        bsz, seq_len, *_ = x.size()
+
+        timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
+
+        x = self.input_up_proj(x)
+
+        x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
+
+        # Add shortcut embedding if available
+        if self.shortcut_embedding is not None:
+            shortcut_emb = self.shortcut_embedding(timestep_embedding(shortcuts, self.config.hidden_shortcut_dim))
+            x = x + shortcut_emb.unsqueeze(1).expand(-1, seq_len, -1)
+
+        # Add position embeddings if available
+        if self.position_embeddings is not None:
+            position_ids = self.position_ids[:, :seq_len]
+            x = x + self.position_embeddings(position_ids)
+
+        x = self.dropout(self.layer_norm(x))
+        hidden_states = self.backbone_transformer(x)
+        hidden_states = self.output_down_proj(hidden_states)
+
+        return hidden_states
 
 
 class StackedEmbeddingTransformerNetModel(TransformerNetModel):
@@ -146,9 +184,6 @@ class StackedEmbeddingTransformerNetModel(TransformerNetModel):
     @override
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
-        # x = torch.zeros_like(x)
-        # time_steps = torch.zeros_like(time_steps)
-        # shortcuts = torch.zeros_like(shortcuts)
 
         # Add position embeddings if available
         if self.position_embeddings is not None:
