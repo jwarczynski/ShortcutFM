@@ -947,14 +947,14 @@ class CompositeCriterion(Criterion):
         num_flow_matching_elems = bsz - num_consistency_elems
 
         full_batch = ShortcutFMBatch(
-            batch.seqs,
-            batch.padding_mask,
-            batch.input_ids_mask,
-            embeddings,
-            x_t,
-            noise,
-            t,
-            shortcuts
+            seqs=batch.seqs,
+            padding_mask=batch.padding_mask,
+            input_ids_mask=batch.input_ids_mask,
+            x_start=embeddings,
+            x_t=x_t,
+            noise=noise,
+            t=t,
+            shortcut_size=shortcuts
         )
         flow_matching_batch, consistency_batch = full_batch.split(num_flow_matching_elems)
 
