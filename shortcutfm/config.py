@@ -78,6 +78,7 @@ class ModelConfig(BaseModel):
     stacked_embeddings: bool = Field(default=False, description="Whether to stack embeddings")
     freeze_word_embedding: bool = Field(default=False, description="Whether to freeze word embeddings")
     normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
+    num_layers: int = Field(default=3, description="Number of ffn transformer layers. Only applicable to ffn architecture")
     model_config = ConfigDict(extra="forbid")
 
 

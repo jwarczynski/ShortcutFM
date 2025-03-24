@@ -409,9 +409,9 @@ class FFNFactory(TransformerNetModelFactory):
         """
 
         ffn = FFNBackbone(
-            768,
-            768,
-            3,
+            self.bert_config.hidden_size,
+            self.bert_config.hidden_size,
+            self.config.num_layers,
         )
 
         return ffn, None, None
