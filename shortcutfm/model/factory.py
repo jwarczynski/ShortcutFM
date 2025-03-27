@@ -66,7 +66,8 @@ class TransformerNetModelFactory:
         return FlowMatchingModel(
             module=module,
             diffusion_steps=self.config.diffusion_steps,
-            min_shortcut_size=self.config.min_shortcut_size
+            min_shortcut_size=self.config.min_shortcut_size,
+            scale_time=self.config.scale_time,
         )
 
     def create_module(self, modules):

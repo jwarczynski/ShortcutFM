@@ -78,19 +78,21 @@ class FFNModule(Module):
 
 
 class FlowMatchingModel(Module):
-    def __init__(self, module: Module, diffusion_steps, min_shortcut_size, *args, **kwargs):
+    def __init__(self, module: Module, diffusion_steps, min_shortcut_size, scale_time, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.module = module
         self.diffusion_steps = diffusion_steps
         self.min_shortcut_size = min_shortcut_size
+        self.scale_time = scale_time
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
         """ Forward pass of the model. """
         if shortcuts is None:
             shortcuts = torch.zeros_like(time_steps, device=x.device)
 
-        shortcuts = self._scale_shortcuts(shortcuts)
-        time_steps = self._scale_time_steps(time_steps)
+        if self.scale_time:
+            shortcuts = self._scale_shortcuts(shortcuts)
+            time_steps = self._scale_time_steps(time_steps)
 
         return self.module(x, time_steps, shortcuts)
 
