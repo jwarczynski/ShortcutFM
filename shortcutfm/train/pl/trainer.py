@@ -169,6 +169,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         max_steps=cfg.max_steps,
         logger=wandb_logger,
         callbacks=callbacks,
+        precision=32,
         gradient_clip_val=cfg.gradient_clipping,
         gradient_clip_algorithm="norm",
         deterministic=cfg.deterministic,
