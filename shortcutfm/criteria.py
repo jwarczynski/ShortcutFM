@@ -834,13 +834,13 @@ class NllCriterion(Criterion):
         super().__init__(model, diffusion_steps, training_cfg)
 
     @override
-    def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
+    def forward(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
         output = self.model.compute_logits(batch.x_start)
         loss = torch.nn.functional.cross_entropy(
             output.view(-1, output.size(-1)),
             batch.seqs.view(-1),
             reduction="none"
-        ).view(batch.seqs.size())
+        ).view(batch.seqs.size()).mean(-1)
 
         return {
             "nll_loss": loss
