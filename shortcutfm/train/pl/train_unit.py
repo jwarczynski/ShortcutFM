@@ -46,7 +46,7 @@ class TrainModule(pl.LightningModule):
         self.log_train_predictions_from_n_epochs = log_train_predictions_from_n_epochs
         self.predictions = []  # For validation predictions
         self.train_predictions = []  # For training predictions
-        self.last_train_batch = None  # Store last batch for full denoising
+        self.train_prediction_batch = None  # Store one batch for full denoising
 
         # Setup timestep bins using linear spacing
         max_timestep = self.criterion.diffusion_steps  # Maximum timestep value
@@ -68,9 +68,9 @@ class TrainModule(pl.LightningModule):
     def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
         outputs = self(batch)
 
-        # Store last batch of the epoch for full denoising
-        if batch_idx == 0:  # Use first batch for consistency
-            self.last_train_batch = batch
+        # Store one batch of the epoch for full denoising
+        if self.train_prediction_batch is None:
+            self.train_prediction_batch = batch
 
         # Log only loss-related metrics
         loss_metrics = {
@@ -200,9 +200,9 @@ class TrainModule(pl.LightningModule):
                 self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
                 self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
         )
-        if self.last_train_batch is not None:
+        if self.train_prediction_batch is not None:
             self._process_batch_predictions(
-                batch=self.last_train_batch,
+                batch=self.train_prediction_batch,
                 predictions_list=self.train_predictions,
                 stage="train",
                 create_entries=log_text,
