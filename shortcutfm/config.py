@@ -121,6 +121,7 @@ class OptimizerConfig(BaseModel):
 class PaddingStrategyConfig(BaseModel):
     mark_first_padding: bool = Field(default=False, description="Whether to mark the first padding token")
     mark_second_padding: bool = Field(default=False, description="Whether to mark the second padding token")
+    model_config = ConfigDict(extra="forbid")
 
 
 class TrainingConfig(BaseModel):
