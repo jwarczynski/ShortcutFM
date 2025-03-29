@@ -1,15 +1,16 @@
 from itertools import islice
 from typing import Literal, Optional
 
+import evaluate
 import lightning as pl
 import numpy as np
 import torch
+import wandb
 from numpy import dtype, ndarray
 from torch import Tensor
 from torch.nn import functional as F
 from torch.optim import AdamW
 from transformers import PreTrainedTokenizer
-import wandb
 
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
@@ -167,6 +168,7 @@ class TrainModule(pl.LightningModule):
             for key in self.timestep_losses.keys()
         }
 
+    # noinspection PyUnresolvedReferences
     def _log_sampling_histograms(self) -> None:
         """Log histograms of timesteps and shortcuts sampled during training.
         
@@ -176,17 +178,21 @@ class TrainModule(pl.LightningModule):
         It also logs the count of samples for each.
         """
         if self.timesteps_for_histogram:
-            self.logger.experiment.log({
-                "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
-                "train/timesteps_count": len(self.timesteps_for_histogram)
-            })
+            self.logger.experiment.log(
+                {
+                    "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
+                    "train/timesteps_count": len(self.timesteps_for_histogram)
+                }
+            )
             self.timesteps_for_histogram = []  # Clear for next epoch
-            
+
         if self.shortcuts_for_histogram:
-            self.logger.experiment.log({
-                "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
-                "train/shortcuts_count": len(self.shortcuts_for_histogram)
-            })
+            self.logger.experiment.log(
+                {
+                    "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
+                    "train/shortcuts_count": len(self.shortcuts_for_histogram)
+                }
+            )
             self.shortcuts_for_histogram = []  # Clear for next epoch
 
     def _process_train_batch_predictions(self) -> None:
@@ -210,7 +216,7 @@ class TrainModule(pl.LightningModule):
 
             # Log the predictions table
             if self.train_predictions and hasattr(self.logger, "log_table"):
-                columns = ["epoch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
+                columns = ["epoch", "sample_idx", "source", "reference", "predicted", "cross_entropy", "bleu"]
                 self.logger.log_table(
                     "train/predictions",
                     columns=columns,
@@ -251,17 +257,27 @@ class TrainModule(pl.LightningModule):
                 step_size=self.denoising_step_size,
             )
 
-            # Compute masked cross entropy loss
             ce_loss = self._compute_masked_cross_entropy(predictions, batch)
 
             if create_entries:
-                # Get token IDs for decoding
                 predicted_tokens = predictions.argmax(dim=-1)
 
-                # Extract text parts
                 source_text, reference_text, predicted_text = self._extract_text_parts(
                     batch, predicted_tokens
                 )
+
+                clean_predicted_text = _extract_clean_predicted_text(predicted_text)
+
+                # Compute individual BLEU scores for each example
+                bleu = evaluate.load("bleu")
+                bleu_scores = []
+
+                for ref, hyp in zip(reference_text, clean_predicted_text):
+                    # Calculate BLEU for this single example
+                    reference = [[ref.strip()]]  # BLEU expects list of lists of references
+                    hypothesis = hyp.strip()
+                    individual_bleu = bleu.compute(predictions=[hypothesis], references=reference)
+                    bleu_scores.append(individual_bleu["bleu"])
 
                 # Create and store prediction entries
                 prediction_entries = self._create_prediction_entries(
@@ -269,13 +285,17 @@ class TrainModule(pl.LightningModule):
                     reference_text=reference_text,
                     predicted_text=predicted_text,
                     ce_losses=ce_loss,
+                    bleu_scores=bleu_scores,
                     batch_idx=batch_idx
                 )
                 predictions_list.extend(prediction_entries)
 
-            # Log cross entropy if stage is provided
             if stage:
                 self.log(f"{stage}/full_denoising_ce", ce_loss.mean().item(), on_step=False, on_epoch=True)
+                if stage == "train" and create_entries:
+                    # log mean bleu
+                    mean_bleu = np.mean(bleu_scores)
+                    self.log(f"{stage}/mean_bleu", float(mean_bleu), on_step=False, on_epoch=True)
 
             return ce_loss.mean().item()
 
@@ -341,6 +361,7 @@ class TrainModule(pl.LightningModule):
             reference_text: list[str],
             predicted_text: list[str],
             ce_losses: Tensor,
+            bleu_scores: list[float],
             batch_idx: Optional[int] = None,
             max_entries: int = 8,
     ) -> list[list]:
@@ -352,23 +373,26 @@ class TrainModule(pl.LightningModule):
         :type reference_text: list[str]
         :param predicted_text: List of predicted text parts
         :type predicted_text: list[str]
-        :param ce_loss: Cross entropy loss value
-        :type ce_loss: float
+        :param bleu_scores: List of BLEU scores
+        :type bleu_scores: list[float]
+        :param ce_losses: Cross entropy loss value
+        :type ce_losses: float
         :param batch_idx: Optional batch index to include in entries
         :type batch_idx: Optional[int]
         :return: List of prediction entries
         :rtype: list[list]
         """
         entries = []
-        for i, (src, ref, pred, ce_loss) in enumerate(
-                islice(zip(source_text, reference_text, predicted_text, ce_losses), max_entries)
+        for i, (src, ref, pred, ce_loss, bleu) in enumerate(
+                islice(zip(source_text, reference_text, predicted_text, ce_losses, bleu_scores), max_entries)
         ):
             prediction_entry = [
                 self.current_epoch,
                 src.strip(),  # Remove any padding artifacts
                 ref.strip(),  # Remove any padding artifacts
                 pred,
-                ce_loss.item()
+                ce_loss.item(),
+                bleu,
             ]
 
             # Insert batch_idx if provided
@@ -406,6 +430,8 @@ class TrainModule(pl.LightningModule):
             on_step=False, on_epoch=True, prog_bar=True
         )
 
+        self.compute_and_log_bleu(batch)
+
         # Perform full denoising and log text for a few validation batches
         if (
                 batch_idx < self.num_val_batches_to_log and
@@ -438,7 +464,7 @@ class TrainModule(pl.LightningModule):
     def on_validation_end(self) -> None:
         """Log all predictions from the epoch to the table."""
         if self.predictions and hasattr(self.logger, "log_table"):
-            columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy"]
+            columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy", "bleu"]
             self.logger.log_table(
                 "val/predictions",
                 columns=columns,
@@ -486,3 +512,44 @@ class TrainModule(pl.LightningModule):
             optimizer=optimizer,
             config=self.optimizer_config
         )
+
+
+def _extract_clean_predicted_text(predicted_text):
+    """
+    Extract clean predicted text from the model prediction part.
+    The function assumes:
+    1. Each text starts with a CLS token
+    2. There's a SEP token after the source sequence
+    3. Everything after this SEP is the model's prediction
+    4. We want text up to the first SEP token in the prediction part
+
+    Args:
+        predicted_text (list[str]): List of predicted texts with special tokens
+
+    Returns:
+        list[str]: List of clean predicted texts
+    """
+    clean_texts = []
+
+    for text in predicted_text:
+        # First, find the SEP token that comes after the source sequence
+        parts = text.split("[SEP]", 1)  # Split on first SEP
+        # The prediction part starts after the first SEP
+        prediction_part = parts[1].strip() # stripping sep in case of double sep after src sequence
+        if prediction_part.find("[SEP]") == 0:
+            prediction_part = prediction_part[len("[SEP]"):].strip()
+
+        # If there are more SEP tokens in the prediction, take only up to the first one
+        prediction_part = prediction_part.split("[SEP]", 1)[0]
+
+        # Remove any remaining special tokens (like CLS) and strip whitespace
+        clean_prediction = (
+            prediction_part
+            .replace("[CLS]", "")
+            .replace("[PAD]", "")
+            .replace("[SEP]", "")
+            .strip()
+        )
+        clean_texts.append(clean_prediction)
+
+    return clean_texts

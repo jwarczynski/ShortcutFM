@@ -73,18 +73,18 @@ if __name__ == "__main__":
             # for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
             for name, bert_cfg in zip(("base",), [bert_base_cfg]):
                 # for gc in [0.5, 0.1]:
-                for gc in [2]:
+                for gc in [3]:
                     # for activation in ["gelu", "tanh"]:
                     for activation in ["tanh"]:
-                        for lr in [3e-4]:
+                        for lr in [1e-4]:
                             for freeze_emb in [False]:
-                                for num_overfit_batches in [2]:
+                                for num_overfit_batches in [0.0]:
                                     for arch in ["transformer"]:
                                         for norm_emb in [False]:
                                             for input_dims in [128]:
                                                 for sc in [0.5]:
                                                     for nfl in [False]:
-                                                        for sc_ratio in [0.25]:
+                                                        for sc_ratio in [0.0]:
                                                             array.append(
                                                                 cfg.infra.clone_obj(
                                                                     {
@@ -100,9 +100,8 @@ if __name__ == "__main__":
                                                                         "model.freeze_word_embedding": freeze_emb,
                                                                         "model.normalize_word_embedding": norm_emb,
                                                                         "gradient_clipping": gc,
-                                                                        "prediction_shortcut_size": 32,
                                                                         # "wandb.run_name": f"ema_ovf={num_overfit_batches}_bs=8_sc={sc}_dims={input_dims}_NFML={nfl}_scut={sc_ratio}",
-                                                                        "wandb.run_name": "kxmxacx",
+                                                                        # "wandb.run_name": "lr=1e-4_gc=3_scut=0",
                                                                         **bert_cfg,
                                                                     }
                                                                 )

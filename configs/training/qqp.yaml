@@ -7,44 +7,48 @@ use_exca: true
 infra:
   cluster: "slurm"
   folder: "jobs"
-  timeout_min: 180
+  timeout_min: 10080
   mode: "force"
   slurm_partition: "hgx"
-  gpus_per_node: 1
-  tasks_per_node: 1
-  cpus_per_task: 16
+  gpus_per_node: 4
+  tasks_per_node: 4
+  cpus_per_task: 8
   slurm_use_srun: true
   slurm_additional_parameters:
-    nodelist: "hgx1"
+    nodelist: "hgx2"
 
 
 # Data paths
 training_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/train"
 validation_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
-check_val_every_n_epoch: 2000
+padding_strategy:
+  mark_first_padding: false
+  mark_second_padding: false
+
+check_val_every_n_epoch: 10
 val_interval: null
 
-denoising_step_size: 32  # Step size for denoising process
+denoising_step_size: 512  # Step size for denoising process
 num_val_batches_to_log: 1  # Number of validation batches to log predictions for
 num_timestep_bins: 4
-prediction_shortcut_size: 32
-log_train_predictions_every_n_epochs: 100  # Number of epochs between train prediction logging
-log_train_predictions_from_n_epochs: 100  # Number of epochs between train prediction logging
+prediction_shortcut_size: 512
+log_train_predictions_every_n_epochs: 20  # Number of epochs between train prediction logging
+log_train_predictions_from_n_epochs: 1  # Number of epochs between train prediction logging
 
 limit_train_batches: null
-limit_val_batches: 2
-overfit_batches: 2
+limit_val_batches: null
+overfit_batches: 0
 
-max_steps: 2000
-gradient_clipping: null
+max_steps: 50000
+gradient_clipping: 3
 reduce_fn: "mean"
 
-batch_size: 8
-accumulate_grad_batches: 2
+batch_size: 256
+accumulate_grad_batches: 4
 
 architecture: "transformer"
 
-seed: 44
+seed: 102
 
 normalize_flow_matching_loss: false
 
@@ -63,31 +67,35 @@ model:
   word_embedding_std: 1.0
   input_dims: 128
   output_dims: 128
-  sc_rate: 0.0
+  sc_rate: 0.5
   parametrization: "x0"
   stacked_embeddings: false
   hidden_t_dim: 128
   hidden_shortcut_dim: null
-  projection_activation: "gelu"
+  projection_activation: "tanh"
   normalize_word_embedding: false
+  scale_time: false
 
 # Optimizer configuration
 optimizer:
   scheduler:
-    lr: 3e-4
+    lr: 1e-4
     type: "linear"
     start_factor: 1.0
-    end_factor: 0.01
-    total_steps: 5000
+    end_factor: 0.0
+    total_steps: 50000
 
 #ema: null
 
 # WandB configuration
 wandb:
-  project_name: "test_v2"
-#  run_name: "ffn_inside_criterion"
+#  project_name: "test_v2"
+  project_name: "shortcutFM"
+#  project_name: "test"
+  run_name: "lr=1e-4_gc=3_scut=0"
   enabled: true
 
 # Checkpoint configuration
 checkpoint:
   save_folder: "checkpoints/qqp"
+  path: "checkpoints/qqp/bert-base/run_hv5ivw2s/last.ckpt"
