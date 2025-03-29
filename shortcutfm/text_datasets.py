@@ -68,7 +68,7 @@ def helper_tokenize(sentence_lst, vocab_dict, seq_len):
             end_token = group_lst['input_id_x'][i][-1]
             src = group_lst['input_id_x'][i][:-1]
             trg = group_lst['input_id_y'][i][:-1]
-            while len(src) + len(trg) > seq_len - 2:
+            while len(src) + len(trg) > seq_len - 3:
                 if len(src) > len(trg):
                     src.pop()
                 elif len(src) < len(trg):
@@ -81,8 +81,9 @@ def helper_tokenize(sentence_lst, vocab_dict, seq_len):
             src_len += len(src)
             trg_len += len(trg)
 
-            lst.append(src + trg)
-            mask.append([0] * (len(src)))
+            # 2 consecutive sep tokens (copied from flowseq)
+            lst.append(src + [vocab_dict.sep_token_id] + trg)
+            mask.append([0] * (len(src) + 1))
         group_lst['input_ids'] = lst
         group_lst['input_mask'] = mask
         return group_lst
