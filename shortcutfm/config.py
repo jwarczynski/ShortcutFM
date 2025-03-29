@@ -1,9 +1,9 @@
 import random
-from lightning import seed_everything
 from pathlib import Path
 from typing import Literal, Optional, Union
 
 import exca
+from lightning import seed_everything
 from omegaconf import OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, FilePath, computed_field, field_validator
 
@@ -118,12 +118,21 @@ class OptimizerConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
 
+class PaddingStrategyConfig(BaseModel):
+    mark_first_padding: bool = Field(default=False, description="Whether to mark the first padding token")
+    mark_second_padding: bool = Field(default=False, description="Whether to mark the second padding token")
+
+
 class TrainingConfig(BaseModel):
     """Training process configuration"""
     # Data configuration
     batch_size: int = Field(default=256, description="Batch size for training")
     training_data_path: Path = Field(description="Path to training dataset")
     validation_data_path: Path = Field(description="Path to validation dataset")
+    padding_strategy: PaddingStrategyConfig = Field(
+        default_factory=PaddingStrategyConfig,
+        description="Configuration for padding strategy"
+    )
 
     # Training process settings
     log_interval: int = Field(default=1, description="How often to log metrics")

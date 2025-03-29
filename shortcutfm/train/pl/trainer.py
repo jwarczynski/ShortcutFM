@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -40,19 +41,24 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
     val_text_ds = TextDataset(val_ds)
     logger.info(f"Validation dataset contains {len(val_ds)} samples.")
 
+    configured_collate = partial(
+        collate,
+        mark_first_padding=cfg.padding_strategy.mark_first_padding,
+        mark_second_padding=cfg.padding_strategy.mark_second_padding
+    )
+
     train_dataloader = DataLoader(
         train_text_ds,
         batch_size=cfg.batch_size,
-        collate_fn=collate,
+        collate_fn=configured_collate,
         shuffle=True,
         num_workers=8,
         persistent_workers=True,
     )
-
     val_dataloader = DataLoader(
         val_text_ds,
         batch_size=cfg.batch_size,
-        collate_fn=collate,
+        collate_fn=configured_collate,
         shuffle=False,
         num_workers=8,
         persistent_workers=True,

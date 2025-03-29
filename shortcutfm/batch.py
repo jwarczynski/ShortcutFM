@@ -105,13 +105,19 @@ class ShortcutFMBatch(FlowMatchingBatch):
         )
 
 
-def collate(batch: list[dict[str, Tensor]]) -> EncoderBatch:
+def collate(
+        batch: list[dict[str, Tensor]],
+        mark_first_padding: bool = False,
+        mark_second_padding: bool = False
+) -> EncoderBatch:
     """Collates a batch of dictionaries into an EncoderBatch.
 
     Args:
         batch: A list of dictionaries, where each dictionary represents a single
             item in the batch and contains the keys "seqs", "padding_mask", and
             "input_ids_mask" with corresponding tensors.
+        mark_first_padding: If True, marks the first padding token (0) as 1 in padding_mask.
+        mark_second_padding: If True, marks the second padding token (0) as 1 in padding_mask.
 
     Returns:
         An EncoderBatch object containing the collated tensors.
@@ -124,5 +130,24 @@ def collate(batch: list[dict[str, Tensor]]) -> EncoderBatch:
 
     # Stack the tensors along the first dimension (batch dimension)
     collated_batch = {k: torch.stack(v) for k, v in transposed_batch.items()}
+
+    # Modify padding_mask if requested
+    if mark_first_padding or mark_second_padding:
+        padding_mask = collated_batch["padding_mask"]
+        batch_size, seq_len = padding_mask.shape
+
+        for i in range(batch_size):
+            # Find indices where padding starts (0s)
+            padding_indices = (padding_mask[i] == 0).nonzero(as_tuple=True)[0]
+
+            if len(padding_indices) > 0 and mark_first_padding:
+                # Mark first padding token as 1
+                padding_mask[i, padding_indices[0]] = 1
+
+            if len(padding_indices) > 1 and mark_second_padding:
+                # Mark second padding token as 1
+                padding_mask[i, padding_indices[1]] = 1
+
+        collated_batch["padding_mask"] = padding_mask
 
     return EncoderBatch(**collated_batch)
