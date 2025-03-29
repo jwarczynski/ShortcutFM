@@ -846,6 +846,10 @@ class NllCriterion(Criterion):
             "nll_loss": loss
         }
 
+    @override
+    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        raise NotImplementedError("Embedding loss should not be masked")
+
 
 class IsotropyCriterion(Criterion):
 
