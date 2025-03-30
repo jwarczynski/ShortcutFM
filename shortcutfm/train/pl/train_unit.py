@@ -441,6 +441,41 @@ class TrainModule(pl.LightningModule):
 
         return outputs["loss"]
 
+    def compute_and_log_bleu(self, batch):
+        # Compute predictions and BLEU scores
+        predictions = self.criterion.denoise(
+            batch=batch,
+            shortcut_size=self.prediction_shortcut_size,
+            probe_every_step=False,
+            return_logits=False,
+            step_size=self.denoising_step_size,
+        )
+
+        source_text, reference_text, predicted_text = self._extract_text_parts(
+            batch,
+            predictions
+        )
+
+        clean_predicted_text = _extract_clean_predicted_text(predicted_text)
+
+        # Handle references: convert to list of lists
+        references = [[ref] for ref in reference_text]
+
+        bleu = evaluate.load("bleu")
+        bleu_result = bleu.compute(
+            predictions=clean_predicted_text,
+            references=references
+        )
+
+        mean_bleu = bleu_result["bleu"]
+        self.log(
+            "val/bleu",
+            mean_bleu,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True
+        )
+
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.
 
