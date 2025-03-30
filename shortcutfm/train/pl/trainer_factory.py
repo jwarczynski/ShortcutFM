@@ -17,7 +17,12 @@ from shortcutfm.criteria import (
 )
 from shortcutfm.model.factory import FFNFactory, StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory
 from shortcutfm.model.model import FlowMatchingModel
-from shortcutfm.shortcut_samplers import ShortcutSampler, TimeAndShortcutSampler, UniformSampler
+from shortcutfm.shortcut_samplers import (
+    LossSecondMomentResampler,
+    ShortcutSampler,
+    TimeAndShortcutSampler,
+    UniformSampler,
+)
 from shortcutfm.train.pl.callbacks import EMACallback
 from shortcutfm.train.pl.train_unit import TrainModule
 
@@ -151,6 +156,7 @@ def _create_composite_criterion(
         shortcut_sampler,
         training_cfg.model.diffusion_steps,
     )
+    loss_aware_sampler = LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
 
     isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
     criteria.append(IsotropyCriterion(model, training_cfg.model.diffusion_steps))
@@ -162,7 +168,8 @@ def _create_composite_criterion(
         model=model,
         diffusion_steps=training_cfg.model.diffusion_steps,
         self_consistency_ratio=training_cfg.self_consistency_ratio,
-        sampler=time_and_shortcut_sampler,
+        sampler=loss_aware_sampler,
+        time_shortcut_sampler=time_and_shortcut_sampler,
         training_cfg=training_cfg,
     )
 

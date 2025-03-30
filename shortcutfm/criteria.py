@@ -12,7 +12,7 @@ from typing_extensions import Optional, override
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
 from shortcutfm.config import TrainingConfig
 from shortcutfm.model.model import FlowMatchingModel as Model
-from shortcutfm.shortcut_samplers import ScheduleSampler, TimeAndShortcutSampler
+from shortcutfm.shortcut_samplers import LossAwareSampler, ScheduleSampler, TimeAndShortcutSampler
 
 
 class Criterion(Module, ABC):
@@ -22,16 +22,16 @@ class Criterion(Module, ABC):
         self.diffusion_steps = diffusion_steps
         self.training_cfg = training_cfg
 
-    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def forward(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         """ Compute the losses. """
-        return self.losses_with_mask(batch)
+        return self.losses_with_mask(batch, world_size)
 
-    def losses_with_mask(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def losses_with_mask(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         """ Compute the losses applying mask. """
         padding_mask = batch.padding_mask
         input_ids_mask = batch.input_ids_mask
 
-        losses = self.compute_losses(batch)
+        losses = self.compute_losses(batch, world_size)
         loss_mask = padding_mask * input_ids_mask
         for key, value in losses.items():
             masked_per_token_loss = loss_mask * value
@@ -40,7 +40,7 @@ class Criterion(Module, ABC):
         return losses
 
     @abstractmethod
-    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         """ Compute the losses. """
 
     def _interpolate_data_noise(
@@ -72,7 +72,7 @@ class FlowMatchingCriterion(Criterion):
         self.x_t = None
         self.reduce_fn = reduce_fn
 
-    def compute_losses(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: FlowMatchingBatch, world_size) -> dict[str, Tensor]:
         target = self._compute_target(batch)
         output = self._predict(
             x_start=batch.x_start,
@@ -207,6 +207,7 @@ class FlowMatchingCriterion(Criterion):
             if probe_every_step or step_idx == num_steps - 1:
                 step_predictions = self.probe(x0_hat, return_logits=return_logits)
                 if probe_every_step:
+                    # noinspection PyUnboundLocalVariable
                     predictions[:, step_idx, :] = step_predictions
                 else:
                     predictions = step_predictions
@@ -497,7 +498,7 @@ class ConsistencyCriterion(Criterion, ABC):
         self.reduce_fn = reduce_fn
 
     @override
-    def compute_losses(self, batch: ShortcutFMBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: ShortcutFMBatch, world_size) -> dict[str, Tensor]:
         target = self._compute_shortcut_target(
             shortcut_size=batch.shortcut_size,
             t=batch.t,
@@ -834,7 +835,7 @@ class NllCriterion(Criterion):
         super().__init__(model, diffusion_steps, training_cfg)
 
     @override
-    def forward(self, batch: FlowMatchingBatch) -> dict[str, Tensor]:
+    def forward(self, batch: FlowMatchingBatch, world_size) -> dict[str, Tensor]:
         output = self.model.compute_logits(batch.x_start)
         loss = torch.nn.functional.cross_entropy(
             output.view(-1, output.size(-1)),
@@ -847,16 +848,16 @@ class NllCriterion(Criterion):
         }
 
     @override
-    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         raise NotImplementedError("Embedding loss should not be masked")
 
 
 class IsotropyCriterion(Criterion):
 
-    def forward(self, *args, **kwargs):
-        return self.compute_losses(*args, **kwargs)
+    def forward(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
+        return self.compute_losses(batch, world_size)
 
-    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         embedding_weights = self.model.module.word_embedding.weight
         return {
             "isotropy_loss": isotropy_loss(embedding_weights)
@@ -879,7 +880,8 @@ class CompositeCriterion(Criterion):
             model: Model,
             diffusion_steps: int,
             self_consistency_ratio: float,
-            sampler: TimeAndShortcutSampler,
+            sampler: ScheduleSampler,
+            time_shortcut_sampler: TimeAndShortcutSampler,
             training_cfg: TrainingConfig = None,
     ):
         assert len(criteria) == len(criteria_weights), \
@@ -893,21 +895,22 @@ class CompositeCriterion(Criterion):
         self.criteria_weights = criteria_weights
         self.self_consistency_ratio = self_consistency_ratio
         self.sampler = sampler
+        self.time_shortcut_sampler = time_shortcut_sampler
 
-    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
-        return self.compute_losses(batch)
+    def forward(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
+        return self.compute_losses(batch, world_size)
 
     @override
-    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         specific_batches = self._prepare_batches(batch)
-        flow_marching_batch, consistency_batch, full_batch = specific_batches
+        flow_matching_batch, consistency_batch, full_batch = specific_batches
 
-        flow_and_decoder_loses = self.criteria[0](flow_marching_batch)
+        flow_and_decoder_loses = self.criteria[0](flow_matching_batch, world_size)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        consistency_loss = self.criteria[1](consistency_batch)["consistency_loss"]
-        embedding_loss = self.criteria[2](full_batch)["nll_loss"]
-        isotropy_loss = self.criteria[3](batch)["isotropy_loss"]
+        consistency_loss = self.criteria[1](consistency_batch, world_size)["consistency_loss"]
+        embedding_loss = self.criteria[2](full_batch, world_size)["nll_loss"]
+        isotropy_loss = self.criteria[3](batch, world_size)["isotropy_loss"]
 
         losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(),
                   isotropy_loss]  # no decoder_loss
@@ -915,6 +918,12 @@ class CompositeCriterion(Criterion):
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
         total_loss = sum(weighted_losses)
+
+        if isinstance(self.sampler, LossAwareSampler):
+            total_loss_per_sample = flow_matching_loss + decoder_loss
+            self.sampler.update_with_local_losses(
+                flow_matching_batch.t, total_loss_per_sample.detach(), world_size=world_size
+            )
 
         return {
             "flow_matching_loss": weighted_losses[0],
@@ -929,31 +938,63 @@ class CompositeCriterion(Criterion):
 
     def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
         bsz = batch.size()
-
-        embeddings = self.model.get_embeddings(batch.seqs)
-        t, shortcuts = self.sampler(batch_size=bsz, device=batch.seqs.device)
-        x_t, noise = self._interpolate_data_noise(embeddings, t)
-        x_t = torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, embeddings, x_t)
-
         num_consistency_elems = int(self.self_consistency_ratio * bsz)
         num_flow_matching_elems = bsz - num_consistency_elems
 
-        full_batch = ShortcutFMBatch(
+        embeddings = self.model.get_embeddings(batch.seqs)
+
+        # prepare_flow_matching_batch
+        fm_seqs = batch.seqs[:num_flow_matching_elems]
+        fm_x_start = embeddings[:num_flow_matching_elems]
+        fm_padding_mask = batch.padding_mask[:num_flow_matching_elems]
+        fm_input_ids_mask = batch.input_ids_mask[:num_flow_matching_elems]
+        t, weights = self.sampler(batch_size=num_flow_matching_elems, device=batch.seqs.device)
+        x_t, noise = self._interpolate_data_noise(fm_x_start, t)
+        x_t = torch.where(fm_input_ids_mask.unsqueeze(-1) == 0, fm_x_start, x_t)
+        fm_batch = FlowMatchingBatch(
+            seqs=fm_seqs,
+            padding_mask=fm_padding_mask,
+            input_ids_mask=fm_input_ids_mask,
+            x_start=embeddings[:num_flow_matching_elems],
+            x_t=x_t,
+            noise=noise,
+            t=t
+        )
+
+        # prepare_consistency_batch
+        consistency_seqs = batch.seqs[num_flow_matching_elems:]
+        consistency_x_start = embeddings[num_flow_matching_elems:]
+        consistency_padding_mask = batch.padding_mask[num_flow_matching_elems:]
+        consistency_input_ids_mask = batch.input_ids_mask[num_flow_matching_elems:]
+        consistency_t, shortcuts = self.time_shortcut_sampler(batch_size=num_consistency_elems, device=batch.seqs.device)
+        consistency_x_t, consistency_noise = self._interpolate_data_noise(consistency_x_start, consistency_t)
+        consistency_x_t = torch.where(consistency_input_ids_mask.unsqueeze(-1) == 0, consistency_x_start, consistency_x_t)
+        consistency_batch = ShortcutFMBatch(
+            seqs=consistency_seqs,
+            padding_mask=consistency_padding_mask,
+            input_ids_mask=consistency_input_ids_mask,
+            x_start=embeddings[num_flow_matching_elems:],
+            x_t=consistency_x_t,
+            noise=consistency_noise,
+            t=consistency_t,
+            shortcut_size=shortcuts
+        )
+
+        # prepare_full_batch for embedding loss
+        full_batch = FlowMatchingBatch(
             seqs=batch.seqs,
             padding_mask=batch.padding_mask,
             input_ids_mask=batch.input_ids_mask,
             x_start=embeddings,
-            x_t=x_t,
-            noise=noise,
-            t=t,
-            shortcut_size=shortcuts
+            x_t=torch.cat([fm_batch.x_t, consistency_batch.x_t], dim=0),
+            noise=torch.cat([fm_batch.noise, consistency_batch.noise], dim=0),
+            t=torch.cat([fm_batch.t, consistency_batch.t], dim=0),
         )
-        flow_matching_batch, consistency_batch = full_batch.split(num_flow_matching_elems)
 
         return (
-            FlowMatchingBatch.from_shortcut_fm_batch(flow_matching_batch),
+            fm_batch,
             consistency_batch,
-            FlowMatchingBatch.from_shortcut_fm_batch(full_batch)
+            full_batch
         )
 
     def denoise(
@@ -1019,17 +1060,17 @@ class FlowNllCriterion(Criterion):
         self.nll = nll_criterion
         self.sampler = sampler
 
-    def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
-        return self.compute_losses(batch)
+    def forward(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
+        return self.compute_losses(batch, world_size)
 
     @override
-    def compute_losses(self, batch: EncoderBatch) -> dict[str, Tensor]:
+    def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         fm_batch = self._prepare_batch(batch)
 
-        flow_and_decoder_loses = self.flow_matching_criterion(fm_batch)
+        flow_and_decoder_loses = self.flow_matching_criterion(fm_batch, world_size)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        embedding_loss = self.nll(fm_batch)["nll_loss"]
+        embedding_loss = self.nll(fm_batch, world_size)["nll_loss"]
 
         losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss
         total_loss = sum(losses)
