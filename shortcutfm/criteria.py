@@ -912,8 +912,7 @@ class CompositeCriterion(Criterion):
         embedding_loss = self.criteria[2](full_batch, world_size)["nll_loss"]
         isotropy_loss = self.criteria[3](batch, world_size)["isotropy_loss"]
 
-        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(),
-                  isotropy_loss]  # no decoder_loss
+        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(),]  # no decoder_loss
         weighted_losses = [
             loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
         ]
@@ -930,7 +929,6 @@ class CompositeCriterion(Criterion):
             "consistency_loss": consistency_loss * self.criteria_weights[1],
             "embedding_loss": embedding_loss * self.criteria_weights[2],
             "decoder_loss": decoder_loss,
-            "isotropy_loss": weighted_losses[3],
             "loss": total_loss,
             "timestep": full_batch.t,
             "shortcut": consistency_batch.shortcut_size,

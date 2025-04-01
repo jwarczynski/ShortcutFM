@@ -158,9 +158,9 @@ def _create_composite_criterion(
     )
     loss_aware_sampler = LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
 
-    isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
-    criteria.append(IsotropyCriterion(model, training_cfg.model.diffusion_steps))
-    weights.append(isotropy_loss_wieght)
+    # isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
+    # criteria.append(IsotropyCriterion(model, training_cfg.model.diffusion_steps))
+    # weights.append(isotropy_loss_wieght)
 
     return CompositeCriterion(
         criteria=tuple(criteria),
