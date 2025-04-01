@@ -910,7 +910,6 @@ class CompositeCriterion(Criterion):
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
         consistency_loss = self.criteria[1](consistency_batch, world_size)["consistency_loss"]
         embedding_loss = self.criteria[2](full_batch, world_size)["nll_loss"]
-        isotropy_loss = self.criteria[3](batch, world_size)["isotropy_loss"]
 
         losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(),]  # no decoder_loss
         weighted_losses = [
