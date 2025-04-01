@@ -926,9 +926,9 @@ class CompositeCriterion(Criterion):
             )
 
         return {
-            "flow_matching_loss": weighted_losses[0],
-            "consistency_loss": weighted_losses[1],
-            "embedding_loss": weighted_losses[2],
+            "flow_matching_loss": flow_matching_loss * self.criteria_weights[0],
+            "consistency_loss": consistency_loss * self.criteria_weights[1],
+            "embedding_loss": embedding_loss * self.criteria_weights[2],
             "decoder_loss": decoder_loss,
             "isotropy_loss": weighted_losses[3],
             "loss": total_loss,
