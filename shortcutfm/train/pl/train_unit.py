@@ -273,9 +273,18 @@ class TrainModule(pl.LightningModule):
                 bleu_scores = []
 
                 for ref, hyp in zip(reference_text, clean_predicted_text):
-                    # Calculate BLEU for this single example
-                    reference = [[ref.strip()]]  # BLEU expects list of lists of references
-                    hypothesis = hyp.strip()
+                    ref_clean = ref.strip()
+                    hyp_clean = hyp.strip()
+
+                    # Debugging: Print the problematic pair
+                    if not hyp_clean or not ref_clean:
+                        bleu_scores.append(0.0)  # Assign a default score (e.g., 0) for empty cases
+                        continue
+
+                    # BLEU expects a list of lists for references
+                    reference = [[ref_clean]]
+                    hypothesis = hyp_clean
+
                     individual_bleu = bleu.compute(predictions=[hypothesis], references=reference)
                     bleu_scores.append(individual_bleu["bleu"])
 
