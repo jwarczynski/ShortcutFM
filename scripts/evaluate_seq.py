@@ -201,7 +201,15 @@ def main():
     print("\nEvaluation Results:")
     print("==================")
     for metric, value in metrics.items():
-        print(f"{metric}: {value:.4f}")
+        if isinstance(value, dict):
+            print(f"{metric}:")
+            for sub_metric, sub_value in value.items():
+                if isinstance(sub_value, list):  # Handle lists (like 'precisions')
+                    print(f"  {sub_metric}: {[round(x, 4) for x in sub_value]}")
+                else:  # Handle single floats
+                    print(f"  {sub_metric}: {sub_value:.4f}")
+        else:
+            print(f"{metric}: {value:.4f}")
 
 
 if __name__ == '__main__':
