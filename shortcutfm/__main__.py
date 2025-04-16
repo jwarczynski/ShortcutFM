@@ -72,37 +72,10 @@ if __name__ == "__main__":
         with cfg.infra.job_array() as array:
             # for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
             for name, bert_cfg in zip(("base",), [bert_base_cfg]):
-                # for gc in [0.5, 0.1]:
-                for gc in [3]:
-                    # for activation in ["gelu", "tanh"]:
-                    for activation in ["tanh"]:
-                        for lr in [1e-4]:
-                            for freeze_emb in [False]:
-                                for num_overfit_batches in [0.0]:
-                                    for arch in ["transformer"]:
-                                        for norm_emb in [False]:
-                                            for input_dims in [128]:
-                                                for sc in [0.5]:
-                                                    for nfl in [False]:
-                                                        for sc_ratio in [0.0]:
-                                                            array.append(
-                                                                cfg.infra.clone_obj(
-                                                                    {
-                                                                        "self_consistency_ratio": sc_ratio,
-                                                                        "normalize_flow_matching_loss": nfl,
-                                                                        "overfit_batches": num_overfit_batches,
-                                                                        "architecture": arch,
-                                                                        "optimizer.scheduler.lr": lr,
-                                                                        "model.input_dims": input_dims,
-                                                                        "model.output_dims": input_dims,
-                                                                        "model.projection_activation": activation,
-                                                                        "model.sc_rate": sc,
-                                                                        "model.freeze_word_embedding": freeze_emb,
-                                                                        "model.normalize_word_embedding": norm_emb,
-                                                                        "gradient_clipping": gc,
-                                                                        # "wandb.run_name": f"ema_ovf={num_overfit_batches}_bs=8_sc={sc}_dims={input_dims}_NFML={nfl}_scut={sc_ratio}",
-                                                                        # "wandb.run_name": "lr=1e-4_gc=3_scut=0",
-                                                                        **bert_cfg,
-                                                                    }
-                                                                )
-                                                            )
+                array.append(
+                    cfg.infra.clone_obj(
+                        {
+                            **bert_cfg,
+                        }
+                    )
+                )
