@@ -40,7 +40,7 @@ limit_val_batches: null
 overfit_batches: 0
 
 max_steps: 50000
-gradient_clipping: 3
+gradient_clipping: null
 reduce_fn: "mean"
 
 batch_size: 256
@@ -71,7 +71,7 @@ model:
   parametrization: "x0"
   stacked_embeddings: false
   hidden_t_dim: 128
-  hidden_shortcut_dim: null
+  hidden_shortcut_dim: 128
   projection_activation: "tanh"
   normalize_word_embedding: false
   scale_time: false
