@@ -920,7 +920,7 @@ class CompositeCriterion(Criterion):
         if isinstance(self.sampler, LossAwareSampler):
             total_loss_per_sample = flow_matching_loss + decoder_loss
             self.sampler.update_with_local_losses(
-                flow_matching_batch.t, total_loss_per_sample.detach(), world_size=world_size
+                flow_matching_batch.t - 1, total_loss_per_sample.detach(), world_size=world_size
             )
 
         return {

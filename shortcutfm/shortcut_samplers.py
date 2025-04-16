@@ -133,8 +133,8 @@ class LossAwareSampler(ScheduleSampler):
             max_bs = max(batch_sizes)
 
             # Gather timesteps and losses
-            timestep_batches = [torch.zeros(max_bs, device=local_ts.device) for _ in batch_sizes]
-            loss_batches = [torch.zeros(max_bs, device=local_losses.device) for _ in batch_sizes]
+            timestep_batches = [torch.zeros(max_bs, dtype=local_ts.dtype, device=local_ts.device) for _ in batch_sizes]
+            loss_batches = [torch.zeros(max_bs, dtype=local_losses.dtype, device=local_losses.device) for _ in batch_sizes]
             torch.distributed.all_gather(timestep_batches, local_ts)
             torch.distributed.all_gather(loss_batches, local_losses)
 
