@@ -14,8 +14,8 @@ class ShortcutSampler:
         self.diffusion_steps = diffusion_steps
         self.min_shortcut_size = min_shortcut_size
         self.max_shortcut_size = diffusion_steps // 2 # becasue during training we will query at the twice the shortcut size
-        self.shortcut_values = 2 ** torch.arange(
-            1, int(np.log2(self.max_shortcut_size)) + 1
+        self.shortcut_values = torch.arange(
+            1, int(self.max_shortcut_size) + 1
         ).to(torch.long)
 
     def __call__(self, batch_size, device):
