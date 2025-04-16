@@ -88,7 +88,7 @@ class FlowMatchingModel(Module):
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
         """ Forward pass of the model. """
         if shortcuts is None:
-            shortcuts = torch.zeros_like(time_steps, device=x.device)
+            shortcuts = time_steps
 
         if self.scale_time:
             shortcuts = self._scale_shortcuts(shortcuts)
