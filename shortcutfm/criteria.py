@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module
 from transformers import PreTrainedTokenizerBase
-from typing_extensions import Optional, override
+from typing import Optional, override
 
 from shortcutfm.batch import EncoderBatch, FlowMatchingBatch, ShortcutFMBatch
 from shortcutfm.config import TrainingConfig
