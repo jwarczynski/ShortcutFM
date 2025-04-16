@@ -104,7 +104,7 @@ class FlowMatchingCriterion(Criterion):
             input_ids_mask: Tensor,
     ) -> Tensor:
         """ Compute the model output. """
-        y = self.model(x_t, t, torch.zeros_like(t))
+        y = self.model(x_t, t, t)
         return y
 
     def _compute_nll_loss(self, hidden_last: Tensor, seqs: Tensor) -> Tensor:
@@ -426,12 +426,12 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecora
             y_hat = self.model(
                 x_t_next_zero_sc,
                 t_next,
-                torch.zeros_like(t_next, device=t_next.device)
+                t_next,
             ).detach()
 
         y_hat = self._modify_model_input(input_ids_mask, x_start, y_hat)
         y_hat = torch.cat((x_t, y_hat), dim=-1)
-        return self.model(y_hat, t, torch.zeros_like(t))
+        return self.model(y_hat, t, t)
 
     def _should_apply_self_conditioning(self) -> Tensor:
         """ Determines whether to apply self-conditioning based on the self_conditioning_ratio. """
