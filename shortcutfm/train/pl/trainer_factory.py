@@ -9,7 +9,7 @@ from shortcutfm.config import TrainingConfig
 from shortcutfm.criteria import (
     CompositeCriterion,
     FlowNllCriterion,
-    IsotropyCriterion, NllCriterion,
+    NllCriterion,
     SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
     VelocityConsistencyCriterion, VelocityFlowMatchingCriterion, X0ConsistencyCriterion,
@@ -55,12 +55,14 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
 
     # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
     if training_cfg.self_consistency_ratio > 0:
+        print(f"Creating CompositeCriterion with self-consistency ratio: {training_cfg.self_consistency_ratio}")
         criterion = _create_composite_criterion(
             flow_matching_criterion,
             model,
             training_cfg
         )
     else:
+        print(f"Creating FlowNllCriterion with self-consistency ratio: {training_cfg.self_consistency_ratio}")
         criterion = _create_flow_nll_criterion(
             flow_matching_criterion,
             model,
@@ -69,12 +71,18 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
 
     return criterion
 
+
 def create_factory(training_cfg: TrainingConfig):
     match training_cfg.architecture:
-        case "transformer": return TransformerNetModelFactory(training_cfg.model)
-        case "stacked": return StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
-        case "ffn": return FFNFactory(training_cfg.model)
-        case _: raise ValueError(f"Unknown architecture: {training_cfg.architecture}")
+        case "transformer":
+            return TransformerNetModelFactory(training_cfg.model)
+        case "stacked":
+            return StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
+        case "ffn":
+            return FFNFactory(training_cfg.model)
+        case _:
+            raise ValueError(f"Unknown architecture: {training_cfg.architecture}")
+
 
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
@@ -112,6 +120,7 @@ def get_reduction_fn(reduce_fn: str) -> Callable[[torch.Tensor, int], torch.Tens
 
     return reduce_fn
 
+
 def _create_composite_criterion(
         flow_matching_criterion: X0FlowMatchingCriterion,
         model: FlowMatchingModel,
@@ -135,6 +144,7 @@ def _create_composite_criterion(
     # Add consistency criterion with optional self-conditioning decorator
     consistency_criterion = create_consistency_criterion(model, training_cfg)
     if training_cfg.model.sc_rate > 0:
+        print(f"Applying self-conditioning decorator to consistency criterion with ratio: {training_cfg.model.sc_rate}")
         consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
             consistency_criterion,
             self_conditioning_ratio=training_cfg.model.sc_rate
@@ -178,9 +188,20 @@ def create_consistency_criterion(model, training_cfg):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
 
     if training_cfg.model.parametrization == "x0":
-        consistency_criterion = X0ConsistencyCriterion(model, training_cfg.model.diffusion_steps, reduce_fn, training_cfg)
+        print(f"Creating X0ConsistencyCriterion with reduce_fn: {training_cfg.reduce_fn}")
+        consistency_criterion = X0ConsistencyCriterion(
+            model,
+            training_cfg.model.diffusion_steps,
+            reduce_fn,
+            training_cfg
+        )
     elif training_cfg.model.parametrization == "velocity":
-        consistency_criterion = VelocityConsistencyCriterion(model, training_cfg.model.diffusion_steps, reduce_fn, training_cfg)
+        consistency_criterion = VelocityConsistencyCriterion(
+            model,
+            training_cfg.model.diffusion_steps,
+            reduce_fn,
+            training_cfg
+        )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
 

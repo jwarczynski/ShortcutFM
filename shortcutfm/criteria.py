@@ -533,6 +533,7 @@ class ConsistencyCriterion(Criterion, ABC):
         step1_prediction = self.model(x_t, t, shortcut_size)
 
         step2_input = self._prepare_2_shortcut_input(step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
+        assert t - shortcut_size > 0, "t - shortcut_size must be non-negative for computing 2nd step"
         step2_prediction = self.model(step2_input, t - shortcut_size, shortcut_size)
 
         target = self._modify_target(

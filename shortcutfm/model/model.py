@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, override
 
-import numpy as np
 import torch
 from torch import Tensor, nn
 from torch.nn import Module

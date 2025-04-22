@@ -88,6 +88,7 @@ class TransformerNetModelFactory:
         shortcut_embedding = None
         if self.config.hidden_shortcut_dim is not None:
             shortcut_embedding = self._create_shortcut_embedding()
+            print(f"shortcut embedding: {shortcut_embedding}")
 
         # Create input projection if needed
         input_up_proj = self._create_input_projection()
