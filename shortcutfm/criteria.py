@@ -632,9 +632,9 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
 
-        ((step1_prediction - x_t) + (step2_prediction - step2_input)) / 2
+        target = ((step1_prediction - x_t) + (step2_prediction - step2_input)) / 2
 
-        target = torch.where(input_ids_mask == 0, 0, step2_prediction)
+        target = torch.where(input_ids_mask == 0, 0, target)
         return target
 
     @override
