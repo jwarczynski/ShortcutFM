@@ -22,8 +22,8 @@ infra:
 training_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/train"
 validation_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
 padding_strategy:
-  mark_first_padding: false
-  mark_second_padding: false
+  mark_first_padding: true
+  mark_second_padding: true
 
 check_val_every_n_epoch: 10
 val_interval: null
@@ -50,6 +50,13 @@ architecture: "transformer"
 
 seed: 102
 
+loss:
+  type: mse
+  mvf_loss_config:
+    regularization_type: norm_penalized
+    lambda_1: 0.02
+    lambda_2: 0.1
+
 normalize_flow_matching_loss: false
 
 flow_matching_loss_weight: 1.0
@@ -57,7 +64,7 @@ consistency_loss_weight: 1.0
 nll_loss_weight: 1.0
 isotropy_loss_weight: 0.0
 
-self_consistency_ratio: 0.0
+self_consistency_ratio: 0.25
 model:
   init_pretrained: bert
   config_name: bert-base-uncased
@@ -67,7 +74,7 @@ model:
   word_embedding_std: 1.0
   input_dims: 128
   output_dims: 128
-  sc_rate: 0.5
+  sc_rate: 0.0
   parametrization: "x0"
   stacked_embeddings: false
   hidden_t_dim: 128
@@ -79,7 +86,7 @@ model:
 # Optimizer configuration
 optimizer:
   scheduler:
-    lr: 1e-4
+    lr: 1e-3
     type: "linear"
     start_factor: 1.0
     end_factor: 0.0
