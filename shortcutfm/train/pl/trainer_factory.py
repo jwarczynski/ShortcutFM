@@ -55,14 +55,12 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
 
     # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
     if training_cfg.self_consistency_ratio > 0:
-        print(f"Creating CompositeCriterion with self-consistency ratio: {training_cfg.self_consistency_ratio}")
         criterion = _create_composite_criterion(
             flow_matching_criterion,
             model,
             training_cfg
         )
     else:
-        print(f"Creating FlowNllCriterion with self-consistency ratio: {training_cfg.self_consistency_ratio}")
         criterion = _create_flow_nll_criterion(
             flow_matching_criterion,
             model,
@@ -144,7 +142,6 @@ def _create_composite_criterion(
     # Add consistency criterion with optional self-conditioning decorator
     consistency_criterion = create_consistency_criterion(model, training_cfg)
     if training_cfg.model.sc_rate > 0:
-        print(f"Applying self-conditioning decorator to consistency criterion with ratio: {training_cfg.model.sc_rate}")
         consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
             consistency_criterion,
             self_conditioning_ratio=training_cfg.model.sc_rate
@@ -188,7 +185,6 @@ def create_consistency_criterion(model, training_cfg):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
 
     if training_cfg.model.parametrization == "x0":
-        print(f"Creating X0ConsistencyCriterion with reduce_fn: {training_cfg.reduce_fn}")
         consistency_criterion = X0ConsistencyCriterion(
             model,
             training_cfg.model.diffusion_steps,
