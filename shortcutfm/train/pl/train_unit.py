@@ -471,12 +471,24 @@ class TrainModule(pl.LightningModule):
         references = [[ref] for ref in reference_text]
 
         bleu = evaluate.load("bleu")
-        bleu_result = bleu.compute(
-            predictions=clean_predicted_text,
-            references=references
-        )
+        try:
+            # Validate input
+            if not references or not any(references) or not clean_predicted_text:
+                raise ValueError("Empty references or predictions passed to BLEU computation.")
 
-        mean_bleu = bleu_result["bleu"]
+            bleu_result = bleu.compute(
+                predictions=clean_predicted_text,
+                references=references
+            )
+
+            mean_bleu = bleu_result.get("bleu", 0.0)
+        except ZeroDivisionError:
+            self.print("Warning: ZeroDivisionError in BLEU computation. Likely due to empty references.")
+            mean_bleu = 0.0
+        except Exception as e:
+            self.print(f"BLEU computation failed: {e}")
+            mean_bleu = 0.0
+
         self.log(
             "val/bleu",
             mean_bleu,
@@ -579,7 +591,7 @@ def _extract_clean_predicted_text(predicted_text):
         # First, find the SEP token that comes after the source sequence
         parts = text.split("[SEP]", 1)  # Split on first SEP
         # The prediction part starts after the first SEP
-        prediction_part = parts[1].strip() # stripping sep in case of double sep after src sequence
+        prediction_part = parts[1].strip()  # stripping sep in case of double sep after src sequence
         if prediction_part.find("[SEP]") == 0:
             prediction_part = prediction_part[len("[SEP]"):].strip()
 
