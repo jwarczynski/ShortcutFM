@@ -80,6 +80,7 @@ class ModelConfig(BaseModel):
     normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
     scale_time: bool = Field(default=False, description="Whether to scale time and shortcut embeddings by the diffusion steps")
     num_layers: int = Field(default=3, description="Number of ffn transformer layers. Only applicable to ffn architecture")
+    default_shortcut: Literal["0", "t"] = Field(default="t", description="Default shortcut for flow matching loss")
     model_config = ConfigDict(extra="forbid")
 
 

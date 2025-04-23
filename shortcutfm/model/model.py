@@ -84,11 +84,8 @@ class FlowMatchingModel(Module):
         self.min_shortcut_size = min_shortcut_size
         self.scale_time = scale_time
 
-    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         """ Forward pass of the model. """
-        if shortcuts is None:
-            shortcuts = time_steps
-
         if self.scale_time:
             shortcuts = self._scale_shortcuts(shortcuts)
             time_steps = self._scale_time_steps(time_steps)
