@@ -131,6 +131,29 @@ class PaddingStrategyConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class MVFLossConfig(BaseModel):
+    """Configuration for von Mises-Fisher loss"""
+    regularization_type: Literal["norm_penalized", "dot_product_scaled", "cosine_penalized"] = Field(
+        default="norm_penalized",
+        description="Type of von Mises-Fisher loss to use"
+    )
+    lambda_1: float = Field(default=0.02, description="Regularization parameter for NormPenalizedVMFLoss")
+    lambda_2: float = Field(default=0.1, description="Regularization parameter for DotProductScaledVMFLoss")
+    cosine_threshold: float = Field(default=0.2, description="Cosine threshold for CosinePenalizedVMFLoss")
+    cosine_penalty_scale: float = Field(default=1.0, description="Cosine threshold for CosinePenalizedVMFLoss")
+    model_config = ConfigDict(extra="forbid")
+
+
+class LossConfig(BaseModel):
+    """Loss function configuration"""
+    type: Literal["vmf", "mse"] = Field(default="mse", description="Type of loss function")
+    mvf_loss_config: Optional[MVFLossConfig] = Field(
+        default_factory=MVFLossConfig,
+        description="Configuration for von Mises-Fisher loss"
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
 class TrainingConfig(BaseModel):
     """Training process configuration"""
     # Data configuration
@@ -188,6 +211,9 @@ class TrainingConfig(BaseModel):
         default=1000,
         description="Number of training epochs to start logging train predictions from"
     )
+
+    # Loss configuration
+    loss: LossConfig = Field(default_factory=LossConfig, description="Loss function configuration")
 
     # Loss weights
     flow_matching_loss_weight: Optional[float] = Field(default=1.0, description="Weight for flow matching loss")

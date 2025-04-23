@@ -65,11 +65,13 @@ class FlowMatchingCriterion(Criterion):
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
         super().__init__(model, diffusion_steps, training_cfg)
         self.tokenizer = tokenizer
         self.x_t = None
         self.reduce_fn = reduce_fn
+        self.loss_fn = loss_fn
 
     def compute_losses(self, batch: FlowMatchingBatch, world_size) -> dict[str, Tensor]:
         target = self._compute_target(batch)
@@ -81,7 +83,7 @@ class FlowMatchingCriterion(Criterion):
             input_ids_mask=batch.input_ids_mask,
         )
 
-        fm_loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        fm_loss = self.loss_fn(output, target)
         if self.training_cfg.normalize_flow_matching_loss:
             target_norms = torch.norm(target, dim=-1, keepdim=True)  # Shape: (batch_size, seq_len, 1)
             fm_loss = fm_loss / (target_norms + 1e-10)
@@ -292,8 +294,9 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -336,8 +339,9 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
             tokenizer: PreTrainedTokenizerBase,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -381,7 +385,8 @@ class FlowMatchingCriterionDecorator(FlowMatchingCriterion, ABC):
             criterion.diffusion_steps,
             criterion.tokenizer,
             criterion.reduce_fn,
-            criterion.training_cfg
+            criterion.training_cfg,
+            criterion.loss_fn,
         )
         self.criterion = criterion
 

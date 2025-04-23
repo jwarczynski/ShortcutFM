@@ -17,6 +17,7 @@ from shortcutfm.criteria import (
 )
 from shortcutfm.model.factory import FFNFactory, StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory
 from shortcutfm.model.model import FlowMatchingModel
+from shortcutfm.nn import CosinePenalizedVMFLoss, DotProductScaledVMFLoss, NormPenalizedVMFLoss
 from shortcutfm.shortcut_samplers import (
     LossSecondMomentResampler,
     ShortcutSampler,
@@ -84,6 +85,7 @@ def create_factory(training_cfg: TrainingConfig):
 
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
+    loss_fn = create_flow_matching_loss_fn(training_cfg)
 
     if training_cfg.model.parametrization == "x0":
         flow_matching_criterion = X0FlowMatchingCriterion(
@@ -92,6 +94,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             tokenizer=tokenizer,
             reduce_fn=reduce_fn,
             training_cfg=training_cfg,
+            loss_fn=loss_fn,
         )
     elif training_cfg.model.parametrization == "velocity":
         flow_matching_criterion = VelocityFlowMatchingCriterion(
@@ -100,6 +103,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             tokenizer=tokenizer,
             reduce_fn=reduce_fn,
             training_cfg=training_cfg,
+            loss_fn=loss_fn,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
@@ -117,6 +121,25 @@ def get_reduction_fn(reduce_fn: str) -> Callable[[torch.Tensor, int], torch.Tens
         raise ValueError(f"Unknown reduce_fn: {reduce_fn}")
 
     return reduce_fn
+
+
+def create_flow_matching_loss_fn(training_cfg):
+    if training_cfg.loss.type == "mse":
+        print("Using MSE loss")
+        return torch.nn.MSELoss(reduction="none")
+
+    elif training_cfg.loss.type == "vmf":
+        if training_cfg.loss.mvf_loss_config.regularization_type == "norm_penalized":
+            print("Using vMF loss with norm penalization")
+            return NormPenalizedVMFLoss(training_cfg)
+        elif training_cfg.loss.mvf_loss_config.regularization_type == "dot_product_scaled":
+            print("Using vMF loss with dot product scaling")
+            return DotProductScaledVMFLoss(training_cfg)
+        elif training_cfg.loss.mvf_loss_config.regularization_type == "cosine_penalized":
+            print("Using vMF loss with cosine penalization")
+            return CosinePenalizedVMFLoss(training_cfg)
+
+    raise ValueError(f"Unknown loss type: {training_cfg.loss.type} or unknown regularization type: {training_cfg.loss.mvf_loss_config.regularization_type}")
 
 
 def _create_composite_criterion(
