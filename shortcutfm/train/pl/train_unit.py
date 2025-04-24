@@ -591,7 +591,8 @@ def _extract_clean_predicted_text(predicted_text):
         # First, find the SEP token that comes after the source sequence
         parts = text.split("[SEP]", 1)  # Split on first SEP
         # The prediction part starts after the first SEP
-        prediction_part = parts[1].strip()  # stripping sep in case of double sep after src sequence
+        # stripping sep in case of double sep after src sequence
+        prediction_part = parts[1].strip() if len(parts) > 1 else parts[0].strip()
         if prediction_part.find("[SEP]") == 0:
             prediction_part = prediction_part[len("[SEP]"):].strip()
 
