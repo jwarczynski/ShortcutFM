@@ -696,7 +696,7 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
         velocity = torch.where(input_ids_mask == 0, 0, velocity)
-        return x_t + velocity * shorcut_size
+        return x_t + velocity * shorcut_size[:, None, None].expand_as(x_start)
 
     @override
     def _modify_target(
