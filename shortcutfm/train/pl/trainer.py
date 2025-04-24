@@ -180,7 +180,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         accumulate_grad_batches=cfg.accumulate_grad_batches,
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
-        overfit_batches=cfg.overfit_batches,
+        overfit_batches=int(cfg.overfit_batches) if cfg.overfit_batches >= 1 else cfg.overfit_batches,
     )
 
     return trainer, train_unit, train_dataloader, val_dataloader
