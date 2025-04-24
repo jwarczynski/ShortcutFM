@@ -596,7 +596,7 @@ class ConsistencyCriterion(Criterion, ABC):
         """ Compute the model output. """
 
         y = self.model(x_t, t, 2 * shortcut_size)
-        trg = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, y - x_t)
+        trg = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, y)
         return trg
 
     @abstractmethod
@@ -618,7 +618,24 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
             training_cfg: TrainingConfig = None,
             loss_fn: Callable = None,
     ):
-        super().__init__(model, diffusion_steps, reduce_fn, training_cfg=training_cfg)
+        super().__init__(model, diffusion_steps, reduce_fn, training_cfg=training_cfg, loss_fn=loss_fn)
+
+    @override
+    def _predict(
+            self,
+            *,
+            x_start: Tensor,
+            x_t: Tensor,
+            noise: Tensor,
+            t: Tensor,
+            shortcut_size: Tensor,
+            input_ids_mask: Tensor,
+    ) -> Tensor:
+        """ Compute the model output. """
+
+        y = self.model(x_t, t, 2 * shortcut_size)
+        trg = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, y - x_t)
+        return trg
 
     @override
     def _prepare_2_shortcut_input(
@@ -679,7 +696,7 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
         velocity = torch.where(input_ids_mask == 0, 0, velocity)
-        return x_t + velocity * t
+        return x_t + velocity * shorcut_size
 
     @override
     def _modify_target(
