@@ -500,9 +500,11 @@ class ConsistencyCriterion(Criterion, ABC):
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
         super().__init__(model=model, diffusion_steps=diffusion_steps, training_cfg=training_cfg)
         self.reduce_fn = reduce_fn
+        self.loss_fn = loss_fn
 
     @override
     def compute_losses(self, batch: ShortcutFMBatch, world_size) -> dict[str, Tensor]:
@@ -522,7 +524,7 @@ class ConsistencyCriterion(Criterion, ABC):
             input_ids_mask=batch.input_ids_mask,
         )
 
-        loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        loss = self.loss_fn(output, target)
         return {
             "consistency_loss": self.reduce_fn(loss, dim=-1)
         }
@@ -614,6 +616,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
         super().__init__(model, diffusion_steps, reduce_fn, training_cfg=training_cfg)
 
@@ -663,8 +666,9 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
             diffusion_steps,
             reduce_fn: Callable = torch.mean,
             training_cfg: TrainingConfig = None,
+            loss_fn: Callable = None,
     ):
-        super().__init__(model, diffusion_steps, reduce_fn, training_cfg)
+        super().__init__(model, diffusion_steps, reduce_fn, training_cfg, loss_fn)
 
     @override
     def _prepare_2_shortcut_input(
@@ -704,7 +708,13 @@ class ConsistencyCriterionDecorator(ConsistencyCriterion, ABC):
             self,
             criterion: ConsistencyCriterion,
     ):
-        super().__init__(criterion.model, criterion.diffusion_steps, criterion.reduce_fn, criterion.training_cfg)
+        super().__init__(
+            criterion.model,
+            criterion.diffusion_steps,
+            criterion.reduce_fn,
+            criterion.training_cfg,
+            criterion.loss_fn
+        )
         self._criterion = criterion
 
 
@@ -996,7 +1006,7 @@ class CompositeCriterion(Criterion):
             consistency_input_ids_mask.unsqueeze(-1) == 0,
             consistency_x_start,
             consistency_x_t
-            )
+        )
         consistency_batch = ShortcutFMBatch(
             seqs=consistency_seqs,
             padding_mask=consistency_padding_mask,

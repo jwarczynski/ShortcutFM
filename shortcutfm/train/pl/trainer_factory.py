@@ -206,20 +206,23 @@ def _create_composite_criterion(
 
 def create_consistency_criterion(model, training_cfg):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
+    loss_fn = create_flow_matching_loss_fn(training_cfg)
 
     if training_cfg.model.parametrization == "x0":
         consistency_criterion = X0ConsistencyCriterion(
             model,
             training_cfg.model.diffusion_steps,
             reduce_fn,
-            training_cfg
+            training_cfg,
+            loss_fn,
         )
     elif training_cfg.model.parametrization == "velocity":
         consistency_criterion = VelocityConsistencyCriterion(
             model,
             training_cfg.model.diffusion_steps,
             reduce_fn,
-            training_cfg
+            training_cfg,
+            loss_fn,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
