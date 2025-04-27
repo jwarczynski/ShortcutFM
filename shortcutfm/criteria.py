@@ -634,8 +634,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         """ Compute the model output. """
 
         y = self.model(x_t, t, 2 * shortcut_size)
-        trg = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, y - x_t)
-        return trg
+        return y
 
     @override
     def _prepare_2_shortcut_input(
@@ -646,8 +645,8 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         x_start = x_start[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
 
-        v_hat = (step1_prediction - x_t)
-        step2_input = x_t + (shorcut_size / self.diffusion_steps)[:, None, None] * v_hat
+        step_size = (shorcut_size / self.diffusion_steps)[:, None, None]
+        step2_input = (1-step_size) * x_t + step_size[:, None, None] * step1_prediction
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
@@ -659,9 +658,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
 
-        target = ((step1_prediction - x_t) + (step2_prediction - step2_input)) / 2
-
-        target = torch.where(input_ids_mask == 0, 0, target)
+        target = torch.where(input_ids_mask == 0, x_start, step2_prediction)
         return target
 
     @override
