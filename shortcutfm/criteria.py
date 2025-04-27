@@ -958,11 +958,11 @@ class CompositeCriterion(Criterion):
         specific_batches = self._prepare_batches(batch)
         flow_matching_batch, consistency_batch, full_batch = specific_batches
 
-        flow_and_decoder_loses = self.criteria[0](flow_matching_batch, world_size)
+        flow_and_decoder_loses = self.flow_matching_criterion(flow_matching_batch, world_size)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        consistency_loss = self.criteria[1](consistency_batch, world_size)["consistency_loss"]
-        embedding_loss = self.criteria[2](full_batch, world_size)["nll_loss"]
+        consistency_loss = self.consistency_criterion(consistency_batch, world_size)["consistency_loss"]
+        embedding_loss = self.embedding_criterion(full_batch, world_size)["nll_loss"]
 
         losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(), ]  # no decoder_loss
         weighted_losses = [
