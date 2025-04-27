@@ -22,3 +22,32 @@ requires-python = ">=3.12"
 [project.optional-dependencies]
 evaluate = ["bert_score", "nltk", "rouge_score"]
 
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.11.7",
+]
+
+[tool.ruff]
+line-length = 88  # Matches black's default, adjust as needed
+target-version = "py312"  # Matches your requires-python
+exclude = [".git", "__pycache__", ".venv"]
+
+[tool.ruff.format]
+quote-style = "double"  # Consistent with black
+#indent-style = "tab"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle errors
+    "F", # pyflakes
+    "W", # pycodestyle warnings
+    "I", # isort
+    "UP", # pyupgrade
+    "B", # flake8-bugbear
+    "D", # pydocstyle (optional, for docstrings)
+]
+ignore = ["D100", "D104"]  # Example: Ignore missing module/public docstrings
+
