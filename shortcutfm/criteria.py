@@ -249,12 +249,12 @@ class FlowMatchingCriterion(Criterion):
 
     def probe(self, hidden_representation, return_logits: bool = False) -> Tensor:
         """Predicts sequence of tokens based on hidden_representation.
-        
+
         :param hidden_representation: Hidden representation from the model
         :type hidden_representation: Tensor
         :param return_logits: Whether to return logits instead of token IDs
         :type return_logits: bool
-        
+
         :return: Either logits or token IDs
         :rtype: Tensor
         """
@@ -646,7 +646,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         x_t = x_t[..., :embedding_dim]
 
         step_size = (shorcut_size / self.diffusion_steps)[:, None, None]
-        step2_input = (1-step_size) * x_t + step_size * step1_prediction
+        step2_input = (1 - step_size) * x_t + step_size * step1_prediction
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
