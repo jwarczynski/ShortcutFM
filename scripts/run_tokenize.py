@@ -1,11 +1,10 @@
 import argparse
 
 from datasets import DatasetDict
-
 from shortcutfm.text_datasets import get_corpus
 from shortcutfm.tokenizer import MyTokenizer
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Tokenize dataset and save to disk.")
     parser.add_argument("--dataset", type=str, required=True, help="Name of the dataset")
     parser.add_argument("--vocab", type=str, default="bert", help="Vocabulary type")
@@ -27,13 +26,7 @@ if __name__ == '__main__':
     test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)
 
     # Create DatasetDict
-    ds_dict = DatasetDict(
-        {
-            "train": train_corpus,
-            "valid": val_corpus,
-            "test": test_corpus
-        }
-    )
+    ds_dict = DatasetDict({"train": train_corpus, "valid": val_corpus, "test": test_corpus})
 
     # Save dataset to disk
     print(f"Saving dataset to {save_path}")

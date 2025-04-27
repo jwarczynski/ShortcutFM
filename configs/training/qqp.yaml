@@ -2,7 +2,7 @@
 # Extends default.yaml with QQP-specific settings
 
 dry_run: false
-use_exca: true
+use_exca: false
 
 infra:
   cluster: "slurm"
@@ -10,12 +10,12 @@ infra:
   timeout_min: 10080
   mode: "force"
   slurm_partition: "hgx"
-  gpus_per_node: 4
-  tasks_per_node: 4
+  gpus_per_node: 2
+  tasks_per_node: 2
   cpus_per_task: 8
   slurm_use_srun: true
   slurm_additional_parameters:
-    nodelist: "hgx2"
+    nodelist: "hgx1"
 
 
 # Data paths
@@ -25,37 +25,35 @@ padding_strategy:
   mark_first_padding: true
   mark_second_padding: true
 
-check_val_every_n_epoch: 10
+check_val_every_n_epoch: 10000
 val_interval: null
 
 denoising_step_size: 512  # Step size for denoising process
 num_val_batches_to_log: 1  # Number of validation batches to log predictions for
 num_timestep_bins: 4
 prediction_shortcut_size: 512
-log_train_predictions_every_n_epochs: 20  # Number of epochs between train prediction logging
-log_train_predictions_from_n_epochs: 1  # Number of epochs between train prediction logging
+log_train_predictions_every_n_epochs: 200  # Number of epochs between train prediction logging
+log_train_predictions_from_n_epochs: 200  # Number of epochs between train prediction logging
 
 limit_train_batches: null
-limit_val_batches: null
-overfit_batches: 0
+limit_val_batches: 0
+overfit_batches: 1
 
-max_steps: 50000
+max_steps: 5000
 gradient_clipping: null
 reduce_fn: "mean"
 
-batch_size: 256
-accumulate_grad_batches: 4
+batch_size: 8
+accumulate_grad_batches: 1
 
 architecture: "transformer"
 
 seed: 102
 
-loss:
-  type: mse
-  mvf_loss_config:
-    regularization_type: norm_penalized
-    lambda_1: 0.02
-    lambda_2: 0.1
+#loss:
+#  type: vmf
+#  mvf_loss_config:
+#    regularization_type: cosine_penalized
 
 normalize_flow_matching_loss: false
 
@@ -63,6 +61,8 @@ flow_matching_loss_weight: 1.0
 consistency_loss_weight: 1.0
 nll_loss_weight: 1.0
 isotropy_loss_weight: 0.0
+
+consistency_start_step: 10
 
 self_consistency_ratio: 0.25
 model:
@@ -89,20 +89,20 @@ optimizer:
     lr: 1e-3
     type: "linear"
     start_factor: 1.0
-    end_factor: 0.0
-    total_steps: 50000
+    end_factor: 0.01
+    total_steps: 5000
 
 #ema: null
 
 # WandB configuration
 wandb:
 #  project_name: "test_v2"
-  project_name: "shortcutFM"
-#  project_name: "test"
-  run_name: "lr=1e-4_gc=3_scut=0"
+#  project_name: "shortcutFM"
+  project_name: "test"
+#  run_name: "lr=1e-4_gc=3_scut=0"
   enabled: true
 
 # Checkpoint configuration
 checkpoint:
   save_folder: "checkpoints/qqp"
-  path: "checkpoints/qqp/bert-base/run_hv5ivw2s/last.ckpt"
+#  path: "checkpoints/qqp/bert-base/run_hv5ivw2s/last.ckpt"

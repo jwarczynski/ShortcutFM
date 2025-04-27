@@ -1,14 +1,16 @@
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LRScheduler, LinearLR
+from torch.optim.lr_scheduler import LinearLR, LRScheduler
 
-from shortcutfm.config import MyleSchedulerConfig, LinearSchedulerConfig
+from shortcutfm.config import LinearSchedulerConfig, MyleSchedulerConfig
 from shortcutfm.nn import MyleLR
 
 
 class SchedulerFactory:
     """Factory for time schedulers"""
+
     registry: dict[str, Any] = {}
 
     @classmethod
@@ -21,7 +23,7 @@ class SchedulerFactory:
 
     @classmethod
     def register(cls, name: str) -> Callable:
-        """decorator for adding schedulers to the registry"""
+        """Decorator for adding schedulers to the registry"""
 
         def inner_wrapper(wrapped_class: LRScheduler) -> LRScheduler:
             assert name not in cls.registry, f"{name} already registered"

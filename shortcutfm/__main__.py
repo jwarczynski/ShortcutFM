@@ -18,7 +18,7 @@ def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
     if not Path(config_path).exists():
         raise ValueError(f"Config file not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         yaml_cfg = om.load(f)
 
     # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
@@ -53,25 +53,21 @@ if __name__ == "__main__":
             "model.config_name": "answerdotai/ModernBERT-base",
             "model.vocab_size": 50368,
             "model.word_embedding_std": 0.5,
-
             "training_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/train",
             "validation_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/valid",
-
             "checkpoint.save_folder": "checkpoints/qqp/ModernBERT",
         }
 
         bert_base_cfg = {
             "model.word_embedding_std": 1.0,
-
             "training_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/train",
             "validation_data_path": "datasets/tokenized/bert-base-uncased/QQP-Official/valid",
-
             "checkpoint.save_folder": "checkpoints/qqp/bert-base/",
         }
 
         with cfg.infra.job_array() as array:
             # for name, bert_cfg in zip(("modern", "base"), [modern_bert_cfg, bert_base_cfg]):
-            for name, bert_cfg in zip(("base",), [bert_base_cfg]):
+            for _, bert_cfg in zip(("base",), [bert_base_cfg], strict=False):
                 array.append(
                     cfg.infra.clone_obj(
                         {

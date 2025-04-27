@@ -19,25 +19,19 @@ class EncoderBatch:
 
     def split(self, index: int) -> tuple["EncoderBatch"] | tuple["EncoderBatch", "EncoderBatch"]:
         if isinstance(index, float):
-            raise ValueError('split does not support floating point microbatch_size.')
+            raise ValueError("split does not support floating point microbatch_size.")
 
         if index < 1:
-            raise ValueError('split does not support microbatch_size less than 1.')
+            raise ValueError("split does not support microbatch_size less than 1.")
 
         if index > self.size():
-            raise ValueError('split does not support microbatch_size greater than or equal to the batch size.')
+            raise ValueError("split does not support microbatch_size greater than or equal to the batch size.")
 
         if index == self.size():
-            return self,
+            return (self,)
 
-        return EncoderBatch(
-            self.seqs[:index],
-            self.padding_mask[:index],
-            self.input_ids_mask[:index]
-        ), EncoderBatch(
-            self.seqs[index:],
-            self.padding_mask[index:],
-            self.input_ids_mask[index:]
+        return EncoderBatch(self.seqs[:index], self.padding_mask[:index], self.input_ids_mask[:index]), EncoderBatch(
+            self.seqs[index:], self.padding_mask[index:], self.input_ids_mask[index:]
         )
 
 
@@ -56,7 +50,7 @@ class FlowMatchingBatch(EncoderBatch):
             self.x_start[:index],
             self.x_t[:index],
             self.noise[:index],
-            self.t[:index]
+            self.t[:index],
         ), FlowMatchingBatch(
             self.seqs[index:],
             self.padding_mask[index:],
@@ -64,7 +58,7 @@ class FlowMatchingBatch(EncoderBatch):
             self.x_start[index:],
             self.x_t[index:],
             self.noise[index:],
-            self.t[index:]
+            self.t[index:],
         )
 
     @classmethod
@@ -76,7 +70,7 @@ class FlowMatchingBatch(EncoderBatch):
             shortcut_fm_batch.x_start,
             shortcut_fm_batch.x_t,
             shortcut_fm_batch.noise,
-            shortcut_fm_batch.t
+            shortcut_fm_batch.t,
         )
 
 
@@ -94,21 +88,21 @@ class ShortcutFMBatch(FlowMatchingBatch):
             fm_batch.x_t,
             fm_batch.noise,
             fm_batch.t,
-            shortcut_size
+            shortcut_size,
         )
 
     def split(self, index: int) -> tuple["ShortcutFMBatch", "ShortcutFMBatch"]:
         fm1, fm2 = super().split(index)
         return (
             self.from_flow_matching_batch(fm1, self.shortcut_size[:index]),
-            self.from_flow_matching_batch(fm2, self.shortcut_size[index:])
+            self.from_flow_matching_batch(fm2, self.shortcut_size[index:]),
         )
 
 
 def collate(
-        batch: list[dict[str, Tensor]],
-        mark_first_padding: bool = False,
-        mark_second_padding: bool = False
+    batch: list[dict[str, Tensor]],
+    mark_first_padding: bool = False,
+    mark_second_padding: bool = False,
 ) -> EncoderBatch:
     """Collates a batch of dictionaries into an EncoderBatch.
 
@@ -121,8 +115,8 @@ def collate(
 
     Returns:
         An EncoderBatch object containing the collated tensors.
-    """
 
+    """
     random.shuffle(batch)
 
     # Transpose the list of dictionaries into a dictionary of lists

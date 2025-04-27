@@ -1,8 +1,8 @@
-from typing import Any, Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 import torch
 import torch.distributed as dist
-import wandb
 from composer import Callback, Logger
 from composer.core import State
 from composer.loggers import WandBLogger
@@ -11,12 +11,12 @@ from composer.utils import dist as composer_dist
 from torch import Tensor
 from torchmetrics import Metric
 
+import wandb
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.criteria import Criterion
 
 
 class TrainUnit(ComposerModel):
-
     def __init__(self, criterion: Criterion) -> None:
         super().__init__()
         self.criterion = criterion
@@ -31,17 +31,19 @@ class TrainUnit(ComposerModel):
         batch.input_ids_mask.to(self.device)
         return self.criterion(batch)
 
-    def loss(self, outputs: dict[str, Tensor], batch: EncoderBatch, *args, **kwargs) -> Union[Tensor, Sequence[Tensor]]:
+    def loss(self, outputs: dict[str, Tensor], batch: EncoderBatch, *args, **kwargs) -> Tensor | Sequence[Tensor]:
         return outputs["loss"]
 
-    def eval_forward(self, batch: EncoderBatch, outputs: Optional[Any] = None, ) -> Any:
+    def eval_forward(
+        self,
+        batch: EncoderBatch,
+        outputs: Any | None = None,
+    ) -> Any:
         return outputs["loss"]
 
-    def get_metrics(self, is_train=False) -> dict[str, Metric]:
-        ...
+    def get_metrics(self, is_train=False) -> dict[str, Metric]: ...
 
-    def update_metric(self, batch, outputs, metric) -> None:
-        ...
+    def update_metric(self, batch, outputs, metric) -> None: ...
 
 
 class MetricTracker(Callback):
@@ -59,7 +61,8 @@ class MetricTracker(Callback):
         outputs = state.outputs
         if isinstance(outputs, dict):  # Ensure it's a dict
             loss_logs = {
-                f"loss/{key}": value.item() for key, value in outputs.items()
+                f"loss/{key}": value.item()
+                for key, value in outputs.items()
                 if isinstance(value, Tensor) and key != "loss"  # total loss automatically logged
             }
         else:
@@ -68,8 +71,10 @@ class MetricTracker(Callback):
         # Log batch size, total elements, and losses
         logger.log_metrics(
             {
-                "batch_size": state.batch.size(), "num_elements": numel, "total_elements": self.total_elements,
-                **loss_logs
+                "batch_size": state.batch.size(),
+                "num_elements": numel,
+                "total_elements": self.total_elements,
+                **loss_logs,
             }
         )
 
@@ -89,7 +94,7 @@ class LogGradientsAndNormCallback(Callback):
 
                 # Compute local gradient L2 norm
                 param_norm = param.grad.norm(2)
-                total_norm += param_norm ** 2  # Sum of squares
+                total_norm += param_norm**2  # Sum of squares
 
         # Aggregate across all devices
         if composer_dist.get_world_size() > 1:

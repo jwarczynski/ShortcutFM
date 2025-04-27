@@ -1,14 +1,12 @@
-from typing import Optional
-
 import numpy as np
 from numpy import dtype, ndarray
 
 
 def get_target_only(
-        batch: ndarray[str, dtype[str]],
-        sep_token: str,
-        cls_token: Optional[str],
-        strip_special_tokens: bool = True
+    batch: ndarray[str, dtype[str]],
+    sep_token: str,
+    cls_token: str | None,
+    strip_special_tokens: bool = True,
 ) -> ndarray[str, dtype[str]]:
     if strip_special_tokens and not cls_token:
         raise ValueError("Cannot strip special tokens if cls_token not provided")

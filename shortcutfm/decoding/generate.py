@@ -3,15 +3,20 @@ import sys
 from pathlib import Path
 
 import lightning as pl
-from datasets import Dataset
-from omegaconf import OmegaConf, OmegaConf as om
+from omegaconf import OmegaConf
+from omegaconf import OmegaConf as om
 from torch.utils.data import DataLoader
 
+from datasets import Dataset
 from shortcutfm.batch import collate
 from shortcutfm.config import GenerationConfig
 from shortcutfm.text_datasets import TextDataset
 from shortcutfm.train.pl.callbacks import SaveTestOutputsCallback
-from shortcutfm.train.pl.trainer_factory import create_criterion, get_ema_callback, load_unit_from_checkpoint
+from shortcutfm.train.pl.trainer_factory import (
+    create_criterion,
+    get_ema_callback,
+    load_unit_from_checkpoint,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -22,7 +27,7 @@ def parse_generation_config(config_path: str, args_list: list[str]) -> Generatio
     if not Path(config_path).exists():
         raise ValueError(f"Config file not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         yaml_cfg = om.load(f)
 
     # Merge: defaults -> YAML -> CLI args (CLI takes highest priority)
@@ -47,7 +52,7 @@ def create_test_dataloader(gen_cfg: GenerationConfig) -> DataLoader:
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python -m shortcutfm.decoding.generate <config_path> <cli_args>")
         sys.exit(1)
@@ -69,7 +74,7 @@ if __name__ == '__main__':
         save_path=Path(gen_cfg.output_folder),
         diff_steps=gen_cfg.training_config.model.diffusion_steps,
         shortcut_size=gen_cfg.generation_shortcut_size,
-        start_example_idx=1
+        start_example_idx=1,
     )
     callbacks.append(save_outputs_callback)
 

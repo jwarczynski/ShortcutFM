@@ -1,11 +1,9 @@
 import json
 from pathlib import Path
-from typing import List, Tuple
 
 import lightning as pl
 import numpy as np
 import torch
-from torch import Tensor
 
 
 # Custom Gradient Monitor Callback for Lightning
@@ -26,10 +24,10 @@ class GradientMonitor(pl.Callback):
                     total_norm += param_norm.item() ** 2
 
             # Log total norm
-            total_norm = total_norm ** 0.5
+            total_norm = total_norm**0.5
             trainer.logger.log_metrics(
                 {"grad_norm/total": total_norm, **grad_norm_dict},
-                step=trainer.global_step
+                step=trainer.global_step,
             )
 
 
@@ -58,7 +56,8 @@ class EMACallback(pl.Callback):
                     if name in self.shadow_params:
                         self.shadow_params[name] = self.shadow_params[name].to(param.device)
                         self.shadow_params[name] = self.shadow_params[name] * self.decay + param.detach() * (
-                                1 - self.decay)
+                            1 - self.decay
+                        )
                     else:
                         self.shadow_params[name] = param.detach().clone()
 
@@ -107,7 +106,11 @@ class EMACallback(pl.Callback):
 
     def state_dict(self):
         """Returns the state dict of the EMA Callback for manual checkpointing"""
-        return {"shadow_params": self.shadow_params, "decay": self.decay, "update_interval": self.update_interval}
+        return {
+            "shadow_params": self.shadow_params,
+            "decay": self.decay,
+            "update_interval": self.update_interval,
+        }
 
     def load_state_dict(self, state_dict):
         """Loads the state from a state dict"""
@@ -124,10 +127,10 @@ class SaveTestOutputsCallback(pl.Callback):
         save_path: Path,
         diff_steps: int,
         shortcut_size: int,
-        start_example_idx: int = 1
+        start_example_idx: int = 1,
     ):
         """Initialize callback.
-        
+
         :param save_path: path to save outputs
         :type save_path: Path
         :param diff_steps: total number of diffusion steps
@@ -142,10 +145,10 @@ class SaveTestOutputsCallback(pl.Callback):
         self.diff_steps = diff_steps
         self.shortcut_size = shortcut_size
         self.start_example_idx = start_example_idx
-        
+
         # Calculate time steps using shortcut_size as step size
         self.time_steps = np.arange(0, diff_steps, shortcut_size, dtype=int)
-        
+
         # Store outputs for each rank
         self.inputs = []
         self.predictions = []
@@ -178,7 +181,7 @@ class SaveTestOutputsCallback(pl.Callback):
             "time_steps": self.time_steps.tolist(),
             "input_shape": list(all_inputs.shape),
             "predictions_shape": list(all_predictions.shape),
-            "start_example_idx": self.start_example_idx
+            "start_example_idx": self.start_example_idx,
         }
 
         with open(metadata_file, "w") as f:

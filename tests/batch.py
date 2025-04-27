@@ -40,7 +40,7 @@ class TestFlowMatchingBatch:
             self.x_start,
             self.x_t,
             self.noise,
-            self.t
+            self.t,
         )
 
     def test_flow_matching_batch_creation(self):
@@ -86,7 +86,7 @@ class TestShortcutFMBatch:
             self.x_start,
             self.x_t,
             self.noise,
-            self.t
+            self.t,
         )
         self.shortcut_fm_batch = ShortcutFMBatch.from_flow_matching_batch(self.fm_batch, self.shortcut_size)
 
@@ -110,5 +110,5 @@ class TestShortcutFMBatch:
         assert self.shortcut_fm_batch.size() == 2
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main()

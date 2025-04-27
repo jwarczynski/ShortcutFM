@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, override
+from typing import override
 
 import torch
 from torch import Tensor, nn
@@ -16,7 +16,7 @@ class BackboneTransformer(nn.Module, ABC):
 
     @abstractmethod
     def forward(self, x: Tensor) -> Tensor:
-        """computes last hidden states of the transformer"""
+        """Computes last hidden states of the transformer"""
 
 
 class ModernBertBackbone(BackboneTransformer):
@@ -35,10 +35,10 @@ class FFNBackbone(BackboneTransformer):
     """Feed-forward network backbone for TransformerNetModel."""
 
     def __init__(
-            self,
-            input_dims: int,
-            hidden_dims: int,
-            num_layers: int,
+        self,
+        input_dims: int,
+        hidden_dims: int,
+        num_layers: int,
     ):
         super().__init__(None)
 
@@ -60,7 +60,12 @@ class FFNBackbone(BackboneTransformer):
 
 
 class FFNModule(Module):
-    def __init__(self, word_embedding: nn.Embedding, lm_head: nn.Linear, backbone: BackboneTransformer):
+    def __init__(
+        self,
+        word_embedding: nn.Embedding,
+        lm_head: nn.Linear,
+        backbone: BackboneTransformer,
+    ):
         super().__init__()
         self.word_embedding = word_embedding
         self.lm_head = lm_head
@@ -72,12 +77,20 @@ class FFNModule(Module):
     def compute_logits(self, hidden_repr):
         return self.lm_head(hidden_repr)
 
-    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Optional[Tensor] = None) -> Tensor:
+    def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor | None = None) -> Tensor:
         return self.backbone(x)
 
 
 class FlowMatchingModel(Module):
-    def __init__(self, module: Module, diffusion_steps, min_shortcut_size, scale_time, *args, **kwargs):
+    def __init__(
+        self,
+        module: Module,
+        diffusion_steps,
+        min_shortcut_size,
+        scale_time,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.module = module
         self.diffusion_steps = diffusion_steps
@@ -85,7 +98,7 @@ class FlowMatchingModel(Module):
         self.scale_time = scale_time
 
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
-        """ Forward pass of the model. """
+        """Forward pass of the model."""
         if self.scale_time:
             shortcuts = self._scale_shortcuts(shortcuts)
             time_steps = self._scale_time_steps(time_steps)
@@ -113,19 +126,19 @@ class TransformerNetModel(Module):
     """Transformer network model for flow matching."""
 
     def __init__(
-            self,
-            *,
-            word_embedding: nn.Embedding,
-            lm_head: nn.Linear,
-            time_embed: nn.Sequential,
-            backbone_transformer: BackboneTransformer,
-            shortcut_embedding: Optional[nn.Module] = None,
-            input_up_proj: Optional[nn.Sequential] = None,
-            position_embeddings: Optional[nn.Embedding] = None,
-            layer_norm: Optional[nn.LayerNorm] = None,
-            output_down_proj: Optional[nn.Sequential] = None,
-            config: ModelConfig = None,
-            position_ids: Optional[Tensor] = None,
+        self,
+        *,
+        word_embedding: nn.Embedding,
+        lm_head: nn.Linear,
+        time_embed: nn.Sequential,
+        backbone_transformer: BackboneTransformer,
+        shortcut_embedding: nn.Module | None = None,
+        input_up_proj: nn.Sequential | None = None,
+        position_embeddings: nn.Embedding | None = None,
+        layer_norm: nn.LayerNorm | None = None,
+        output_down_proj: nn.Sequential | None = None,
+        config: ModelConfig = None,
+        position_ids: Tensor | None = None,
     ):
         super().__init__()
         self.config = config
@@ -178,7 +191,6 @@ class TransformerNetModel(Module):
 
 
 class StackedEmbeddingTransformerNetModel(TransformerNetModel):
-
     @override
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()

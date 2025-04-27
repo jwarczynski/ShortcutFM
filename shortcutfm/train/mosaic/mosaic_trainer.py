@@ -7,22 +7,27 @@ from composer.algorithms.ema.ema import EMA
 from composer.callbacks import CheckpointSaver, LRMonitor, OptimizerMonitor
 from composer.loggers import WandBLogger
 from composer.utils import dist
-from datasets import Dataset
 from torch.utils.data import DataLoader
 
+from datasets import Dataset
 from shortcutfm.batch import collate
 from shortcutfm.criteria import (
     CompositeCriterion,
-    NllCriterion, SelfConditioningConsistencyCriterionDecorator, SelfConditioningFlowMatchingCriterionDecorator,
-    X0ConsistencyCriterion, X0FlowMatchingCriterion,
+    NllCriterion,
+    SelfConditioningConsistencyCriterionDecorator,
+    SelfConditioningFlowMatchingCriterionDecorator,
+    X0ConsistencyCriterion,
+    X0FlowMatchingCriterion,
 )
 from shortcutfm.model.config import TransformerNetModelConfig
 from shortcutfm.model.factory import TransformerNetModelFactory
 from shortcutfm.shortcut_samplers import ShortcutSampler
 from shortcutfm.step_sample import ShortcutAwareSampler
 from shortcutfm.text_datasets import TextDataset
-from shortcutfm.train.mosaic.mosaic_train_unit import LogGradientsAndNormCallback, MetricTracker, TrainUnit
-
+from shortcutfm.train.mosaic.mosaic_train_unit import (
+    MetricTracker,
+    TrainUnit,
+)
 from shortcutfm.utils.nn import MyleLR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -31,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 def get_composer_trainer(cfg):
     """Initializes the trainer using parsed config."""
-
     # Initialize Model
     transformer_model_config = TransformerNetModelConfig(**cfg.model_config)
     model = TransformerNetModelFactory(transformer_model_config).build()
@@ -63,18 +67,22 @@ def get_composer_trainer(cfg):
     nll_criterion = NllCriterion(model, cfg.model_config.diffusion_steps)
 
     criterion = CompositeCriterion(
-        criteria=(self_conditioning_flow_matching_cirterion, slef_conditioning_consistency_criterion, nll_criterion,),
+        criteria=(
+            self_conditioning_flow_matching_cirterion,
+            slef_conditioning_consistency_criterion,
+            nll_criterion,
+        ),
         criteria_weights=(1, 1, 1),
         model=model,
         diffusion_steps=cfg.model_config.diffusion_steps,
         self_consistency_ratio=cfg.training_config.self_consistency_ratio,
-        time_scheduler=ShortcutAwareSampler(cfg.model_config.diffusion_steps, min_shortcut_size=2 ** 6),
-        shortcut_sampler=ShortcutSampler(cfg.model_config.diffusion_steps, min_shorcut_size=2 ** 6),
+        time_scheduler=ShortcutAwareSampler(cfg.model_config.diffusion_steps, min_shortcut_size=2**6),
+        shortcut_sampler=ShortcutSampler(cfg.model_config.diffusion_steps, min_shorcut_size=2**6),
     )
 
     # Instantiate Callbacks
     metrics_tracker = MetricTracker()
-    gradients_tracker_callback = LogGradientsAndNormCallback()
+    # gradients_tracker_callback = LogGradientsAndNormCallback()
     checkpoint_callback = CheckpointSaver(
         folder=cfg.training_config.save_folder,
         save_interval=f"{cfg.training_config.save_interval}ba",
@@ -87,7 +95,7 @@ def get_composer_trainer(cfg):
         metrics_tracker,
         # gradients_tracker_callback,
         LRMonitor(),
-        OptimizerMonitor()
+        OptimizerMonitor(),
     ]
 
     # Initialize WandB Logger
@@ -95,7 +103,7 @@ def get_composer_trainer(cfg):
         project=cfg.training_config.project_name,
         name=cfg.training_config.run_name,
         rank_zero_only=True,
-        init_kwargs={"id": None, "resume": cfg.training_config.resume_wandb}
+        init_kwargs={"id": None, "resume": cfg.training_config.resume_wandb},
     )
 
     # Data Specification
@@ -111,7 +119,7 @@ def get_composer_trainer(cfg):
     optimizer = torch.optim.AdamW(
         model.module.parameters(),
         lr=cfg.training_config.lr,
-        weight_decay=cfg.training_config.weight_decay
+        weight_decay=cfg.training_config.weight_decay,
     )
     scheduler = MyleLR(optimizer, cfg.training_config.warmup_steps, cfg.training_config.start_lr)
 
@@ -122,7 +130,10 @@ def get_composer_trainer(cfg):
             half_life=cfg.training_config.ema.half_life,
             update_interval=f"{cfg.training_config.ema.update_interval}ba",
         ),
-        GradientClipping(clipping_type="norm", clipping_threshold=cfg.training_config.gradient_clipping),
+        GradientClipping(
+            clipping_type="norm",
+            clipping_threshold=cfg.training_config.gradient_clipping,
+        ),
     ]
 
     train_unit = TrainUnit(criterion)

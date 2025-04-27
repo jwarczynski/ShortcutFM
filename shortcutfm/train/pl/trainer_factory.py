@@ -1,6 +1,6 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 import torch
 from transformers import AutoTokenizer
@@ -12,12 +12,22 @@ from shortcutfm.criteria import (
     NllCriterion,
     SelfConditioningConsistencyCriterionDecorator,
     SelfConditioningFlowMatchingCriterionDecorator,
-    VelocityConsistencyCriterion, VelocityFlowMatchingCriterion, X0ConsistencyCriterion,
+    VelocityConsistencyCriterion,
+    VelocityFlowMatchingCriterion,
+    X0ConsistencyCriterion,
     X0FlowMatchingCriterion,
 )
-from shortcutfm.model.factory import FFNFactory, StackedEmbeddingTransformerNetModelFactory, TransformerNetModelFactory
+from shortcutfm.model.factory import (
+    FFNFactory,
+    StackedEmbeddingTransformerNetModelFactory,
+    TransformerNetModelFactory,
+)
 from shortcutfm.model.model import FlowMatchingModel
-from shortcutfm.nn import CosinePenalizedVMFLoss, DotProductScaledVMFLoss, NormPenalizedVMFLoss
+from shortcutfm.nn import (
+    CosinePenalizedVMFLoss,
+    DotProductScaledVMFLoss,
+    NormPenalizedVMFLoss,
+)
 from shortcutfm.shortcut_samplers import (
     LossSecondMomentResampler,
     ShortcutSampler,
@@ -50,23 +60,14 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     # Apply self-conditioning decorator if sc_rate > 0
     if training_cfg.model.sc_rate > 0:
         flow_matching_criterion = SelfConditioningFlowMatchingCriterionDecorator(
-            flow_matching_criterion,
-            self_conditioning_ratio=training_cfg.model.sc_rate
+            flow_matching_criterion, self_conditioning_ratio=training_cfg.model.sc_rate
         )
 
     # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
     if training_cfg.self_consistency_ratio > 0:
-        criterion = _create_composite_criterion(
-            flow_matching_criterion,
-            model,
-            training_cfg
-        )
+        criterion = _create_composite_criterion(flow_matching_criterion, model, training_cfg)
     else:
-        criterion = _create_flow_nll_criterion(
-            flow_matching_criterion,
-            model,
-            training_cfg
-        )
+        criterion = _create_flow_nll_criterion(flow_matching_criterion, model, training_cfg)
 
     return criterion
 
@@ -139,13 +140,16 @@ def create_flow_matching_loss_fn(training_cfg):
             print("Using vMF loss with cosine penalization")
             return CosinePenalizedVMFLoss(training_cfg)
 
-    raise ValueError(f"Unknown loss type: {training_cfg.loss.type} or unknown regularization type: {training_cfg.loss.mvf_loss_config.regularization_type}")
+    raise ValueError(
+        f"Unknown loss type: {training_cfg.loss.type} "
+        f"or unknown regularization type: {training_cfg.loss.mvf_loss_config.regularization_type}"
+    )
 
 
 def _create_composite_criterion(
-        flow_matching_criterion: X0FlowMatchingCriterion,
-        model: FlowMatchingModel,
-        training_cfg: TrainingConfig
+    flow_matching_criterion: X0FlowMatchingCriterion,
+    model: FlowMatchingModel,
+    training_cfg: TrainingConfig,
 ) -> CompositeCriterion:
     """Create composite criterion with consistency and NLL components.
 
@@ -166,8 +170,7 @@ def _create_composite_criterion(
     consistency_criterion = create_consistency_criterion(model, training_cfg)
     if training_cfg.model.sc_rate > 0:
         consistency_criterion = SelfConditioningConsistencyCriterionDecorator(
-            consistency_criterion,
-            self_conditioning_ratio=training_cfg.model.sc_rate
+            consistency_criterion, self_conditioning_ratio=training_cfg.model.sc_rate
         )
     criteria.append(consistency_criterion)
     weights.append(training_cfg.consistency_loss_weight)
@@ -180,7 +183,7 @@ def _create_composite_criterion(
     # Create shortcut sampler
     shortcut_sampler = ShortcutSampler(
         diffusion_steps=training_cfg.model.diffusion_steps,
-        min_shortcut_size=training_cfg.model.min_shortcut_size
+        min_shortcut_size=training_cfg.model.min_shortcut_size,
     )
     time_and_shortcut_sampler = TimeAndShortcutSampler(
         shortcut_sampler,
@@ -235,9 +238,9 @@ def create_consistency_criterion(model, training_cfg):
 
 
 def _create_flow_nll_criterion(
-        flow_matching_criterion: X0FlowMatchingCriterion,
-        model: FlowMatchingModel,
-        training_cfg: TrainingConfig
+    flow_matching_criterion: X0FlowMatchingCriterion,
+    model: FlowMatchingModel,
+    training_cfg: TrainingConfig,
 ) -> FlowNllCriterion:
     """Create flow NLL criterion.
 
@@ -263,9 +266,9 @@ def _create_flow_nll_criterion(
 
 
 def load_unit_from_checkpoint(
-        criterion: CompositeCriterion | FlowNllCriterion,
-        checkpoint_path: Path | str,
-        training_config: TrainingConfig
+    criterion: CompositeCriterion | FlowNllCriterion,
+    checkpoint_path: Path | str,
+    training_config: TrainingConfig,
 ) -> TrainModule:
     """Load and configure training unit from checkpoint.
 
@@ -281,16 +284,16 @@ def load_unit_from_checkpoint(
     unit = TrainModule.load_from_checkpoint(
         str(checkpoint_path),
         criterion=criterion,
-        scheduler_config=training_config.optimizer.scheduler
+        scheduler_config=training_config.optimizer.scheduler,
     )
     return unit
 
 
 def get_ema_callback(
-        training_config: TrainingConfig,
-        checkpoint_path: Optional[str | Path] = None,
-        strict: bool = True
-) -> Optional[EMACallback]:
+    training_config: TrainingConfig,
+    checkpoint_path: str | Path | None = None,
+    strict: bool = True,
+) -> EMACallback | None:
     """Create and configure EMA callback if needed.
 
     :param training_config: Training configuration containing EMA settings
@@ -310,7 +313,7 @@ def get_ema_callback(
     ema_callback = EMACallback(
         decay=training_config.ema.smoothing,
         update_interval=training_config.ema.update_interval,
-        ema_eval=True
+        ema_eval=True,
     )
 
     if checkpoint_path is None:
@@ -322,7 +325,7 @@ def get_ema_callback(
         if "callbacks" not in checkpoint or "EMACallback" not in checkpoint["callbacks"]:
             error_msg = "EMA weights requested but not found in checkpoint"
             if strict:
-                raise ValueError(error_msg) from e
+                raise ValueError(error_msg)
             logger.warning(error_msg)
             return ema_callback
 

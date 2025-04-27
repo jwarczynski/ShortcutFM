@@ -1,17 +1,20 @@
 import logging
 from functools import partial
 from pathlib import Path
-from typing import Optional
 
 import lightning as pl
 import torch
-from datasets import Dataset
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, ModelSummary
+from lightning.pytorch.callbacks import (
+    LearningRateMonitor,
+    ModelCheckpoint,
+    ModelSummary,
+)
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+from datasets import Dataset
 from shortcutfm.batch import collate
 from shortcutfm.config import TrainingConfig
 from shortcutfm.model.model import FlowMatchingModel
@@ -44,7 +47,7 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
     configured_collate = partial(
         collate,
         mark_first_padding=cfg.padding_strategy.mark_first_padding,
-        mark_second_padding=cfg.padding_strategy.mark_second_padding
+        mark_second_padding=cfg.padding_strategy.mark_second_padding,
     )
 
     train_dataloader = DataLoader(
@@ -67,7 +70,7 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
     return train_dataloader, val_dataloader
 
 
-def create_wandb_logger(cfg: TrainingConfig, model: FlowMatchingModel) -> Optional[WandbLogger]:
+def create_wandb_logger(cfg: TrainingConfig, model: FlowMatchingModel) -> WandbLogger | None:
     """Create and configure WandB logger if enabled and not in dry run mode.
 
     :param cfg: Training configuration
@@ -90,7 +93,7 @@ def create_wandb_logger(cfg: TrainingConfig, model: FlowMatchingModel) -> Option
     return None
 
 
-def setup_checkpoint_directory_and_save_config(cfg: TrainingConfig, wandb_logger: Optional[WandbLogger]) -> Path:
+def setup_checkpoint_directory_and_save_config(cfg: TrainingConfig, wandb_logger: WandbLogger | None) -> Path:
     """Set up checkpoint directory and save training config.
 
     :param cfg: Training configuration
@@ -158,7 +161,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
             monitor=cfg.checkpoint.monitor,
             mode=cfg.checkpoint.mode,
         ),
-        LearningRateMonitor(logging_interval='step'),
+        LearningRateMonitor(logging_interval="step"),
         GradientMonitor(),
     ]
 

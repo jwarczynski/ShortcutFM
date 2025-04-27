@@ -1,15 +1,15 @@
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import evaluate
 import torch
 from transformers import AutoTokenizer
 
-import logging
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def load_and_merge_outputs(output_dir: Path) -> tuple[torch.Tensor, torch.Tensor]:
     """Load and merge outputs from all ranks."""
@@ -36,14 +36,17 @@ def process_sequence(text: str, tokenizer) -> tuple[str, str]:
 
     # Remove special tokens
     special_tokens = {
-        tokenizer.cls_token, tokenizer.sep_token, tokenizer.pad_token,
-        tokenizer.unk_token, tokenizer.mask_token
+        tokenizer.cls_token,
+        tokenizer.sep_token,
+        tokenizer.pad_token,
+        tokenizer.unk_token,
+        tokenizer.mask_token,
     }
     special_tokens = {t for t in special_tokens if t is not None}
 
     # Clean source and target
-    source = ' '.join(token for token in source.split() if token not in special_tokens).strip()
-    target = ' '.join(token for token in target.split() if token not in special_tokens).strip()
+    source = " ".join(token for token in source.split() if token not in special_tokens).strip()
+    target = " ".join(token for token in target.split() if token not in special_tokens).strip()
 
     return source, target
 
@@ -62,12 +65,15 @@ def process_prediction(text: str, tokenizer) -> str:
 
     # Remove special tokens
     special_tokens = {
-        tokenizer.cls_token, tokenizer.sep_token, tokenizer.pad_token,
-        tokenizer.unk_token, tokenizer.mask_token
+        tokenizer.cls_token,
+        tokenizer.sep_token,
+        tokenizer.pad_token,
+        tokenizer.unk_token,
+        tokenizer.mask_token,
     }
     special_tokens = {t for t in special_tokens if t is not None}
 
-    return ' '.join(token for token in target.split() if token not in special_tokens).strip()
+    return " ".join(token for token in target.split() if token not in special_tokens).strip()
 
 
 def compute_distinct_ngrams(texts: list[str], n: int) -> float:
@@ -75,7 +81,7 @@ def compute_distinct_ngrams(texts: list[str], n: int) -> float:
     all_ngrams = []
     for text in texts:
         words = text.split()
-        ngrams = [tuple(words[i:i + n]) for i in range(len(words) - n + 1)]
+        ngrams = [tuple(words[i : i + n]) for i in range(len(words) - n + 1)]
         all_ngrams.extend(ngrams)
 
     if not all_ngrams:
@@ -85,9 +91,9 @@ def compute_distinct_ngrams(texts: list[str], n: int) -> float:
 
 
 def evaluate_generations(
-        output_dir: Path,
-        tokenizer_name: str,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    output_dir: Path,
+    tokenizer_name: str,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> dict:
     """Evaluate generated sequences using multiple metrics."""
     # Load tokenizer
@@ -98,7 +104,7 @@ def evaluate_generations(
 
     # Process inputs
     input_texts = [tokenizer.decode(seq, skip_special_tokens=False) for seq in inputs]
-    sources, references = zip(*[process_sequence(text, tokenizer) for text in input_texts])
+    sources, references = zip(*[process_sequence(text, tokenizer) for text in input_texts], strict=False)
     references = list(references)  # Convert tuple to list
 
     # Process predictions (take last step predictions)
@@ -125,12 +131,12 @@ def evaluate_generations(
     bert_scores = bert_score.compute(
         predictions=hypotheses,
         references=references,
-        model_type="microsoft/deberta-xlarge-mnli"
+        model_type="microsoft/deberta-xlarge-mnli",
     )
     metrics["bertscore"] = {
         "precision": sum(bert_scores["precision"]) / len(bert_scores["precision"]),
         "recall": sum(bert_scores["recall"]) / len(bert_scores["recall"]),
-        "f1": sum(bert_scores["f1"]) / len(bert_scores["f1"])
+        "f1": sum(bert_scores["f1"]) / len(bert_scores["f1"]),
     }
     logger.info(f"BERTScore: {metrics['bertscore']}")
 
@@ -146,31 +152,33 @@ def evaluate_generations(
         sources=sources,
         references=references,
         hypotheses=hypotheses,
-        metrics=metrics
+        metrics=metrics,
     )
 
     return metrics
 
 
-def save_evaluation_results(output_dir: Path, sources: list[str], references: list[str], hypotheses: list[str],
-                            metrics: dict):
+def save_evaluation_results(
+    output_dir: Path,
+    sources: list[str],
+    references: list[str],
+    hypotheses: list[str],
+    metrics: dict,
+):
     """Save evaluation results and texts to files.
-    
+
     Args:
         output_dir: Directory to save results
         sources: List of source texts
         references: List of reference texts
         hypotheses: List of generated texts
         metrics: Dictionary of evaluation metrics
+
     """
     # Save texts
     texts = [
-        {
-            "source": src,
-            "reference": ref,
-            "hypothesis": hyp
-        }
-        for src, ref, hyp in zip(sources, references, hypotheses)
+        {"source": src, "reference": ref, "hypothesis": hyp}
+        for src, ref, hyp in zip(sources, references, hypotheses, strict=False)
     ]
 
     texts_file = output_dir / "generation_texts.json"
@@ -186,12 +194,20 @@ def save_evaluation_results(output_dir: Path, sources: list[str], references: li
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Evaluate generated sequences')
-    parser.add_argument('output_dir', type=str, help='Directory containing generation outputs')
-    parser.add_argument('--tokenizer', type=str, default='bert-base-uncased',
-                        help='Tokenizer to use for decoding')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu',
-                        help='Device to use for BERTScore computation')
+    parser = argparse.ArgumentParser(description="Evaluate generated sequences")
+    parser.add_argument("output_dir", type=str, help="Directory containing generation outputs")
+    parser.add_argument(
+        "--tokenizer",
+        type=str,
+        default="bert-base-uncased",
+        help="Tokenizer to use for decoding",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device to use for BERTScore computation",
+    )
 
     args = parser.parse_args()
 
@@ -212,5 +228,5 @@ def main():
             print(f"{metric}: {value:.4f}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

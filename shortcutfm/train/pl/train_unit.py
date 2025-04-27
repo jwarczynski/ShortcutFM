@@ -1,17 +1,17 @@
 from itertools import islice
-from typing import Literal, Optional
+from typing import Literal
 
 import evaluate
 import lightning as pl
 import numpy as np
 import torch
-import wandb
 from numpy import dtype, ndarray
 from torch import Tensor
 from torch.nn import functional as F
 from torch.optim import AdamW
 from transformers import PreTrainedTokenizer
 
+import wandb
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
 from shortcutfm.criteria import CompositeCriterion
@@ -20,19 +20,18 @@ from shortcutfm.train.optim import SchedulerFactory
 
 
 class TrainModule(pl.LightningModule):
-
     def __init__(
-            self,
-            criterion: CompositeCriterion,
-            optimizer_config: SchedulerConfig,
-            tokenizer: Optional[PreTrainedTokenizer] = None,
-            prediction_strategy: Optional[PredictionStrategy] = None,
-            prediction_shortcut_size: int = 64,
-            denoising_step_size: int = 32,
-            num_val_batches_to_log: int = 2,
-            num_timestep_bins: int = 4,  # Number of bins for timestep logging
-            log_train_predictions_every_n_epochs: int = 100,  # Number of epochs between train prediction logging
-            log_train_predictions_from_n_epochs: int = 1000,  # Number of epochs between train prediction logging
+        self,
+        criterion: CompositeCriterion,
+        optimizer_config: SchedulerConfig,
+        tokenizer: PreTrainedTokenizer | None = None,
+        prediction_strategy: PredictionStrategy | None = None,
+        prediction_shortcut_size: int = 64,
+        denoising_step_size: int = 32,
+        num_val_batches_to_log: int = 2,
+        num_timestep_bins: int = 4,  # Number of bins for timestep logging
+        log_train_predictions_every_n_epochs: int = 100,  # Number of epochs between train prediction logging
+        log_train_predictions_from_n_epochs: int = 1000,  # Number of epochs between train prediction logging
     ) -> None:
         super().__init__()
         self.criterion = criterion
@@ -61,11 +60,11 @@ class TrainModule(pl.LightningModule):
         self.timesteps_for_histogram = []
         self.shortcuts_for_histogram = []
 
-        self.save_hyperparameters(ignore=['criterion', 'prediction_strategy', 'tokenizer'])
+        self.save_hyperparameters(ignore=["criterion", "prediction_strategy", "tokenizer"])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
         # Add global_step as an attribute to the batch for the criterion to use
-        if hasattr(self, 'trainer') and hasattr(self.trainer, 'global_step'):
+        if hasattr(self, "trainer") and hasattr(self.trainer, "global_step"):
             batch.global_step = self.trainer.global_step
         return self.criterion(batch, self.trainer.world_size)
 
@@ -77,14 +76,8 @@ class TrainModule(pl.LightningModule):
             self.train_prediction_batch = batch
 
         # Log only loss-related metrics
-        loss_metrics = {
-            f"train/{k}": v.mean() for k, v in outputs.items()
-            if "loss" in k.lower()
-        }
-        self.log_dict(
-            loss_metrics,
-            on_step=True, on_epoch=False, prog_bar=True
-        )
+        loss_metrics = {f"train/{k}": v.mean() for k, v in outputs.items() if "loss" in k.lower()}
+        self.log_dict(loss_metrics, on_step=True, on_epoch=False, prog_bar=True)
 
         # Store exact timesteps and shortcuts for histogram logging
         if "timestep" in outputs:
@@ -113,7 +106,11 @@ class TrainModule(pl.LightningModule):
 
         # Process each loss term except total loss
         for key, value in outputs.items():
-            if "loss" in key.lower() and key not in ["loss", "embedding_loss", "isotropy_loss"]:
+            if "loss" in key.lower() and key not in [
+                "loss",
+                "embedding_loss",
+                "isotropy_loss",
+            ]:
                 # Initialize storage for this loss component if not exists
                 if key not in self.timestep_losses:
                     self.timestep_losses[key] = [[] for _ in range(len(self.timestep_bins) - 1)]
@@ -125,7 +122,7 @@ class TrainModule(pl.LightningModule):
                     losses = losses.expand(timesteps.shape[0])
 
                 # Process each timestep-loss pair in the batch
-                for timestep, loss in zip(timesteps, losses):
+                for timestep, loss in zip(timesteps, losses, strict=False):
                     bin_idx = self._get_timestep_bin(timestep.item())
                     if 0 <= bin_idx < len(self.timestep_bins) - 1:
                         self.timestep_losses[key][bin_idx].append(loss.item())
@@ -158,17 +155,11 @@ class TrainModule(pl.LightningModule):
 
                     # Log average loss for this timestep bin and component
                     metric_name = f"train/{loss_name}_t{bin_start:04d}_t{bin_end:04d}"
-                    self.log(
-                        metric_name,
-                        avg_loss,
-                        on_step=False,
-                        on_epoch=True
-                    )
+                    self.log(metric_name, avg_loss, on_step=False, on_epoch=True)
 
         # Clear losses for next epoch
         self.timestep_losses = {
-            key: [[] for _ in range(len(self.timestep_bins) - 1)]
-            for key in self.timestep_losses.keys()
+            key: [[] for _ in range(len(self.timestep_bins) - 1)] for key in self.timestep_losses.keys()
         }
 
     # noinspection PyUnresolvedReferences
@@ -184,7 +175,7 @@ class TrainModule(pl.LightningModule):
             self.logger.experiment.log(
                 {
                     "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
-                    "train/timesteps_count": len(self.timesteps_for_histogram)
+                    "train/timesteps_count": len(self.timesteps_for_histogram),
                 }
             )
             self.timesteps_for_histogram = []  # Clear for next epoch
@@ -193,7 +184,7 @@ class TrainModule(pl.LightningModule):
             self.logger.experiment.log(
                 {
                     "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
-                    "train/shortcuts_count": len(self.shortcuts_for_histogram)
+                    "train/shortcuts_count": len(self.shortcuts_for_histogram),
                 }
             )
             self.shortcuts_for_histogram = []  # Clear for next epoch
@@ -206,8 +197,8 @@ class TrainModule(pl.LightningModule):
         source and reference texts.
         """
         log_text = (
-                self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0 and
-                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+            self.trainer.current_epoch % self.log_train_predictions_every_n_epochs == 0
+            and self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
         )
         if self.train_prediction_batch is not None:
             self._process_batch_predictions(
@@ -219,20 +210,24 @@ class TrainModule(pl.LightningModule):
 
             # Log the predictions table
             if self.train_predictions and hasattr(self.logger, "log_table"):
-                columns = ["epoch", "sample_idx", "source", "reference", "predicted", "cross_entropy", "bleu"]
-                self.logger.log_table(
-                    "train/predictions",
-                    columns=columns,
-                    data=self.train_predictions
-                )
+                columns = [
+                    "epoch",
+                    "sample_idx",
+                    "source",
+                    "reference",
+                    "predicted",
+                    "cross_entropy",
+                    "bleu",
+                ]
+                self.logger.log_table("train/predictions", columns=columns, data=self.train_predictions)
 
     def _process_batch_predictions(
-            self,
-            batch: EncoderBatch,
-            predictions_list: list,
-            batch_idx: Optional[int] = None,
-            stage: Literal["val", "train"] = None,
-            create_entries: bool = True,
+        self,
+        batch: EncoderBatch,
+        predictions_list: list,
+        batch_idx: int | None = None,
+        stage: Literal["val", "train"] = None,
+        create_entries: bool = True,
     ) -> float:
         """Process a batch for predictions and store results.
 
@@ -265,9 +260,7 @@ class TrainModule(pl.LightningModule):
             if create_entries:
                 predicted_tokens = predictions.argmax(dim=-1)
 
-                source_text, reference_text, predicted_text = self._extract_text_parts(
-                    batch, predicted_tokens
-                )
+                source_text, reference_text, predicted_text = self._extract_text_parts(batch, predicted_tokens)
 
                 clean_predicted_text = _extract_clean_predicted_text(predicted_text)
 
@@ -275,7 +268,7 @@ class TrainModule(pl.LightningModule):
                 bleu = evaluate.load("bleu")
                 bleu_scores = []
 
-                for ref, hyp in zip(reference_text, clean_predicted_text):
+                for ref, hyp in zip(reference_text, clean_predicted_text, strict=False):
                     ref_clean = ref.strip()
                     hyp_clean = hyp.strip()
 
@@ -298,24 +291,30 @@ class TrainModule(pl.LightningModule):
                     predicted_text=predicted_text,
                     ce_losses=ce_loss,
                     bleu_scores=bleu_scores,
-                    batch_idx=batch_idx
+                    batch_idx=batch_idx,
                 )
                 predictions_list.extend(prediction_entries)
 
             if stage:
-                self.log(f"{stage}/full_denoising_ce", ce_loss.mean().item(), on_step=False, on_epoch=True)
+                self.log(
+                    f"{stage}/full_denoising_ce",
+                    ce_loss.mean().item(),
+                    on_step=False,
+                    on_epoch=True,
+                )
                 if stage == "train" and create_entries:
                     # log mean bleu
                     mean_bleu = np.mean(bleu_scores)
-                    self.log(f"{stage}/mean_bleu", float(mean_bleu), on_step=False, on_epoch=True)
+                    self.log(
+                        f"{stage}/mean_bleu",
+                        float(mean_bleu),
+                        on_step=False,
+                        on_epoch=True,
+                    )
 
             return ce_loss.mean().item()
 
-    def _compute_masked_cross_entropy(
-            self,
-            predictions: Tensor,
-            batch: EncoderBatch
-    ) -> Tensor:
+    def _compute_masked_cross_entropy(self, predictions: Tensor, batch: EncoderBatch) -> Tensor:
         """Compute masked cross entropy loss for predictions.
 
         :param predictions: Model predictions [batch_size, seq_len, vocab_size]
@@ -329,7 +328,7 @@ class TrainModule(pl.LightningModule):
         ce_loss = F.cross_entropy(
             predictions.view(-1, predictions.size(-1)),
             batch.seqs.view(-1),
-            reduction="none"
+            reduction="none",
         ).view(batch.seqs.shape)
 
         # Apply masks and normalize
@@ -339,9 +338,7 @@ class TrainModule(pl.LightningModule):
         return ce_loss
 
     def _extract_text_parts(
-            self,
-            batch: EncoderBatch,
-            predicted_tokens: Tensor
+        self, batch: EncoderBatch, predicted_tokens: Tensor
     ) -> tuple[list[str], list[str], list[str]]:
         """Extract source, reference and predicted text parts.
 
@@ -368,14 +365,14 @@ class TrainModule(pl.LightningModule):
         return source_text, reference_text, predicted_text
 
     def _create_prediction_entries(
-            self,
-            source_text: list[str],
-            reference_text: list[str],
-            predicted_text: list[str],
-            ce_losses: Tensor,
-            bleu_scores: list[float],
-            batch_idx: Optional[int] = None,
-            max_entries: int = 8,
+        self,
+        source_text: list[str],
+        reference_text: list[str],
+        predicted_text: list[str],
+        ce_losses: Tensor,
+        bleu_scores: list[float],
+        batch_idx: int | None = None,
+        max_entries: int = 8,
     ) -> list[list]:
         """Create prediction entries for logging.
 
@@ -396,7 +393,17 @@ class TrainModule(pl.LightningModule):
         """
         entries = []
         for i, (src, ref, pred, ce_loss, bleu) in enumerate(
-                islice(zip(source_text, reference_text, predicted_text, ce_losses, bleu_scores), max_entries)
+            islice(
+                zip(
+                    source_text,
+                    reference_text,
+                    predicted_text,
+                    ce_losses,
+                    bleu_scores,
+                    strict=False,
+                ),
+                max_entries,
+            )
         ):
             prediction_entry = [
                 self.current_epoch,
@@ -435,19 +442,18 @@ class TrainModule(pl.LightningModule):
     def validation_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
         outputs = self(batch)
         self.log_dict(
-            {
-                f"val/{k}": v.mean() for k, v in outputs.items()
-                if "loss" in k.lower()
-            },
-            on_step=False, on_epoch=True, prog_bar=True
+            {f"val/{k}": v.mean() for k, v in outputs.items() if "loss" in k.lower()},
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
         )
 
         self.compute_and_log_bleu(batch)
 
         # Perform full denoising and log text for a few validation batches
         if (
-                batch_idx < self.num_val_batches_to_log and
-                self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
+            batch_idx < self.num_val_batches_to_log
+            and self.trainer.current_epoch >= self.log_train_predictions_from_n_epochs
         ):
             self._process_validation_predictions(batch, batch_idx)
 
@@ -463,10 +469,7 @@ class TrainModule(pl.LightningModule):
             step_size=self.denoising_step_size,
         )
 
-        source_text, reference_text, predicted_text = self._extract_text_parts(
-            batch,
-            predictions
-        )
+        source_text, reference_text, predicted_text = self._extract_text_parts(batch, predictions)
 
         clean_predicted_text = _extract_clean_predicted_text(predicted_text)
 
@@ -479,10 +482,7 @@ class TrainModule(pl.LightningModule):
             if not references or not any(references) or not clean_predicted_text:
                 raise ValueError("Empty references or predictions passed to BLEU computation.")
 
-            bleu_result = bleu.compute(
-                predictions=clean_predicted_text,
-                references=references
-            )
+            bleu_result = bleu.compute(predictions=clean_predicted_text, references=references)
 
             mean_bleu = bleu_result.get("bleu", 0.0)
         except ZeroDivisionError:
@@ -492,13 +492,7 @@ class TrainModule(pl.LightningModule):
             self.print(f"BLEU computation failed: {e}")
             mean_bleu = 0.0
 
-        self.log(
-            "val/bleu",
-            mean_bleu,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True
-        )
+        self.log("val/bleu", mean_bleu, on_step=False, on_epoch=True, prog_bar=True)
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.
@@ -517,18 +511,23 @@ class TrainModule(pl.LightningModule):
             batch=batch,
             predictions_list=self.predictions,
             batch_idx=batch_idx,
-            stage="val"
+            stage="val",
         )
 
     def on_validation_end(self) -> None:
         """Log all predictions from the epoch to the table."""
         if self.predictions and hasattr(self.logger, "log_table"):
-            columns = ["epoch", "batch", "sample_idx", "source", "reference", "predicted", "cross_entropy", "bleu"]
-            self.logger.log_table(
-                "val/predictions",
-                columns=columns,
-                data=self.predictions
-            )
+            columns = [
+                "epoch",
+                "batch",
+                "sample_idx",
+                "source",
+                "reference",
+                "predicted",
+                "cross_entropy",
+                "bleu",
+            ]
+            self.logger.log_table("val/predictions", columns=columns, data=self.predictions)
 
     def test_step(self, batch: EncoderBatch, batch_idx: int) -> tuple[Tensor, Tensor]:
         """Run test step and return both input sequences and model predictions.
@@ -537,13 +536,14 @@ class TrainModule(pl.LightningModule):
             tuple[Tensor, Tensor]: A tuple containing:
                 - input_ids: Input token sequences [batch_size, seq_len]
                 - predictions: Model predictions [batch_size, num_steps, seq_len]
+
         """
         predictions = self.criterion.denoise(batch, self.prediction_shortcut_size)
         return batch.seqs, predictions
 
     def _predict_step(self, batch: EncoderBatch, batch_idx: int) -> ndarray[str, dtype[str]]:
         if not self.prediction_strategy:
-            raise "Predicition Strategu Not provided. Cannot perform densoing"
+            raise ValueError("Prediction strategy not set")
 
         return self.prediction_strategy(batch, self.shortcut_size)
 
@@ -554,13 +554,13 @@ class TrainModule(pl.LightningModule):
         optimizer = AdamW(
             self.criterion.model.module.parameters(),
             lr=self.optimizer_config.lr,
-            weight_decay=self.optimizer_config.weight_decay
+            weight_decay=self.optimizer_config.weight_decay,
         )
 
         scheduler = {
-            'scheduler': self._get_lr_scheduler(optimizer),
-            'interval': 'step',
-            'frequency': 1
+            "scheduler": self._get_lr_scheduler(optimizer),
+            "interval": "step",
+            "frequency": 1,
         }
 
         return [optimizer], [scheduler]
@@ -569,13 +569,12 @@ class TrainModule(pl.LightningModule):
         return SchedulerFactory.get_scheduler(
             name=self.optimizer_config.type,
             optimizer=optimizer,
-            config=self.optimizer_config
+            config=self.optimizer_config,
         )
 
 
 def _extract_clean_predicted_text(predicted_text):
-    """
-    Extract clean predicted text from the model prediction part.
+    """Extract clean predicted text from the model prediction part.
     The function assumes:
     1. Each text starts with a CLS token
     2. There's a SEP token after the source sequence
@@ -587,6 +586,7 @@ def _extract_clean_predicted_text(predicted_text):
 
     Returns:
         list[str]: List of clean predicted texts
+
     """
     clean_texts = []
 
@@ -597,19 +597,13 @@ def _extract_clean_predicted_text(predicted_text):
         # stripping sep in case of double sep after src sequence
         prediction_part = parts[1].strip() if len(parts) > 1 else parts[0].strip()
         if prediction_part.find("[SEP]") == 0:
-            prediction_part = prediction_part[len("[SEP]"):].strip()
+            prediction_part = prediction_part[len("[SEP]") :].strip()
 
         # If there are more SEP tokens in the prediction, take only up to the first one
         prediction_part = prediction_part.split("[SEP]", 1)[0]
 
         # Remove any remaining special tokens (like CLS) and strip whitespace
-        clean_prediction = (
-            prediction_part
-            .replace("[CLS]", "")
-            .replace("[PAD]", "")
-            .replace("[SEP]", "")
-            .strip()
-        )
+        clean_prediction = prediction_part.replace("[CLS]", "").replace("[PAD]", "").replace("[SEP]", "").strip()
         clean_texts.append(clean_prediction)
 
     return clean_texts
