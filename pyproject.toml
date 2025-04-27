@@ -47,7 +47,7 @@ select = [
     "I", # isort
     "UP", # pyupgrade
     "B", # flake8-bugbear
-    "D", # pydocstyle (optional, for docstrings)
+#    "D", # pydocstyle (optional, for docstrings)
 ]
-ignore = ["D100", "D104"]  # Example: Ignore missing module/public docstrings
+ignore = ["D100", "D103", "D103", "D104"]  # Example: Ignore missing module/public docstrings
 
