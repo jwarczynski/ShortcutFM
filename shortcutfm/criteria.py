@@ -646,7 +646,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         x_t = x_t[..., :embedding_dim]
 
         step_size = (shorcut_size / self.diffusion_steps)[:, None, None]
-        step2_input = (1-step_size) * x_t + step_size[:, None, None] * step1_prediction
+        step2_input = (1-step_size) * x_t + step_size * step1_prediction
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
