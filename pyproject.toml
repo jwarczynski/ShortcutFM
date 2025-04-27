@@ -29,7 +29,7 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 88  # Matches black's default, adjust as needed
+line-length = 120  # Matches black's default, adjust as needed
 target-version = "py312"  # Matches your requires-python
 exclude = [".git", "__pycache__", ".venv"]
 
