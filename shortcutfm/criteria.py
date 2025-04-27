@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from itertools import zip_longest
-from typing import Callable, Optional, Union, override
+from typing import Callable, Optional, override
 
 import numpy as np
 import torch
@@ -955,20 +955,51 @@ class CompositeCriterion(Criterion):
 
     @override
     def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
+        # Store the current global step if provided
+        if hasattr(batch, 'global_step'):
+            self.current_global_step = batch.global_step
+
         specific_batches = self._prepare_batches(batch)
         flow_matching_batch, consistency_batch, full_batch = specific_batches
 
         flow_and_decoder_loses = self.flow_matching_criterion(flow_matching_batch, world_size)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
         decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        consistency_loss = self.consistency_criterion(consistency_batch, world_size)["consistency_loss"]
         embedding_loss = self.embedding_criterion(full_batch, world_size)["nll_loss"]
 
-        losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean(), ]  # no decoder_loss
+        # Check if consistency loss is enabled
+        if consistency_batch is not None:
+            consistency_loss = self.consistency_criterion(consistency_batch, world_size)["consistency_loss"]
+            losses = [flow_matching_loss.mean(), consistency_loss.mean(), embedding_loss.mean()]  # no decoder_loss
+            result = {
+                "flow_matching_loss": flow_matching_loss * self.criteria_weights[0],
+                "consistency_loss": consistency_loss * self.criteria_weights[1],
+                "embedding_loss": embedding_loss * self.criteria_weights[2],
+                "decoder_loss": decoder_loss,
+                "timestep": full_batch.t,
+                "shortcut": consistency_batch.shortcut_size,
+            }
+        else:
+            # If consistency is not enabled, only use flow matching and embedding losses
+            losses = [flow_matching_loss.mean(), embedding_loss.mean()]  # no decoder_loss or consistency_loss
+            # Use only the first and third weights (flow matching and embedding)
+            criteria_weights = [self.criteria_weights[0], self.criteria_weights[2]]
+            result = {
+                "flow_matching_loss": flow_matching_loss * self.criteria_weights[0],
+                "embedding_loss": embedding_loss * self.criteria_weights[2],
+                "decoder_loss": decoder_loss,
+                "timestep": full_batch.t,
+            }
+
         weighted_losses = [
-            loss * (weight or 1) for loss, weight in zip_longest(losses, self.criteria_weights or [], fillvalue=1)
+            loss * (weight or 1) for loss, weight in zip_longest(
+                losses,
+                self.criteria_weights if consistency_batch is not None else criteria_weights,
+                fillvalue=1
+            )
         ]
         total_loss = sum(weighted_losses)
+        result["loss"] = total_loss
 
         if isinstance(self.sampler, LossAwareSampler):
             total_loss_per_sample = flow_matching_loss + decoder_loss
@@ -976,20 +1007,23 @@ class CompositeCriterion(Criterion):
                 flow_matching_batch.t - 1, total_loss_per_sample.detach(), world_size=world_size
             )
 
-        return {
-            "flow_matching_loss": flow_matching_loss * self.criteria_weights[0],
-            "consistency_loss": consistency_loss * self.criteria_weights[1],
-            "embedding_loss": embedding_loss * self.criteria_weights[2],
-            "decoder_loss": decoder_loss,
-            "loss": total_loss,
-            "timestep": full_batch.t,
-            "shortcut": consistency_batch.shortcut_size,
-        }
+        return result
 
-    def _prepare_batches(self, batch: EncoderBatch) -> tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch]:
+    def _prepare_batches(
+            self,
+            batch: EncoderBatch
+    ) -> tuple[FlowMatchingBatch, Optional[ShortcutFMBatch], FlowMatchingBatch]:
         bsz = batch.size()
-        num_consistency_elems = int(self.self_consistency_ratio * bsz)
-        num_flow_matching_elems = bsz - num_consistency_elems
+
+        global_step = getattr(self, 'current_global_step', 0)
+        use_consistency = global_step >= self.training_cfg.consistency_start_step
+
+        if not use_consistency:
+            num_consistency_elems = 0
+            num_flow_matching_elems = bsz
+        else:
+            num_consistency_elems = int(self.self_consistency_ratio * bsz)
+            num_flow_matching_elems = bsz - num_consistency_elems
 
         embeddings = self.model.get_embeddings(batch.seqs)
 
@@ -1011,7 +1045,21 @@ class CompositeCriterion(Criterion):
             t=t
         )
 
-        # prepare_consistency_batch
+        # If consistency is not enabled, return None for consistency_batch
+        if not use_consistency:
+            # prepare_full_batch for embedding loss (same as flow matching batch in this case)
+            full_batch = FlowMatchingBatch(
+                seqs=batch.seqs,
+                padding_mask=batch.padding_mask,
+                input_ids_mask=batch.input_ids_mask,
+                x_start=embeddings,
+                x_t=x_t,
+                noise=noise,
+                t=t,
+            )
+            return fm_batch, None, full_batch
+
+        # prepare_consistency_batch (only if consistency is enabled)
         consistency_seqs = batch.seqs[num_flow_matching_elems:]
         consistency_x_start = embeddings[num_flow_matching_elems:]
         consistency_padding_mask = batch.padding_mask[num_flow_matching_elems:]
@@ -1048,11 +1096,7 @@ class CompositeCriterion(Criterion):
             t=torch.cat([fm_batch.t, consistency_batch.t], dim=0),
         )
 
-        return (
-            fm_batch,
-            consistency_batch,
-            full_batch
-        )
+        return fm_batch, consistency_batch, full_batch
 
     def denoise(
             self,

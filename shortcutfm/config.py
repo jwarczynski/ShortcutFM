@@ -168,8 +168,11 @@ class TrainingConfig(BaseModel):
     # Training process settings
     log_interval: int = Field(default=1, description="How often to log metrics")
     val_interval: Optional[int] = Field(default=None, description="How often to run validation")
-    check_val_every_n_epoch: Optional[int] = Field(default=5, description="How often to run validation")
+    check_val_every_n_epoch: Optional[int] = Field(
+        default=5, description="How often to run validation"
+    )
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
+    consistency_start_step: int = Field(default=0, description="Global step to start consistency training")
     max_steps: int = Field(default=60000, description="Maximum training steps")
     reduce_fn: str = Field(default="mean", description="Reduce function")
     gradient_clipping: Optional[float] = Field(default=None, description="Gradient clipping value")

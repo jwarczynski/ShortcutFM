@@ -64,6 +64,9 @@ class TrainModule(pl.LightningModule):
         self.save_hyperparameters(ignore=['criterion', 'prediction_strategy', 'tokenizer'])
 
     def forward(self, batch: EncoderBatch) -> dict[str, Tensor]:
+        # Add global_step as an attribute to the batch for the criterion to use
+        if hasattr(self, 'trainer') and hasattr(self.trainer, 'global_step'):
+            batch.global_step = self.trainer.global_step
         return self.criterion(batch, self.trainer.world_size)
 
     def training_step(self, batch: EncoderBatch, batch_idx: int) -> Tensor:
@@ -171,7 +174,7 @@ class TrainModule(pl.LightningModule):
     # noinspection PyUnresolvedReferences
     def _log_sampling_histograms(self) -> None:
         """Log histograms of timesteps and shortcuts sampled during training.
-        
+
         This method creates and logs histograms to track the distribution of:
         - Timesteps that were sampled during training
         - Shortcut sizes that were used
@@ -529,7 +532,7 @@ class TrainModule(pl.LightningModule):
 
     def test_step(self, batch: EncoderBatch, batch_idx: int) -> tuple[Tensor, Tensor]:
         """Run test step and return both input sequences and model predictions.
-        
+
         Returns:
             tuple[Tensor, Tensor]: A tuple containing:
                 - input_ids: Input token sequences [batch_size, seq_len]
