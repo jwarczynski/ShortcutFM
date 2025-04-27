@@ -193,8 +193,12 @@ def _create_composite_criterion(
     # weights.append(isotropy_loss_wieght)
 
     return CompositeCriterion(
-        criteria=tuple(criteria),
-        criteria_weights=tuple(weights),
+        flow_matching_criterion=flow_matching_criterion,
+        consistency_criterion=consistency_criterion,
+        embedding_criterion=nll_criterion,
+        flow_matching_weight=training_cfg.flow_matching_loss_weight,
+        consistency_weight=training_cfg.consistency_loss_weight,
+        embedding_weight=training_cfg.nll_loss_weight,
         model=model,
         diffusion_steps=training_cfg.model.diffusion_steps,
         self_consistency_ratio=training_cfg.self_consistency_ratio,

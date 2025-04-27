@@ -923,8 +923,12 @@ class CompositeCriterion(Criterion):
 
     def __init__(
             self,
-            criteria: tuple[Criterion, ...],
-            criteria_weights: tuple[float, ...],
+            flow_matching_criterion: FlowMatchingCriterion,
+            consistency_criterion: ConsistencyCriterion,
+            embedding_criterion: NllCriterion,
+            flow_matching_weight: float,
+            consistency_weight: float,
+            embedding_weight: float,
             model: Model,
             diffusion_steps: int,
             self_consistency_ratio: float,
@@ -932,15 +936,16 @@ class CompositeCriterion(Criterion):
             time_shortcut_sampler: TimeAndShortcutSampler,
             training_cfg: TrainingConfig = None,
     ):
-        assert len(criteria) == len(criteria_weights), \
-            (f"criteria and criteria_weights must have the same length but got"
-             f" {len(criteria)} and {len(criteria_weights)}")
-
         super().__init__(model, diffusion_steps, training_cfg=training_cfg)
         self.model = model
         self.diffusion_steps = diffusion_steps
-        self.criteria = criteria
-        self.criteria_weights = criteria_weights
+        self.flow_matching_criterion = flow_matching_criterion
+        self.consistency_criterion = consistency_criterion
+        self.embedding_criterion = embedding_criterion
+        self.flow_matching_weight = flow_matching_weight
+        self.consistency_weight = consistency_weight
+        self.embedding_weight = embedding_weight
+        self.criteria_weights = [flow_matching_weight, consistency_weight, embedding_weight]
         self.self_consistency_ratio = self_consistency_ratio
         self.sampler = sampler
         self.time_shortcut_sampler = time_shortcut_sampler
@@ -1087,7 +1092,7 @@ class CompositeCriterion(Criterion):
         :rtype: Union[Tensor, list[list[str]]]
         """
         # TODO: fix this terrible implementation (criteria[0])
-        return self.criteria[0].denoise(
+        return self.flow_matching_criterion.denoise(
             batch,
             shortcut_size=shortcut_size,
             probe_every_step=probe_every_step,
