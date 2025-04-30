@@ -87,6 +87,9 @@ def create_factory(training_cfg: TrainingConfig):
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
     loss_fn = create_flow_matching_loss_fn(training_cfg)
+    default_shortcut_factory = create_default_shortcut_factory(
+        training_cfg.model.default_shortcut,
+    )
 
     if training_cfg.model.parametrization == "x0":
         flow_matching_criterion = X0FlowMatchingCriterion(
@@ -96,6 +99,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             reduce_fn=reduce_fn,
             training_cfg=training_cfg,
             loss_fn=loss_fn,
+            default_shortcut_factory=default_shortcut_factory,
         )
     elif training_cfg.model.parametrization == "velocity":
         flow_matching_criterion = VelocityFlowMatchingCriterion(
@@ -105,6 +109,7 @@ def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfi
             reduce_fn=reduce_fn,
             training_cfg=training_cfg,
             loss_fn=loss_fn,
+            default_shortcut_factory=default_shortcut_factory,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
@@ -144,6 +149,22 @@ def create_flow_matching_loss_fn(training_cfg):
         f"Unknown loss type: {training_cfg.loss.type} "
         f"or unknown regularization type: {training_cfg.loss.mvf_loss_config.regularization_type}"
     )
+
+
+def create_default_shortcut_factory(shortcut_type: str):
+    """Create default shortcut factory based on the shortcut type.
+
+    :param shortcut_type: Type of shortcut to create
+    :type shortcut_type: str
+    :return: Default shortcut factory
+    :rtype: Callable
+    """
+    if shortcut_type == "0":
+        return lambda t: torch.zeros_like(t)
+    elif shortcut_type == "t":
+        return lambda t: t
+    else:
+        raise ValueError(f"Unknown shortcut type: {shortcut_type}")
 
 
 def _create_composite_criterion(

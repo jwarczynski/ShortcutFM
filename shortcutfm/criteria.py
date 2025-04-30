@@ -74,12 +74,14 @@ class FlowMatchingCriterion(Criterion):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
         super().__init__(model, diffusion_steps, training_cfg)
         self.tokenizer = tokenizer
         self.x_t = None
         self.reduce_fn = reduce_fn
         self.loss_fn = loss_fn
+        self.default_shortcut_factory = default_shortcut_factory
 
     def compute_losses(self, batch: FlowMatchingBatch, world_size) -> dict[str, Tensor]:
         target = self._compute_target(batch)
@@ -114,7 +116,7 @@ class FlowMatchingCriterion(Criterion):
         input_ids_mask: Tensor,
     ) -> Tensor:
         """Compute the model output."""
-        shortcut_size = torch.zeros_like(t) if self.training_cfg.model.default_shortcut == "0" else t
+        shortcut_size = self.default_shortcut_factory(t)
         y = self.model(x_t, t, shortcut_size)
         return y
 
@@ -293,8 +295,9 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn, default_shortcut_factory)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -331,8 +334,9 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
-        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn)
+        super().__init__(model, diffusion_steps, tokenizer, reduce_fn, training_cfg, loss_fn, default_shortcut_factory)
 
     @override
     def _compute_target(self, batch: FlowMatchingBatch) -> Tensor:
@@ -371,6 +375,7 @@ class FlowMatchingCriterionDecorator(FlowMatchingCriterion, ABC):
             criterion.reduce_fn,
             criterion.training_cfg,
             criterion.loss_fn,
+            criterion.default_shortcut_factory,
         )
         self.criterion = criterion
 
@@ -416,7 +421,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecora
 
         x_t_next_zero_sc = torch.cat((x_t_next, x_0_hat), dim=-1)
         with torch.no_grad():
-            shortcut_size = torch.zeros_like(t_next) if self.training_cfg.model.default_shortcut == "0" else t_next
+            shortcut_size = self.default_shortcut_factory(t_next)
             y_hat = self.model(
                 x_t_next_zero_sc,
                 t_next,
