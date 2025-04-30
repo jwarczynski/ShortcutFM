@@ -173,6 +173,8 @@ class LossConfig(BaseModel):
 class TrainingConfig(BaseModel):
     """Training process configuration"""
 
+    num_gpus: int | str = Field(default="auto", description="Number of GPUs to use")
+
     # Data configuration
     batch_size: int = Field(default=256, description="Batch size for training")
     training_data_path: Path = Field(description="Path to training dataset")

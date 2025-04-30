@@ -177,6 +177,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         gradient_clip_algorithm="norm",
         deterministic=cfg.deterministic,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices=cfg.num_gpus,
         log_every_n_steps=cfg.log_interval,
         check_val_every_n_epoch=cfg.check_val_every_n_epoch,
         val_check_interval=cfg.val_interval,
