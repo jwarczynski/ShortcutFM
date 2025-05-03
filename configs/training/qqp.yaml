@@ -64,6 +64,11 @@ isotropy_loss_weight: 0.0
 
 consistency_start_step: 10
 
+# Classifier-free guidance settings
+cfg_guidance_scale: 1.0  # Set to 1.0 for no guidance, >1.0 to enable guidance (e.g., 3.0)
+cfg_start_step: null  # Global step to start applying classifier-free guidance, null for disabling cfg
+cfg_probability: 0.5  # Probability of training unconditionally (discarding conditioning)
+
 self_consistency_ratio: 0.25
 model:
   init_pretrained: bert

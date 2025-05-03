@@ -30,6 +30,7 @@ class Criterion(Module, ABC):
         self.model = model
         self.diffusion_steps = diffusion_steps
         self.training_cfg = training_cfg
+        self.global_step = 0  # Explicitly define the global step attribute at the base class level
 
     def forward(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         """Compute the losses."""
@@ -115,10 +116,54 @@ class FlowMatchingCriterion(Criterion):
         t: Tensor,
         input_ids_mask: Tensor,
     ) -> Tensor:
-        """Compute the model output."""
+        """Compute the model output with optional classifier-free guidance.
+
+        This implements Algorithm 1 from the paper for joint training with classifier-free guidance:
+        - With probability cfg_probability, we discard conditioning (train unconditionally)
+        - Otherwise, we train with conditioning
+
+        During training, we're optimizing the model to predict the noise (or x0) for both
+        conditional and unconditional cases, which allows us to use classifier-free guidance
+        during inference.
+        """
         shortcut_size = self.default_shortcut_factory(t)
-        y = self.model(x_t, t, shortcut_size)
+
+        # Determine whether to train unconditionally (discard conditioning)
+        # This implements: 'c ← ∅ with probability puncond'
+        train_unconditionally = self.should_apply_cfg()
+
+        if train_unconditionally:
+            # For unconditional training, we mask all tokens (set input_ids_mask to all 1s)
+            # This is equivalent to discarding the conditioning information
+            # Create a version of x_t where all tokens are masked (replaced with noise)
+            x_t_uncond = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, noise)
+            # Train the model to predict the noise (or x0) for the unconditional case
+            y = self.model(x_t_uncond, t, shortcut_size)
+        else:
+            # For conditional training, use the original x_t with the provided input_ids_mask
+            # Train the model to predict the noise (or x0) for the conditional case
+            y = self.model(x_t, t, shortcut_size)
+
         return y
+
+    def should_apply_cfg(self):
+        """Determine whether to apply unconditional training (discard conditioning) based on cfg_probability.
+
+        Following Algorithm 1 from the paper, this implements the step:
+        'c ← ∅ with probability puncond' (Randomly discard conditioning to train unconditionally)
+
+        Returns:
+            bool: True if we should discard conditioning (train unconditionally), False otherwise
+        """
+        # Check if CFG is enabled and we've reached the start step
+        if self.training_cfg.cfg_start_step is None or self.global_step < self.training_cfg.cfg_start_step:
+            return False
+
+        # If CFG is enabled, randomly decide whether to discard conditioning based on cfg_probability
+        # Draw a random number and check if it's less than cfg_probability
+        # If it is, we discard conditioning (train unconditionally)
+        random_value = torch.rand(1).item()
+        return random_value < self.training_cfg.cfg_probability
 
     def _compute_nll_loss(self, hidden_last: Tensor, seqs: Tensor) -> Tensor:
         logits = self.model.compute_logits(hidden_last)
@@ -229,8 +274,24 @@ class FlowMatchingCriterion(Criterion):
         return predictions
 
     def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
-        """Call the model and resotre input part of the pediction"""
-        model_output = self.model(x_t, t, shortcut_size)
+        """Call the model and restore input part of the prediction with optional CFG"""
+        # Check if CFG should be applied during inference
+        if self.training_cfg.cfg_guidance_scale == 1.0:
+            # Standard prediction without guidance
+            model_output = self.model(x_t, t, shortcut_size)
+            return self._restore_input_part(model_output, x_t, input_mask)
+
+        # Apply classifier-free guidance during inference
+        # 1. Get conditional prediction (with input_mask)
+        y_cond = self.model(x_t, t, shortcut_size)
+
+        x_t_uncond = torch.where(input_mask == 0, 0, x_t)
+        y_uncond = self.model(x_t_uncond, t, shortcut_size)
+
+        # 3. Apply guidance formula: y = y_uncond + guidance_scale * (y_cond - y_uncond)
+        guidance_scale = self.training_cfg.cfg_guidance_scale
+        model_output = y_uncond + guidance_scale * (y_cond - y_uncond)
+
         return self._restore_input_part(model_output, x_t, input_mask)
 
     @abstractmethod
@@ -949,9 +1010,8 @@ class CompositeCriterion(Criterion):
 
     @override
     def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
-        # Store the current global step if provided
-        if hasattr(batch, "global_step"):
-            self.current_global_step = batch.global_step
+        self.global_step = batch.global_step
+        self.flow_matching_criterion.global_step = batch.global_step
 
         specific_batches = self._prepare_batches(batch)
         flow_matching_batch, consistency_batch, full_batch = specific_batches
@@ -1018,8 +1078,7 @@ class CompositeCriterion(Criterion):
     ) -> tuple[FlowMatchingBatch, ShortcutFMBatch | None, FlowMatchingBatch]:
         bsz = batch.size()
 
-        global_step = getattr(self, "current_global_step", 0)
-        use_consistency = global_step >= self.training_cfg.consistency_start_step
+        use_consistency = self.global_step >= self.training_cfg.consistency_start_step
 
         if not use_consistency:
             num_consistency_elems = 0
@@ -1046,6 +1105,7 @@ class CompositeCriterion(Criterion):
             x_t=x_t,
             noise=noise,
             t=t,
+            global_step=batch.global_step,
         )
 
         # If consistency is not enabled, return None for consistency_batch
@@ -1059,6 +1119,7 @@ class CompositeCriterion(Criterion):
                 x_t=x_t,
                 noise=noise,
                 t=t,
+                global_step=batch.global_step,
             )
             return fm_batch, None, full_batch
 
@@ -1085,6 +1146,7 @@ class CompositeCriterion(Criterion):
             noise=consistency_noise,
             t=consistency_t,
             shortcut_size=shortcuts,
+            global_step=batch.global_step,
         )
 
         # prepare_full_batch for embedding loss
@@ -1096,6 +1158,7 @@ class CompositeCriterion(Criterion):
             x_t=torch.cat([fm_batch.x_t, consistency_batch.x_t], dim=0),
             noise=torch.cat([fm_batch.noise, consistency_batch.noise], dim=0),
             t=torch.cat([fm_batch.t, consistency_batch.t], dim=0),
+            global_step=batch.global_step,
         )
 
         return fm_batch, consistency_batch, full_batch
@@ -1136,7 +1199,6 @@ class CompositeCriterion(Criterion):
                 - If probe_every_step=False: Tensor[batch_size, seq_len] with token IDs
         :rtype: Union[Tensor, list[list[str]]]
         """
-        # TODO: fix this terrible implementation (criteria[0])
         return self.flow_matching_criterion.denoise(
             batch,
             shortcut_size=shortcut_size,
@@ -1201,6 +1263,7 @@ class FlowNllCriterion(Criterion):
             x_t=x_t,
             noise=noise,
             t=t,
+            global_step=batch.global_step,
         )
 
     def denoise(

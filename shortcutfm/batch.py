@@ -10,6 +10,7 @@ class EncoderBatch:
     seqs: Tensor
     padding_mask: Tensor
     input_ids_mask: Tensor
+    global_step: int | None
 
     def numel(self) -> int:
         return self.padding_mask.sum().item()
@@ -30,9 +31,9 @@ class EncoderBatch:
         if index == self.size():
             return (self,)
 
-        return EncoderBatch(self.seqs[:index], self.padding_mask[:index], self.input_ids_mask[:index]), EncoderBatch(
-            self.seqs[index:], self.padding_mask[index:], self.input_ids_mask[index:]
-        )
+        return EncoderBatch(
+            self.seqs[:index], self.padding_mask[:index], self.input_ids_mask[:index], self.global_step
+        ), EncoderBatch(self.seqs[index:], self.padding_mask[index:], self.input_ids_mask[index:], self.global_step)
 
 
 @dataclass
@@ -43,34 +44,40 @@ class FlowMatchingBatch(EncoderBatch):
     t: Tensor
 
     def split(self, index: int) -> tuple["FlowMatchingBatch", "FlowMatchingBatch"]:
-        return FlowMatchingBatch(
-            self.seqs[:index],
-            self.padding_mask[:index],
-            self.input_ids_mask[:index],
-            self.x_start[:index],
-            self.x_t[:index],
-            self.noise[:index],
-            self.t[:index],
-        ), FlowMatchingBatch(
-            self.seqs[index:],
-            self.padding_mask[index:],
-            self.input_ids_mask[index:],
-            self.x_start[index:],
-            self.x_t[index:],
-            self.noise[index:],
-            self.t[index:],
+        return (
+            FlowMatchingBatch(
+                seqs=self.seqs[:index],
+                padding_mask=self.padding_mask[:index],
+                input_ids_mask=self.input_ids_mask[:index],
+                x_start=self.x_start[:index],
+                x_t=self.x_t[:index],
+                noise=self.noise[:index],
+                t=self.t[:index],
+                global_step=self.global_step,
+            ),
+            FlowMatchingBatch(
+                seqs=self.seqs[index:],
+                padding_mask=self.padding_mask[index:],
+                input_ids_mask=self.input_ids_mask[index:],
+                x_start=self.x_start[index:],
+                x_t=self.x_t[index:],
+                noise=self.noise[index:],
+                t=self.t[index:],
+                global_step=self.global_step,  # Pass the global step as a keyword argument
+            ),
         )
 
     @classmethod
     def from_shortcut_fm_batch(cls, shortcut_fm_batch: "ShortcutFMBatch") -> "FlowMatchingBatch":
         return cls(
-            shortcut_fm_batch.seqs,
-            shortcut_fm_batch.padding_mask,
-            shortcut_fm_batch.input_ids_mask,
-            shortcut_fm_batch.x_start,
-            shortcut_fm_batch.x_t,
-            shortcut_fm_batch.noise,
-            shortcut_fm_batch.t,
+            seqs=shortcut_fm_batch.seqs,
+            padding_mask=shortcut_fm_batch.padding_mask,
+            input_ids_mask=shortcut_fm_batch.input_ids_mask,
+            x_start=shortcut_fm_batch.x_start,
+            x_t=shortcut_fm_batch.x_t,
+            noise=shortcut_fm_batch.noise,
+            t=shortcut_fm_batch.t,
+            global_step=shortcut_fm_batch.global_step,  # Pass the global step as a keyword argument
         )
 
 
@@ -81,14 +88,15 @@ class ShortcutFMBatch(FlowMatchingBatch):
     @classmethod
     def from_flow_matching_batch(cls, fm_batch: FlowMatchingBatch, shortcut_size: Tensor) -> "ShortcutFMBatch":
         return cls(
-            fm_batch.seqs,
-            fm_batch.padding_mask,
-            fm_batch.input_ids_mask,
-            fm_batch.x_start,
-            fm_batch.x_t,
-            fm_batch.noise,
-            fm_batch.t,
-            shortcut_size,
+            seqs=fm_batch.seqs,
+            padding_mask=fm_batch.padding_mask,
+            input_ids_mask=fm_batch.input_ids_mask,
+            x_start=fm_batch.x_start,
+            x_t=fm_batch.x_t,
+            noise=fm_batch.noise,
+            t=fm_batch.t,
+            shortcut_size=shortcut_size,
+            global_step=fm_batch.global_step,  # Pass the global step as a keyword argument
         )
 
     def split(self, index: int) -> tuple["ShortcutFMBatch", "ShortcutFMBatch"]:
@@ -144,4 +152,4 @@ def collate(
 
         collated_batch["padding_mask"] = padding_mask
 
-    return EncoderBatch(**collated_batch)
+    return EncoderBatch(**collated_batch, global_step=0)

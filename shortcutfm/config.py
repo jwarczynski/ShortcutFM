@@ -190,6 +190,18 @@ class TrainingConfig(BaseModel):
     check_val_every_n_epoch: int | None = Field(default=5, description="How often to run validation")
     self_consistency_ratio: float = Field(default=0.25, description="Self-consistency ratio")
     consistency_start_step: int = Field(default=0, description="Global step to start consistency training")
+
+    # Classifier-free guidance settings
+    cfg_guidance_scale: float = Field(
+        default=1.0, description="Scale factor for classifier-free guidance (1.0 means no guidance)"
+    )
+    cfg_start_step: int | None = Field(
+        default=None, description="Global step to start applying classifier-free guidance"
+    )
+    cfg_probability: float = Field(
+        default=0.5, description="Probability of training unconditionally (discarding conditioning)"
+    )
+
     max_steps: int = Field(default=60000, description="Maximum training steps")
     reduce_fn: str = Field(default="mean", description="Reduce function")
     gradient_clipping: float | None = Field(default=None, description="Gradient clipping value")
