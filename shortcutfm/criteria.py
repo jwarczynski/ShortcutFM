@@ -136,7 +136,7 @@ class FlowMatchingCriterion(Criterion):
             # For unconditional training, we mask all tokens (set input_ids_mask to all 1s)
             # This is equivalent to discarding the conditioning information
             # Create a version of x_t where all tokens are masked (replaced with noise)
-            x_t_uncond = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, noise)
+            x_t_uncond = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, x_t)
             # Train the model to predict the noise (or x0) for the unconditional case
             y = self.model(x_t_uncond, t, shortcut_size)
         else:
