@@ -16,6 +16,7 @@ dependencies = [
     "wandb>=0.19.7",
     "exca>=0.2.5",
     "evaluate>=0.4.3",
+    "ipywidgets>=8.1.7",
 ]
 requires-python = ">=3.12"
 
@@ -31,7 +32,7 @@ dev = [
 [tool.ruff]
 line-length = 120  # Matches black's default, adjust as needed
 target-version = "py312"  # Matches your requires-python
-exclude = [".git", "__pycache__", ".venv"]
+exclude = [".git", "__pycache__", ".venv", "*.ipynb"]
 
 [tool.ruff.format]
 quote-style = "double"  # Consistent with black
