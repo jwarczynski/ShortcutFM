@@ -91,7 +91,7 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
         x_t = torch.where(input_mask == 0, embeddings, noise)
 
         # Denoising steps
-        for t in range(diffusion_steps, 0, -1):
+        for t in torch.arange(diffusion_steps, 0, -shortcut_size, device=device):
             # Convert to tensor and move to device
             timesteps = torch.full((input_mask.shape[0],), t, device=device, dtype=torch.long)
 
