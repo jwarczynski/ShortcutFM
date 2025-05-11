@@ -25,8 +25,8 @@ class TransformerNetModelModules:
 
     word_embedding: nn.Embedding
     lm_head: nn.Linear
-    time_embed: nn.Sequential
     backbone_transformer: nn.Module  # Can be BertEncoder or BertModel.encoder
+    time_embed: nn.Sequential | None = None
     shortcut_embedding: nn.Module | None = None
     input_up_proj: nn.Sequential | None = None
     position_embeddings: nn.Embedding | None = None
@@ -84,7 +84,9 @@ class TransformerNetModelFactory:
         """
         # Create base embeddings and projections
         word_embedding, lm_head = self._create_word_embeddings()
-        time_embed = self._create_time_embedding(self.config.hidden_t_dim)
+        time_embed = (
+            self._create_time_embedding(self.config.hidden_t_dim) if self.config.hidden_t_dim is not None else None
+        )
 
         # Create shortcut embedding if needed
         shortcut_embedding = None

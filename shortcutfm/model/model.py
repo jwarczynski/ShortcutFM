@@ -130,7 +130,7 @@ class TransformerNetModel(Module):
         *,
         word_embedding: nn.Embedding,
         lm_head: nn.Linear,
-        time_embed: nn.Sequential,
+        time_embed: nn.Sequential | None,
         backbone_transformer: BackboneTransformer,
         shortcut_embedding: nn.Module | None = None,
         input_up_proj: nn.Sequential | None = None,
@@ -144,7 +144,7 @@ class TransformerNetModel(Module):
         self.config = config
         self.word_embedding = word_embedding
         self.lm_head = lm_head
-        self.time_embed = time_embed
+        self.register_module("time_embed", time_embed)
         self.input_up_proj = input_up_proj if input_up_proj is not None else nn.Identity()
         self.backbone_transformer = backbone_transformer
         self.position_embeddings = position_embeddings
@@ -167,11 +167,11 @@ class TransformerNetModel(Module):
     def forward(self, x: Tensor, time_steps: Tensor, shortcuts: Tensor) -> Tensor:
         bsz, seq_len, *_ = x.size()
 
-        timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
-
         x = self.input_up_proj(x)
 
-        x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
+        if self.time_embed is not None:
+            timestep_emb = self.time_embed(timestep_embedding(time_steps, self.config.hidden_t_dim))
+            x = x + timestep_emb.unsqueeze(1).expand(-1, seq_len, -1)
 
         # Add shortcut embedding if available
         if self.shortcut_embedding is not None:

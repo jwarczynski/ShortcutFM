@@ -59,7 +59,7 @@ class ModelConfig(BaseModel):
     input_dims: int = Field(default=128, description="Input dimension size")
     output_dims: int = Field(default=128, description="Output dimension size")
     hidden_size: int = Field(default=768, description="Hidden layer dimension size")
-    hidden_t_dim: int = Field(default=128, description="Hidden time embedding dimension")
+    hidden_t_dim: int | None = Field(default=128, description="Hidden time embedding dimension")
     hidden_shortcut_dim: int | None = Field(default=128, description="Hidden shortcut embedding dimension")
     projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
         default="gelu", description="Activation function for projection layers"
