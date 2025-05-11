@@ -65,7 +65,7 @@ class ModelConfig(BaseModel):
         default="gelu", description="Activation function for projection layers"
     )
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
-    min_shortcut_size: int = Field(default=32, description="Minimum shortcut size")
+    min_shortcut_size: int = Field(default=1, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
     config_name: Literal["bert-base-uncased", "answerdotai/ModernBERT-base"] = Field(
         default="bert-base-uncased",
@@ -170,6 +170,15 @@ class LossConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class TimeShortcutConfig(BaseModel):
+    """Configuration for time shortcut"""
+
+    type: Literal["timestep_first", "shortcut_first"] = Field(
+        default="shortcut_first", description="Type of time shortcut sampling"
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
 class TrainingConfig(BaseModel):
     """Training process configuration"""
 
@@ -239,6 +248,12 @@ class TrainingConfig(BaseModel):
     log_train_predictions_from_n_epochs: int = Field(
         default=1000,
         description="Number of training epochs to start logging train predictions from",
+    )
+
+    # time and shortcut sampling
+    time_shortcut_sampling: TimeShortcutConfig = Field(
+        default_factory=TimeShortcutConfig,
+        description="Configuration for time and shortcut sampling",
     )
 
     # Loss configuration

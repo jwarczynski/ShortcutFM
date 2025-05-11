@@ -30,8 +30,8 @@ from shortcutfm.nn import (
 )
 from shortcutfm.shortcut_samplers import (
     LossSecondMomentResampler,
-    ShortcutSampler,
-    TimeAndShortcutSampler,
+    ShortcutFirstTimeAndShortcutSampler,
+    TimestepFirstTimeAndShortcutSampler,
     UniformSampler,
 )
 from shortcutfm.train.pl.callbacks import EMACallback
@@ -201,15 +201,7 @@ def _create_composite_criterion(
     criteria.append(nll_criterion)
     weights.append(training_cfg.nll_loss_weight)
 
-    # Create shortcut sampler
-    shortcut_sampler = ShortcutSampler(
-        diffusion_steps=training_cfg.model.diffusion_steps,
-        min_shortcut_size=training_cfg.model.min_shortcut_size,
-    )
-    time_and_shortcut_sampler = TimeAndShortcutSampler(
-        shortcut_sampler,
-        training_cfg.model.diffusion_steps,
-    )
+    time_and_shortcut_sampler = create_time_and_shortcut_sampelr(training_cfg)
     loss_aware_sampler = LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
 
     # isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
@@ -230,6 +222,29 @@ def _create_composite_criterion(
         time_shortcut_sampler=time_and_shortcut_sampler,
         training_cfg=training_cfg,
     )
+
+
+def create_time_and_shortcut_sampelr(training_cfg):
+    """Create time and shortcut sampler based on training configuration.
+
+    :param training_cfg: Training configuration containing sampler type
+    :type training_cfg: TrainingConfig
+    :return: Time and shortcut sampler
+    :rtype: TimeAndShortcutSampler
+    """
+
+    if training_cfg.time_shortcut_sampling.type == "shortcut_first":
+        return ShortcutFirstTimeAndShortcutSampler(
+            diffusion_steps=training_cfg.model.diffusion_steps,
+            min_shortcut_size=training_cfg.model.min_shortcut_size,
+        )
+    elif training_cfg.time_shortcut_sampling.type == "timestep_first":
+        return TimestepFirstTimeAndShortcutSampler(
+            diffusion_steps=training_cfg.model.diffusion_steps,
+            min_shortcut_size=training_cfg.model.min_shortcut_size,
+        )
+    else:
+        raise ValueError(f"Unknown time and shortcut sampler type: {training_cfg.time_shortcut_sampling.type}")
 
 
 def create_consistency_criterion(model, training_cfg):
