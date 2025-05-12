@@ -1048,8 +1048,8 @@ class CompositeCriterion(Criterion):
         else:
             # If consistency is not enabled, only use flow matching and embedding losses
             losses = [
-                flow_matching_loss.mean(),
-                embedding_loss.mean(),
+                flow_matching_loss,
+                embedding_loss,
             ]  # no decoder_loss or consistency_loss
             # Use only the first and third weights (flow matching and embedding)
             criteria_weights = [self.criteria_weights[0], self.criteria_weights[2]]
