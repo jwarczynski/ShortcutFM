@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from itertools import zip_longest
-from typing import override
+from typing import Any, override
 
 import numpy as np
 import torch
@@ -1026,9 +1026,9 @@ class CompositeCriterion(Criterion):
         if consistency_batch is not None:
             consistency_loss = self.consistency_criterion(consistency_batch, world_size)["consistency_loss"]
             losses = [
-                flow_matching_loss.mean(),
-                consistency_loss.mean(),
-                embedding_loss.mean(),
+                flow_matching_loss,
+                consistency_loss,
+                embedding_loss,
             ]  # no decoder_loss
 
             # update sampler with consistency loss
@@ -1060,19 +1060,19 @@ class CompositeCriterion(Criterion):
                 "timestep": full_batch.t,
             }
 
+        # weight the losses with fm_weights and consistency_weights get from loss aware samplers
+        losses[0] *= fm_weights
+        if consistency_batch is not None:
+            losses[1] *= consistency_weights
+
         weighted_losses = [
-            loss * (weight or 1)
+            loss.mean() * (weight or 1)
             for loss, weight in zip_longest(
                 losses,
                 self.criteria_weights if consistency_batch is not None else criteria_weights,
                 fillvalue=1,
             )
         ]
-
-        # weight the losses with fm_weights and consistency_weights get from loss aware samplers
-        weighted_losses[0] *= fm_weights
-        if consistency_batch is not None:
-            weighted_losses[1] *= consistency_weights
 
         total_loss = sum(weighted_losses)
         result["loss"] = total_loss
@@ -1089,10 +1089,16 @@ class CompositeCriterion(Criterion):
 
     def _prepare_batches(
         self, batch: EncoderBatch
-    ) -> tuple[FlowMatchingBatch, ShortcutFMBatch | None, FlowMatchingBatch]:
+    ) -> (
+        tuple[tuple[FlowMatchingBatch, None, FlowMatchingBatch], tuple[Any, None]]
+        | tuple[tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch], tuple[Any, Any]]
+    ):
         bsz = batch.size()
 
-        use_consistency = self.global_step >= self.training_cfg.consistency_start_step
+        use_consistency = (
+            self.global_step >= self.training_cfg.consistency_start_step
+            and self.training_cfg.self_consistency_ratio > 0
+        )
 
         if not use_consistency:
             num_consistency_elems = 0
