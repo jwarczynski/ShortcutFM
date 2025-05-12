@@ -63,12 +63,7 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
             flow_matching_criterion, self_conditioning_ratio=training_cfg.model.sc_rate
         )
 
-    # Create either CompositeCriterion or FlowNllCriterion based on self_consistency_ratio
-    if training_cfg.self_consistency_ratio > 0:
-        criterion = _create_composite_criterion(flow_matching_criterion, model, training_cfg)
-    else:
-        criterion = _create_flow_nll_criterion(flow_matching_criterion, model, training_cfg)
-
+    criterion = _create_composite_criterion(flow_matching_criterion, model, training_cfg)
     return criterion
 
 
