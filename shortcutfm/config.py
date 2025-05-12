@@ -174,7 +174,10 @@ class TimeShortcutConfig(BaseModel):
     """Configuration for time shortcut"""
 
     type: Literal["timestep_first", "shortcut_first"] = Field(
-        default="shortcut_first", description="Type of time shortcut sampling"
+        default="timestep_first", description="Type of time shortcut sampling"
+    )
+    time_sampler: Literal["uniform", "loss_aware"] = Field(
+        default="uniform", description="Type of time sampling strategy"
     )
     model_config = ConfigDict(extra="forbid")
 

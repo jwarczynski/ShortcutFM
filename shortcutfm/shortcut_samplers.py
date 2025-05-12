@@ -197,7 +197,7 @@ class ShortcutFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
 class TimestepFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
     """Sampler that first samples timesteps uniformly, then selects valid shortcuts."""
 
-    def __init__(self, diffusion_steps: int, min_shortcut_size: int, time_step_sampler: LossAwareSampler):
+    def __init__(self, diffusion_steps: int, min_shortcut_size: int, time_step_sampler: ScheduleSampler):
         super().__init__(diffusion_steps, min_shortcut_size)
         self.time_step_sampler = time_step_sampler
 
@@ -223,4 +223,5 @@ class TimestepFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
     @override
     def update_with_local_losses(self, ts, losses, world_size):
         """Update the reweighting using losses from a model."""
-        self.time_step_sampler.update_with_local_losses(ts, losses, world_size)
+        if isinstance(self.time_step_sampler, LossAwareSampler):
+            self.time_step_sampler.update_with_local_losses(ts, losses, world_size)
