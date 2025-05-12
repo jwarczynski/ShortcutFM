@@ -1,82 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import override
 
 import numpy as np
 import torch
-
-
-class TimeAndShortcutSampler:
-    """Base class for time and shortcut samplers, handling shared attributes and validation."""
-
-    diffusion_steps: int
-    min_shortcut_size: int
-    max_shortcut_size: int
-
-    def __init__(self, diffusion_steps: int, min_shortcut_size: int):
-        self.diffusion_steps = diffusion_steps
-        self.min_shortcut_size = min_shortcut_size
-        self.max_shortcut_size = diffusion_steps // 2  # Max shortcut ensures two steps stay within bounds
-
-    def __call__(self, batch_size, device):
-        return self.sample(batch_size, device)
-
-    def sample(self, batch_size, device):
-        """Abstract method to be implemented by subclasses."""
-        raise NotImplementedError("Subclasses must implement the sample method.")
-
-
-class ShortcutSampler:
-    """Sampler for shortcut sizes, used by ShortcutFirstTimeAndShortcutSampler."""
-
-    def __init__(self, diffusion_steps, min_shortcut_size):
-        self.shortcut_values = torch.arange(min_shortcut_size, diffusion_steps // 2 + 1, dtype=torch.long)
-
-    def sample(self, batch_size, device):
-        """Sample shortcut sizes uniformly."""
-        indices = torch.randint(0, len(self.shortcut_values), (batch_size,), device=device)
-        return self.shortcut_values.to(device)[indices]
-
-
-class ShortcutFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
-    """Sampler that first samples shortcuts uniformly, then selects valid timesteps."""
-
-    def __init__(self, diffusion_steps, min_shortcut_size):
-        super().__init__(diffusion_steps, min_shortcut_size)
-        self.shortcut_sampler = ShortcutSampler(diffusion_steps, min_shortcut_size)
-
-    def sample(self, batch_size, device):
-        """Sample shortcuts first, then timesteps based on valid ranges."""
-        shortcut_values = self.shortcut_sampler.sample(batch_size, device)
-        max_steps = self.diffusion_steps // shortcut_values
-
-        # Sample timesteps ensuring at least 2 steps can be taken without going below 0
-        indices = torch.cat([torch.randint(2, max_step + 1, (1,), device=device) for max_step in max_steps])
-        timesteps = indices * shortcut_values
-        return timesteps.to(torch.long), shortcut_values.to(torch.long)
-
-
-class TimestepFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
-    """Sampler that first samples timesteps uniformly, then selects valid shortcuts."""
-
-    def sample(self, batch_size, device):
-        """Sample timesteps uniformly, then determine valid shortcuts."""
-        # Sample timesteps from [2*min_shortcut_size, diffusion_steps] to ensure valid shortcuts
-        min_timestep = 2 * self.min_shortcut_size
-        timesteps = torch.randint(
-            min_timestep, self.diffusion_steps + 1, (batch_size,), device=device, dtype=torch.long
-        )
-
-        # Sample valid shortcuts (from min_shortcut_size to t/2 for each timestep t)
-        shortcut_values = torch.zeros(batch_size, dtype=torch.long, device=device)
-        for i in range(batch_size):
-            t = timesteps[i]
-            max_shortcut = t // 2
-            if max_shortcut < self.min_shortcut_size:
-                shortcut_values[i] = self.min_shortcut_size
-            else:
-                valid_shortcuts = torch.arange(self.min_shortcut_size, max_shortcut + 1, device=device)
-                shortcut_values[i] = valid_shortcuts[torch.randint(0, len(valid_shortcuts), (1,), device=device)]
-
-        return timesteps, shortcut_values
 
 
 class ScheduleSampler(ABC):
@@ -208,3 +134,93 @@ class LossSecondMomentResampler(LossAwareSampler):
 
     def _warmed_up(self):
         return (self._loss_counts == self.history_per_term).all()
+
+
+class TimeAndShortcutSampler:
+    """Base class for time and shortcut samplers, handling shared attributes and validation."""
+
+    diffusion_steps: int
+    min_shortcut_size: int
+    max_shortcut_size: int
+
+    def __init__(self, diffusion_steps: int, min_shortcut_size: int):
+        self.diffusion_steps = diffusion_steps
+        self.min_shortcut_size = min_shortcut_size
+        self.max_shortcut_size = diffusion_steps // 2  # Max shortcut ensures two steps stay within bounds
+
+    def __call__(self, batch_size, device):
+        return self.sample(batch_size, device)
+
+    def sample(self, batch_size, device):
+        """Abstract method to be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement the sample method.")
+
+    def update_with_local_losses(self, ts, losses, world_size):
+        """Update the reweighting using losses from a model."""
+        pass
+
+
+class ShortcutSampler:
+    """Sampler for shortcut sizes, used by ShortcutFirstTimeAndShortcutSampler."""
+
+    def __init__(self, diffusion_steps: int, min_shortcut_size: int):
+        self.shortcut_values = torch.arange(min_shortcut_size, diffusion_steps // 2 + 1, dtype=torch.long)
+
+    def sample(self, batch_size, device):
+        """Sample shortcut sizes uniformly."""
+        indices = torch.randint(0, len(self.shortcut_values), (batch_size,), device=device)
+        return self.shortcut_values.to(device)[indices]
+
+
+class ShortcutFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
+    """Sampler that first samples shortcuts uniformly, then selects valid timesteps."""
+
+    def __init__(self, diffusion_steps: int, min_shortcut_size: int):
+        super().__init__(diffusion_steps, min_shortcut_size)
+        self.shortcut_sampler = ShortcutSampler(diffusion_steps, min_shortcut_size)
+
+    def sample(self, batch_size, device):
+        """Sample shortcuts first, then timesteps based on valid ranges."""
+        shortcut_values = self.shortcut_sampler.sample(batch_size, device)
+        max_steps = self.diffusion_steps // shortcut_values
+
+        # Sample timesteps ensuring at least 2 steps can be taken without going below 0
+        indices = torch.cat([torch.randint(2, max_step + 1, (1,), device=device) for max_step in max_steps])
+        timesteps = indices * shortcut_values
+        return (
+            timesteps.to(torch.long),
+            shortcut_values.to(torch.long),
+            torch.ones_like(timesteps, dtype=torch.float32, device=device),
+        )
+
+
+class TimestepFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
+    """Sampler that first samples timesteps uniformly, then selects valid shortcuts."""
+
+    def __init__(self, diffusion_steps: int, min_shortcut_size: int, time_step_sampler: LossAwareSampler):
+        super().__init__(diffusion_steps, min_shortcut_size)
+        self.time_step_sampler = time_step_sampler
+
+    def sample(self, batch_size, device):
+        """Sample timesteps uniformly, then determine valid shortcuts."""
+        # Sample timesteps from [2*min_shortcut_size, diffusion_steps] to ensure valid shortcuts
+        timesteps, weights = self.time_step_sampler.sample(batch_size, device)
+
+        # Sample valid shortcuts (from min_shortcut_size to t/2 for each timestep t)
+        shortcut_values = torch.zeros(batch_size, dtype=torch.long, device=device)
+        for i in range(batch_size):
+            t = timesteps[i]
+            max_shortcut = t // 2
+            if max_shortcut < self.min_shortcut_size:
+                timesteps[i] = 2
+                shortcut_values[i] = 1
+            else:
+                valid_shortcuts = torch.arange(self.min_shortcut_size, max_shortcut + 1, device=device)
+                shortcut_values[i] = valid_shortcuts[torch.randint(0, len(valid_shortcuts), (1,), device=device)]
+
+        return timesteps, shortcut_values, weights
+
+    @override
+    def update_with_local_losses(self, ts, losses, world_size):
+        """Update the reweighting using losses from a model."""
+        self.time_step_sampler.update_with_local_losses(ts, losses, world_size)

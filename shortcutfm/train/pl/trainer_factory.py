@@ -239,9 +239,13 @@ def create_time_and_shortcut_sampelr(training_cfg):
             min_shortcut_size=training_cfg.model.min_shortcut_size,
         )
     elif training_cfg.time_shortcut_sampling.type == "timestep_first":
+        time_step_sampler = LossSecondMomentResampler(
+            diffusion_steps=training_cfg.model.diffusion_steps,
+        )
         return TimestepFirstTimeAndShortcutSampler(
             diffusion_steps=training_cfg.model.diffusion_steps,
             min_shortcut_size=training_cfg.model.min_shortcut_size,
+            time_step_sampler=time_step_sampler,
         )
     else:
         raise ValueError(f"Unknown time and shortcut sampler type: {training_cfg.time_shortcut_sampling.type}")

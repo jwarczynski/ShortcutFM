@@ -1013,8 +1013,9 @@ class CompositeCriterion(Criterion):
         self.global_step = batch.global_step
         self.flow_matching_criterion.global_step = batch.global_step
 
-        specific_batches = self._prepare_batches(batch)
+        specific_batches, weights = self._prepare_batches(batch)
         flow_matching_batch, consistency_batch, full_batch = specific_batches
+        fm_weights, consistency_weights = weights
 
         flow_and_decoder_loses = self.flow_matching_criterion(flow_matching_batch, world_size)
         flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
@@ -1029,6 +1030,13 @@ class CompositeCriterion(Criterion):
                 consistency_loss.mean(),
                 embedding_loss.mean(),
             ]  # no decoder_loss
+
+            # update sampler with consistency loss
+            self.sampler.update_with_local_losses(
+                consistency_batch.t - 1,
+                consistency_loss.detach(),
+                world_size=world_size,
+            )
             result = {
                 "flow_matching_loss": flow_matching_loss * self.criteria_weights[0],
                 "consistency_loss": consistency_loss * self.criteria_weights[1],
@@ -1060,6 +1068,12 @@ class CompositeCriterion(Criterion):
                 fillvalue=1,
             )
         ]
+
+        # weight the losses with fm_weights and consistency_weights get from loss aware samplers
+        weighted_losses[0] *= fm_weights
+        if consistency_batch is not None:
+            weighted_losses[1] *= consistency_weights
+
         total_loss = sum(weighted_losses)
         result["loss"] = total_loss
 
@@ -1094,7 +1108,7 @@ class CompositeCriterion(Criterion):
         fm_x_start = embeddings[:num_flow_matching_elems]
         fm_padding_mask = batch.padding_mask[:num_flow_matching_elems]
         fm_input_ids_mask = batch.input_ids_mask[:num_flow_matching_elems]
-        t, weights = self.sampler(batch_size=num_flow_matching_elems, device=batch.seqs.device)
+        t, fm_weights = self.sampler(batch_size=num_flow_matching_elems, device=batch.seqs.device)
         x_t, noise = self._interpolate_data_noise(fm_x_start, t)
         x_t = torch.where(fm_input_ids_mask.unsqueeze(-1) == 0, fm_x_start, x_t)
         fm_batch = FlowMatchingBatch(
@@ -1121,14 +1135,14 @@ class CompositeCriterion(Criterion):
                 t=t,
                 global_step=batch.global_step,
             )
-            return fm_batch, None, full_batch
+            return (fm_batch, None, full_batch), (fm_weights, None)
 
         # prepare_consistency_batch (only if consistency is enabled)
         consistency_seqs = batch.seqs[num_flow_matching_elems:]
         consistency_x_start = embeddings[num_flow_matching_elems:]
         consistency_padding_mask = batch.padding_mask[num_flow_matching_elems:]
         consistency_input_ids_mask = batch.input_ids_mask[num_flow_matching_elems:]
-        consistency_t, shortcuts = self.time_shortcut_sampler(
+        consistency_t, shortcuts, weights = self.time_shortcut_sampler(
             batch_size=num_consistency_elems, device=batch.seqs.device
         )
         consistency_x_t, consistency_noise = self._interpolate_data_noise(consistency_x_start, consistency_t)
@@ -1161,7 +1175,7 @@ class CompositeCriterion(Criterion):
             global_step=batch.global_step,
         )
 
-        return fm_batch, consistency_batch, full_batch
+        return (fm_batch, consistency_batch, full_batch), (fm_weights, weights)
 
     def denoise(
         self,
