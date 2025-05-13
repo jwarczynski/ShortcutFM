@@ -1032,7 +1032,7 @@ class CompositeCriterion(Criterion):
             ]  # no decoder_loss
 
             # update sampler with consistency loss
-            self.sampler.update_with_local_losses(
+            self.time_shortcut_sampler.update_with_local_losses(
                 consistency_batch.t - 1,
                 consistency_loss.detach(),
                 world_size=world_size,
@@ -1064,6 +1064,9 @@ class CompositeCriterion(Criterion):
         losses[0] *= fm_weights
         if consistency_batch is not None:
             losses[1] *= consistency_weights
+            losses[2] *= fm_weights
+        else:
+            losses[1] *= fm_weights
 
         weighted_losses = [
             loss.mean() * (weight or 1)
