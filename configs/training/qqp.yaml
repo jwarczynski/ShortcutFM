@@ -81,7 +81,6 @@ model:
   output_dims: 128
   sc_rate: 0.0
   parametrization: "x0"
-  stacked_embeddings: false
   hidden_t_dim: 128
   hidden_shortcut_dim: 128
   projection_activation: "tanh"

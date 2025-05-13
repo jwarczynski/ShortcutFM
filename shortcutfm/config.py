@@ -86,7 +86,6 @@ class ModelConfig(BaseModel):
     max_position_embeddings: int | None = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
     parametrization: Literal["x0", "velocity"] = Field(default="x0", description="Parametrization for diffusion")
-    stacked_embeddings: bool = Field(default=False, description="Whether to stack embeddings")
     freeze_word_embedding: bool = Field(default=False, description="Whether to freeze word embeddings")
     normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
     scale_time: bool = Field(
