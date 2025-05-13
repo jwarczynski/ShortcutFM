@@ -1064,7 +1064,7 @@ class CompositeCriterion(Criterion):
         losses[0] *= fm_weights
         if consistency_batch is not None:
             losses[1] *= consistency_weights
-            losses[2] *= fm_weights
+            # losses[2] *= fm_weights
         else:
             losses[1] *= fm_weights
 
