@@ -88,6 +88,11 @@ model:
   normalize_word_embedding: false
   scale_time: false
 
+time_shortcut_sampling:
+    type: "timestep_first"
+    time_sampler: "uniform"
+    shortcut_sampler: "uniform"
+
 # Optimizer configuration
 optimizer:
   scheduler:

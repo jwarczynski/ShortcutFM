@@ -197,11 +197,11 @@ def _create_composite_criterion(
     weights.append(training_cfg.nll_loss_weight)
 
     time_and_shortcut_sampler = create_time_and_shortcut_sampelr(training_cfg)
-    loss_aware_sampler = LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
-
-    # isotropy_loss_wieght = training_cfg.isotropy_loss_weight if training_cfg.isotropy_loss_weight is not None else 0
-    # criteria.append(IsotropyCriterion(model, training_cfg.model.diffusion_steps))
-    # weights.append(isotropy_loss_wieght)
+    time_sampler = (
+        UniformSampler(diffusion_steps=training_cfg.model.diffusion_steps)
+        if training_cfg.time_shortcut_sampling.time_sampler == "uniform"
+        else LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
+    )
 
     return CompositeCriterion(
         flow_matching_criterion=flow_matching_criterion,
@@ -213,7 +213,7 @@ def _create_composite_criterion(
         model=model,
         diffusion_steps=training_cfg.model.diffusion_steps,
         self_consistency_ratio=training_cfg.self_consistency_ratio,
-        sampler=loss_aware_sampler,
+        sampler=time_sampler,
         time_shortcut_sampler=time_and_shortcut_sampler,
         training_cfg=training_cfg,
     )
@@ -238,7 +238,7 @@ def create_time_and_shortcut_sampelr(training_cfg):
             LossSecondMomentResampler(
                 diffusion_steps=training_cfg.model.diffusion_steps,
             )
-            if training_cfg.time_shortcut_sampling.time_sampler == "loss_aware"
+            if training_cfg.time_shortcut_sampling.shortcut_sampler == "loss_aware"
             else (
                 UniformSampler(
                     diffusion_steps=training_cfg.model.diffusion_steps,
