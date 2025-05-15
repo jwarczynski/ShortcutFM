@@ -17,6 +17,7 @@ from shortcutfm.criteria import (
     X0ConsistencyCriterion,
     X0FlowMatchingCriterion,
 )
+from shortcutfm.model.dit_factory import DiTFactory
 from shortcutfm.model.factory import (
     FFNFactory,
     StackedEmbeddingTransformerNetModelFactory,
@@ -68,15 +69,17 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
 
 
 def create_factory(training_cfg: TrainingConfig):
-    match training_cfg.architecture:
+    match training_cfg.model.type:
         case "transformer":
             return TransformerNetModelFactory(training_cfg.model)
         case "stacked":
             return StackedEmbeddingTransformerNetModelFactory(training_cfg.model)
         case "ffn":
             return FFNFactory(training_cfg.model)
+        case "dit":
+            return DiTFactory(training_cfg.model)
         case _:
-            raise ValueError(f"Unknown architecture: {training_cfg.architecture}")
+            raise ValueError(f"Unknown model type: {training_cfg.model.type}")
 
 
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):

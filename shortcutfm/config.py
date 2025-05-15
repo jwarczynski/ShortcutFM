@@ -53,17 +53,16 @@ class CheckpointConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ModelConfig(BaseModel):
-    """Model architecture and behavior configuration"""
+class BaseModelConfig(BaseModel):
+    """Base model configuration with common parameters for all architectures"""
 
+    # Common parameters for all architectures
+    # type: str  # Discriminator field
     input_dims: int = Field(default=128, description="Input dimension size")
     output_dims: int = Field(default=128, description="Output dimension size")
     hidden_size: int = Field(default=768, description="Hidden layer dimension size")
     hidden_t_dim: int | None = Field(default=128, description="Hidden time embedding dimension")
     hidden_shortcut_dim: int | None = Field(default=128, description="Hidden shortcut embedding dimension")
-    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
-        default="gelu", description="Activation function for projection layers"
-    )
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=1, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
@@ -72,17 +71,7 @@ class ModelConfig(BaseModel):
         description="Name of the base model configuration to use",
     )
     vocab_size: int = Field(default=30522, description="Size of the vocabulary")
-    init_pretrained: Literal["bert", "modern_bert"] = Field(
-        default="bert",
-        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
-    )
-    use_pretrained_weights: bool = Field(
-        default=False,
-        description="Whether to use pretrained weights (True) or random initialization (False)",
-    )
-    logits_mode: int = Field(default=1, description="Mode for logits computation")
     sc_rate: float = Field(default=0.5, description="Self-conditioning rate")
-    predict_t: bool = Field(default=False, description="Whether to predict timestep")
     max_position_embeddings: int | None = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
     parametrization: Literal["x0", "velocity"] = Field(default="x0", description="Parametrization for diffusion")
@@ -92,12 +81,82 @@ class ModelConfig(BaseModel):
         default=False,
         description="Whether to scale time and shortcut embeddings by the diffusion steps",
     )
-    num_layers: int = Field(
-        default=3,
-        description="Number of ffn transformer layers. Only applicable to ffn architecture",
-    )
     default_shortcut: Literal["0", "t"] = Field(default="t", description="Default shortcut for flow matching loss")
     model_config = ConfigDict(extra="forbid")
+
+
+class TransformerModelConfig(BaseModelConfig):
+    """Configuration for Transformer architecture"""
+
+    type: Literal["transformer"] = "transformer"
+    init_pretrained: Literal["bert", "modern_bert"] = Field(
+        default="bert",
+        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
+    )
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)",
+    )
+    logits_mode: int = Field(default=1, description="Mode for logits computation")
+    predict_t: bool = Field(default=False, description="Whether to predict timestep")
+    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
+        default="gelu", description="Activation function for projection layers"
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
+class StackedModelConfig(BaseModelConfig):
+    """Configuration for Stacked architecture"""
+
+    type: Literal["stacked"] = "stacked"
+    init_pretrained: Literal["bert", "modern_bert"] = Field(
+        default="bert",
+        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
+    )
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)",
+    )
+    logits_mode: int = Field(default=1, description="Mode for logits computation")
+    predict_t: bool = Field(default=False, description="Whether to predict timestep")
+    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
+        default="gelu", description="Activation function for projection layers"
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
+class FFNModelConfig(BaseModelConfig):
+    """Configuration for FFN architecture"""
+
+    type: Literal["ffn"] = "ffn"
+    init_pretrained: Literal["bert", "modern_bert"] = Field(
+        default="bert",
+        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
+    )
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)",
+    )
+    num_layers: int = Field(
+        default=3,
+        description="Number of ffn transformer layers",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
+class DiTModelConfig(BaseModelConfig):
+    """Configuration for DiT architecture"""
+
+    type: Literal["dit"] = "dit"
+    embedding_dim: int = Field(default=128, description="Embedding dimension for DiT model")
+    num_attention_heads: int = Field(default=8, description="Number of attention heads for DiT model")
+    mlp_ratio: float = Field(default=4.0, description="MLP ratio for DiT model")
+    num_layers: int = Field(default=12, description="Number of DiT transformer layers")
+    model_config = ConfigDict(extra="forbid")
+
+
+# Define the model config union with discriminator
+ModelConfig = TransformerModelConfig | StackedModelConfig | FFNModelConfig | DiTModelConfig
 
 
 class BaseSchedulerConfig(BaseModel):
@@ -272,14 +331,11 @@ class TrainingConfig(BaseModel):
     normalize_flow_matching_loss: bool = Field(default=False, description="Whether to normalize flow matching loss")
 
     # Component configurations
-    model: ModelConfig = Field(default_factory=ModelConfig, description="Model configuration")
+    model: ModelConfig = Field(..., description="Model configuration", discriminator="type")
     optimizer: OptimizerConfig = Field(..., description="Optimizer configuration")
     wandb: WandBConfig = Field(default_factory=WandBConfig, description="Weights & Biases configuration")
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig, description="Checkpoint configuration")
     ema: EMAConfig | None = Field(default_factory=EMAConfig, description="EMA configuration")
-    architecture: Literal["transformer", "stacked", "ffn"] = Field(
-        default="transformer", description="Model architecture"
-    )
 
     # Runtime settings
     use_exca: bool = Field(default=False, description="Whether to use Exca for submitting tasks")
