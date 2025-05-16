@@ -95,11 +95,14 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
             # Convert to tensor and move to device
             timesteps = torch.full((input_mask.shape[0],), t, device=device, dtype=torch.long)
 
-            # Get model prediction (velocity)
-            v_hat = model.criterion.model(x_t, timesteps, shortcuts)
+            # Get model prediction (x0, not velocity)
+            x0_hat = model.criterion.model(x_t, timesteps, shortcuts)
 
-            # Calculate logits and probabilities
-            logits = model.criterion.model.compute_logits(x_t)
+            # Calculate velocity from x0_hat and x_t
+            v_hat = x0_hat - x_t
+
+            # Calculate logits and probabilities based on x0_hat (the clean data prediction)
+            logits = model.criterion.model.compute_logits(x0_hat)
             probs = torch.softmax(logits, dim=-1)
 
             # Get top-k tokens and their probabilities for positions that contribute to loss
@@ -112,8 +115,8 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
                 top_probs.append(pos_probs.cpu().numpy())
                 top_indices.append(pos_indices.cpu().numpy())
 
-                # Calculate L2 distances between current embedding and token embeddings
-                current_emb = x_t[0, pos].unsqueeze(0)  # [1, hidden_dim]
+                # Calculate L2 distances between predicted clean embedding (x0_hat) and token embeddings
+                current_emb = x0_hat[0, pos].unsqueeze(0)  # [1, hidden_dim]
                 token_embs = word_embeddings[pos_indices]  # [top_k, hidden_dim]
                 l2_dist = torch.norm(current_emb - token_embs, dim=1).cpu().numpy()
                 l2_distances.append(l2_dist)
@@ -126,7 +129,7 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
             l2_distances_list.append(l2_distances)
 
             # Update x_t for next step (simple Euler step)
-            x_t = x_t - (1.0 / diffusion_steps) * v_hat
+            x_t = x_t + (shortcut_size / diffusion_steps) * v_hat
 
     return {
         "timesteps": timesteps_list,
