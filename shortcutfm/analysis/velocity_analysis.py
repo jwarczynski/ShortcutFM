@@ -31,6 +31,8 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
         - ground_truth_velocities: Ground truth velocities at each step
         - timesteps: Timesteps used during denoising
         - cosine_similarities: Cosine similarities between predicted and ground truth velocities
+        - predicted_velocity_norms: L2 norms of predicted velocities at each step
+        - ground_truth_velocity_norms: L2 norms of ground truth velocities at each step
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.eval()
@@ -46,10 +48,12 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
     ground_truth_velocities = []
     timesteps_list = []
     cosine_similarities = []
+    predicted_velocity_norms = []
+    ground_truth_velocity_norms = []
 
     with torch.no_grad():
         # Get input mask and embeddings
-        input_mask = input_ids_mask.unsqueeze(-1)
+        input_mask: Tensor = input_ids_mask.unsqueeze(-1)
         embeddings = model.criterion.model.get_embeddings(seqs)
 
         # Initialize with noise where mask is 0
@@ -78,7 +82,11 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
 
             # Calculate ground truth velocity
             v_ground_truth = x0_ground_truth - x_t
-            v_ground_truth = torch.where(input_mask == 0, torch.zeros_like(v_ground_truth), v_ground_truth)
+
+            # assert v_gorund_truth is 0 for input tokens
+            assert torch.equal(
+                v_ground_truth, torch.where(input_mask == 0, torch.zeros_like(v_ground_truth), v_ground_truth)
+            )
 
             # Store velocities
             predicted_velocities.append(v_hat.clone())
@@ -90,6 +98,20 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
             )
             cosine_similarities.append(cos_sim)
 
+            # Calculate and store velocity norms (masked)
+            # Mask out input tokens and padding tokens
+            mask = (input_mask * padding_mask.unsqueeze(-1)).bool()
+            # Flatten batch and seq dims for norm calculation
+            v_hat_masked = v_hat[mask]
+            v_ground_truth_masked = v_ground_truth[mask]
+            # L2 norm per step (mean over all valid tokens)
+            predicted_velocity_norms.append(
+                v_hat_masked.norm(dim=-1).mean().item() if v_hat_masked.numel() > 0 else 0.0
+            )
+            ground_truth_velocity_norms.append(
+                v_ground_truth_masked.norm(dim=-1).mean().item() if v_ground_truth_masked.numel() > 0 else 0.0
+            )
+
             # Update x_t for next step
             x0_hat = x_t + (shortcuts / diffusion_steps)[:, None, None] * v_hat
             x_t = x0_hat
@@ -99,6 +121,8 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
         "ground_truth_velocities": ground_truth_velocities,
         "timesteps": timesteps_list,
         "cosine_similarities": cosine_similarities,
+        "predicted_velocity_norms": predicted_velocity_norms,
+        "ground_truth_velocity_norms": ground_truth_velocity_norms,
     }
 
 
