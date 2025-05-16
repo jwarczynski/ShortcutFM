@@ -37,6 +37,8 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
         - input_tokens: Input tokens at each position
         - input_mask: Mask indicating input positions (0 for input, 1 for target)
         - padding_mask: Mask indicating padding (0 for padding, 1 for actual tokens)
+        - x0_hat: Predicted clean embeddings at each timestep
+        - model: The model used for denoising
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -78,6 +80,7 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
     token_ids_list = []
     token_texts_list = []
     l2_distances_list = []
+    x0_hat_list = []  # Store predicted clean embeddings
 
     # Denoising loop
     shortcuts = torch.tensor(shortcut_size, device=device).repeat(input_mask.shape[0])
@@ -97,6 +100,7 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
 
             # Get model prediction (x0, not velocity)
             x0_hat = model.criterion.model(x_t, timesteps, shortcuts)
+            x0_hat_list.append(x0_hat)  # Store predicted clean embedding
 
             # Calculate velocity from x0_hat and x_t
             v_hat = x0_hat - x_t
@@ -143,6 +147,8 @@ def denoise_with_token_tracking(model, batch, shortcut_size, top_k=5, example_id
         "input_mask": input_ids_mask[example_idx].cpu().numpy(),
         "padding_mask": padding_mask[example_idx].cpu().numpy(),
         "original_sequence": seq[0].cpu().numpy(),
+        "x0_hat": x0_hat_list,  # Add predicted clean embeddings to results
+        "model": model,  # Add model to results for access to embeddings
     }
 
 
@@ -431,6 +437,289 @@ def analyze_token_predictions(
     return token_results
 
 
+def get_ground_truth_token_id_and_embedding(
+    tokenizer, word_embeddings, original_sequence, loss_positions, position_idx
+):
+    """
+    Get the ground truth token id and embedding for the given position.
+    """
+    gt_pos = loss_positions[position_idx]
+    ground_truth_id = int(original_sequence[gt_pos])
+    ground_truth_emb = word_embeddings[ground_truth_id]
+    return gt_pos, ground_truth_id, ground_truth_emb
+
+
+def get_knn_indices_and_distances(word_embeddings, predicted_emb, ground_truth_id, k):
+    """
+    Get kNN indices and distances, excluding the ground truth if present.
+    """
+    with torch.no_grad():
+        distances = torch.norm(word_embeddings - predicted_emb, dim=1)
+        knn_distances, knn_indices = torch.topk(distances, k=k + 1, largest=False)
+        knn_indices = knn_indices.cpu().numpy()
+        knn_distances = knn_distances.cpu().numpy()
+        if ground_truth_id in knn_indices:
+            mask = knn_indices != ground_truth_id
+            knn_distances = knn_distances[mask][:k]
+            knn_indices = knn_indices[mask][:k]
+        else:
+            knn_distances = knn_distances[:k]
+            knn_indices = knn_indices[:k]
+    return knn_indices, knn_distances
+
+
+def get_topk_logit_indices(model, x0_hat, gt_pos, k):
+    """
+    Get top-k logit indices for the given position.
+    """
+    with torch.no_grad():
+        logits = model.criterion.model.compute_logits(x0_hat)  # [batch, seq, vocab]
+        pos_logits = logits[0, gt_pos]  # [vocab]
+        _, topk_logit_indices = torch.topk(pos_logits, k=k)
+        topk_logit_indices = topk_logit_indices.cpu().numpy()
+    return topk_logit_indices
+
+
+def build_unique_embeddings_and_roles(
+    predicted_emb, ground_truth_emb, ground_truth_id, word_embeddings, knn_indices, topk_logit_indices
+):
+    """
+    Build unique embedding list, token ids, and roles for each embedding.
+    """
+    import collections
+
+    unique_embeddings = []
+    unique_token_ids = []  # None for predicted, int for vocab tokens
+    role_map = {"predicted": None, "ground_truth": None, "knn": [], "logit": []}
+
+    # 1. Add predicted embedding (not a vocab token)
+    unique_embeddings.append(predicted_emb)
+    unique_token_ids.append(None)
+    idx_pred = 0
+    role_map["predicted"] = idx_pred
+
+    # 2. Add ground truth token embedding
+    unique_embeddings.append(ground_truth_emb)
+    unique_token_ids.append(ground_truth_id)
+    idx_gt = 1
+    role_map["ground_truth"] = idx_gt
+
+    # 3. Add kNN tokens, deduplicating
+    for idx in knn_indices:
+        if idx not in unique_token_ids:
+            unique_embeddings.append(word_embeddings[idx])
+            unique_token_ids.append(idx)
+            role_map["knn"].append(len(unique_embeddings) - 1)
+        else:
+            role_map["knn"].append(unique_token_ids.index(idx))
+
+    # 4. Add top-k logits tokens, deduplicating
+    for idx in topk_logit_indices:
+        if idx not in unique_token_ids:
+            unique_embeddings.append(word_embeddings[idx])
+            unique_token_ids.append(idx)
+            role_map["logit"].append(len(unique_embeddings) - 1)
+        else:
+            role_map["logit"].append(unique_token_ids.index(idx))
+
+    # Build roles_for_index: for each unique embedding index, store a set of roles
+    roles_for_index = collections.defaultdict(set)
+    roles_for_index[idx_pred].add("predicted")
+    roles_for_index[idx_gt].add("ground_truth")
+    for idx in role_map["knn"]:
+        if idx != idx_pred:
+            roles_for_index[idx].add("knn")
+    for idx in role_map["logit"]:
+        if idx != idx_pred:
+            roles_for_index[idx].add("logit")
+
+    return unique_embeddings, unique_token_ids, roles_for_index, idx_pred
+
+
+def run_tsne(unique_embeddings, figsize, random_state=42):
+    import torch
+    from sklearn.manifold import TSNE
+
+    embeddings_to_plot = torch.stack(unique_embeddings, dim=0)
+    n_points = embeddings_to_plot.shape[0]
+    perplexity = min(n_points - 1, 5)
+    tsne = TSNE(n_components=2, random_state=random_state, perplexity=perplexity)
+    embeddings_2d = tsne.fit_transform(embeddings_to_plot.cpu().numpy())
+    return embeddings_2d
+
+
+def plot_embeddings_and_edges(
+    embeddings_2d,
+    unique_embeddings,
+    unique_token_ids,
+    roles_for_index,
+    idx_pred,
+    word_embeddings,
+    tokenizer,
+    gt_pos,
+    timesteps,
+    timestep_idx,
+    save_path=None,
+    figsize=(12, 10),
+):
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    plt.figure(figsize=figsize)
+    legend_handles = [
+        Line2D([0], [0], marker="*", color="w", markerfacecolor="red", markersize=14, label="Predicted"),
+        Line2D([0], [0], marker="*", color="w", markerfacecolor="green", markersize=14, label="Ground Truth"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="blue", markersize=10, label="kNN"),
+        Line2D([0], [0], marker="s", color="w", markerfacecolor="orange", markersize=10, label="Top-k Logits"),
+        Line2D([0], [0], marker="D", color="w", markerfacecolor="purple", markersize=10, label="kNN & Logit"),
+    ]
+    # Plot predicted embedding
+    plt.scatter(embeddings_2d[idx_pred, 0], embeddings_2d[idx_pred, 1], c="red", s=200, marker="*", zorder=10)
+    plt.text(
+        embeddings_2d[idx_pred, 0],
+        embeddings_2d[idx_pred, 1],
+        "Predicted",
+        fontsize=10,
+        ha="center",
+        va="bottom",
+        color="red",
+    )
+    for idx in range(1, len(unique_embeddings)):
+        roles = roles_for_index[idx]
+        token_id = unique_token_ids[idx]
+        if token_id is None:
+            continue
+        if "ground_truth" in roles:
+            color = "green"
+            marker = "*"
+            size = 200
+        elif "knn" in roles and "logit" in roles:
+            color = "purple"
+            marker = "D"
+            size = 120
+        elif "knn" in roles:
+            color = "blue"
+            marker = "o"
+            size = 100
+        elif "logit" in roles:
+            color = "orange"
+            marker = "s"
+            size = 100
+        else:
+            color = "gray"
+            marker = "x"
+            size = 80
+        role_str = ",".join(sorted(roles))
+        token = tokenizer.decode([token_id])
+        plt.scatter(embeddings_2d[idx, 0], embeddings_2d[idx, 1], c=color, s=size, alpha=0.7, marker=marker, zorder=5)
+        plt.text(
+            embeddings_2d[idx, 0],
+            embeddings_2d[idx, 1],
+            f"{token}\n({role_str})",
+            fontsize=10,
+            ha="center",
+            va="bottom",
+            color=color,
+        )
+    # Draw edges from predicted to each unique point (except predicted itself)
+    for idx in range(1, len(unique_embeddings)):
+        roles = roles_for_index[idx]
+        token_id = unique_token_ids[idx]
+        if token_id is None:
+            continue
+        if "ground_truth" in roles:
+            edge_color = "g"
+            edge_style = "-"
+        elif "knn" in roles and "logit" in roles:
+            edge_color = "purple"
+            edge_style = "-."
+        elif "knn" in roles:
+            edge_color = "b"
+            edge_style = "--"
+        elif "logit" in roles:
+            edge_color = "orange"
+            edge_style = ":"
+        else:
+            edge_color = "gray"
+            edge_style = "-."
+        distance = torch.norm(unique_embeddings[idx_pred] - word_embeddings[token_id]).item()
+        plt.plot(
+            [embeddings_2d[idx_pred, 0], embeddings_2d[idx, 0]],
+            [embeddings_2d[idx_pred, 1], embeddings_2d[idx, 1]],
+            color=edge_color,
+            alpha=0.5,
+            linestyle=edge_style,
+            linewidth=2,
+        )
+        mid_x = (embeddings_2d[idx_pred, 0] + embeddings_2d[idx, 0]) / 2
+        mid_y = (embeddings_2d[idx_pred, 1] + embeddings_2d[idx, 1]) / 2
+        plt.text(
+            mid_x,
+            mid_y,
+            f"{distance:.2f}",
+            fontsize=8,
+            ha="center",
+            va="center",
+            bbox=dict(facecolor="white", alpha=0.7, pad=1),
+            color=edge_color,
+        )
+    plt.title(f"KNN vs Top-k Logits at Timestep {timesteps[timestep_idx]}, Position {gt_pos}")
+    plt.legend(handles=legend_handles)
+    plt.grid(True, alpha=0.3)
+    if save_path:
+        import os
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.show()
+
+
+def visualize_knn_embeddings(
+    token_results: dict[str, Any],
+    timestep_idx: int,
+    position_idx: int,
+    k: int = 5,
+    figsize: tuple[int, int] = (12, 10),
+    save_path: str | None = None,
+) -> None:
+    """
+    Visualize k-nearest neighbors of token embeddings in 2D space using t-SNE, and compare to top-k tokens by logits.
+    Ensures each unique token embedding is only plotted once, even if it appears in multiple roles.
+    Always marks and connects the ground truth token.
+    """
+    model = token_results["model"]
+    tokenizer = model.criterion.flow_matching_criterion.tokenizer
+    word_embeddings = model.criterion.model.module.word_embedding.weight
+    timesteps = token_results["timesteps"]
+    loss_positions = token_results["loss_positions"]
+    original_sequence = token_results["original_sequence"]
+    x0_hat = token_results["x0_hat"][timestep_idx]
+    predicted_emb = x0_hat[0, loss_positions[position_idx]]
+    gt_pos, ground_truth_id, ground_truth_emb = get_ground_truth_token_id_and_embedding(
+        tokenizer, word_embeddings, original_sequence, loss_positions, position_idx
+    )
+    knn_indices, knn_distances = get_knn_indices_and_distances(word_embeddings, predicted_emb, ground_truth_id, k)
+    topk_logit_indices = get_topk_logit_indices(model, x0_hat, gt_pos, k)
+    unique_embeddings, unique_token_ids, roles_for_index, idx_pred = build_unique_embeddings_and_roles(
+        predicted_emb, ground_truth_emb, ground_truth_id, word_embeddings, knn_indices, topk_logit_indices
+    )
+    embeddings_2d = run_tsne(unique_embeddings, figsize)
+    plot_embeddings_and_edges(
+        embeddings_2d,
+        unique_embeddings,
+        unique_token_ids,
+        roles_for_index,
+        idx_pred,
+        word_embeddings,
+        tokenizer,
+        gt_pos,
+        timesteps,
+        timestep_idx,
+        save_path=save_path,
+        figsize=figsize,
+    )
+
+
 if __name__ == "__main__":
     import argparse
     import os
@@ -459,6 +748,8 @@ if __name__ == "__main__":
     parser.add_argument("--example_idx", type=int, default=0, help="Index of the example to analyze")
     parser.add_argument("--output_dir", type=str, default="reports/figures", help="Directory to save figures")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for data loading")
+    parser.add_argument("--timestep_idx", type=int, default=-1, help="Timestep index for KNN visualization")
+    parser.add_argument("--position_idx", type=int, default=0, help="Position index for KNN visualization")
     args = parser.parse_args()
 
     # Import required modules
@@ -540,8 +831,20 @@ if __name__ == "__main__":
 
     # Run analysis
     output_path = os.path.join(args.output_dir, f"token_analysis_example_{args.example_idx}.png")
-    analyze_token_predictions(
+    token_results = analyze_token_predictions(
         unit, test_batch, args.shortcut_size, top_k=args.top_k, example_idx=args.example_idx, save_path=output_path
     )
 
     print(f"Analysis complete. Figure saved to {output_path}")
+
+    # Visualize KNN embeddings
+    if args.timestep_idx >= 0:
+        knn_output_path = os.path.join(args.output_dir, f"knn_visualization_example_{args.example_idx}.png")
+        visualize_knn_embeddings(
+            token_results,
+            timestep_idx=args.timestep_idx,
+            position_idx=args.position_idx,
+            k=args.top_k,
+            save_path=knn_output_path,
+        )
+        print(f"KNN visualization saved to {knn_output_path}")
