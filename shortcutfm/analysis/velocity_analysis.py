@@ -33,6 +33,10 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
         - cosine_similarities: Cosine similarities between predicted and ground truth velocities
         - predicted_velocity_norms: L2 norms of predicted velocities at each step
         - ground_truth_velocity_norms: L2 norms of ground truth velocities at each step
+        - model_outputs: Model's predicted clean embeddings at each step
+        - ground_truth_embeddings: Ground truth embeddings
+        - l2_distances: L2 distances between predicted and ground truth embeddings at each step
+        - velocity_l2_distances: L2 distances between predicted and ground truth velocities at each step
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.eval()
@@ -50,11 +54,14 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
     cosine_similarities = []
     predicted_velocity_norms = []
     ground_truth_velocity_norms = []
+    model_outputs = []
+    l2_distances = []
+    velocity_l2_distances = []
 
     with torch.no_grad():
         # Get input mask and embeddings
-        input_mask: Tensor = input_ids_mask.unsqueeze(-1)
-        embeddings = model.criterion.model.get_embeddings(seqs)
+        input_mask: Tensor = input_ids_mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
+        embeddings = model.criterion.model.get_embeddings(seqs)  # [batch_size, seq_len, hidden_dim]
 
         # Initialize with noise where mask is 0
         noise = torch.randn_like(embeddings)
@@ -73,6 +80,9 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
             # Get model prediction (x0_hat, not velocity)
             model_output = model.criterion.model(x_t, t_batch, shortcuts)
 
+            # Store model output
+            model_outputs.append(model_output.clone())
+
             # Restore input part based on mask
             model_output = torch.where(input_mask == 0, x_t, model_output)
 
@@ -83,34 +93,43 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
             # Calculate ground truth velocity
             v_ground_truth = x0_ground_truth - x_t
 
-            # assert v_gorund_truth is 0 for input tokens
-            assert torch.equal(
-                v_ground_truth, torch.where(input_mask == 0, torch.zeros_like(v_ground_truth), v_ground_truth)
-            )
-
             # Store velocities
             predicted_velocities.append(v_hat.clone())
             ground_truth_velocities.append(v_ground_truth.clone())
 
             # Calculate cosine similarity between predicted and ground truth velocities
-            cos_sim = calculate_batch_cosine_similarity(
+            cos_sim, pred_norm, gt_norm = calculate_batch_cosine_similarity(
                 v_hat, v_ground_truth, input_mask, padding_mask.unsqueeze(-1), per_token=per_token_cosine
             )
             cosine_similarities.append(cos_sim)
 
-            # Calculate and store velocity norms (masked)
-            # Mask out input tokens and padding tokens
-            mask = (input_mask * padding_mask.unsqueeze(-1)).bool()
-            # Flatten batch and seq dims for norm calculation
-            v_hat_masked = v_hat[mask]
-            v_ground_truth_masked = v_ground_truth[mask]
-            # L2 norm per step (mean over all valid tokens)
-            predicted_velocity_norms.append(
-                v_hat_masked.norm(dim=-1).mean().item() if v_hat_masked.numel() > 0 else 0.0
-            )
-            ground_truth_velocity_norms.append(
-                v_ground_truth_masked.norm(dim=-1).mean().item() if v_ground_truth_masked.numel() > 0 else 0.0
-            )
+            # Store velocity norms from cosine similarity calculation
+            predicted_velocity_norms.append(pred_norm.mean().item())
+            ground_truth_velocity_norms.append(gt_norm.mean().item())
+
+            # Calculate L2 distance between model prediction and ground truth for valid tokens
+            # Create mask for tokens we want to compute L2 distance for:
+            # - input_mask == 0 (input tokens)
+            # - padding_mask == 1 (non-padding tokens)
+            valid_token_mask = (input_mask.squeeze(-1) == 1) & (padding_mask == 1)
+
+            # Calculate L2 distances only for valid tokens
+            l2_dists = torch.norm(
+                model_output[valid_token_mask] - x0_ground_truth[valid_token_mask], dim=-1
+            )  # [num_valid_tokens]
+
+            # Average L2 distance across valid tokens
+            l2_dist = l2_dists.mean().item()
+            l2_distances.append(l2_dist)
+
+            # Calculate L2 distance between predicted and ground truth velocities for valid tokens
+            velocity_l2_dists = torch.norm(
+                v_hat[valid_token_mask] - v_ground_truth[valid_token_mask], dim=-1
+            )  # [num_valid_tokens]
+
+            # Average velocity L2 distance across valid tokens
+            velocity_l2_dist = velocity_l2_dists.mean().item()
+            velocity_l2_distances.append(velocity_l2_dist)
 
             # Update x_t for next step
             x0_hat = x_t + (shortcuts / diffusion_steps)[:, None, None] * v_hat
@@ -123,12 +142,16 @@ def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, de
         "cosine_similarities": cosine_similarities,
         "predicted_velocity_norms": predicted_velocity_norms,
         "ground_truth_velocity_norms": ground_truth_velocity_norms,
+        "model_outputs": model_outputs,
+        "ground_truth_embeddings": x0_ground_truth,
+        "l2_distances": l2_distances,
+        "velocity_l2_distances": velocity_l2_distances,
     }
 
 
 def calculate_batch_cosine_similarity(
     pred_velocities: Tensor, gt_velocities: Tensor, input_mask: Tensor, padding_mask: Tensor, per_token: bool = True
-) -> Tensor:
+) -> tuple[Tensor, Tensor, Tensor]:
     """
     Calculate cosine similarity between predicted and ground truth velocities for a batch.
     Only considers positions that are both non-input (input_mask=1) and non-padding (padding_mask=1).
@@ -146,6 +169,8 @@ def calculate_batch_cosine_similarity(
     """
     batch_size = pred_velocities.shape[0]
     cos_sims = []
+    predicted_velocity_norms = []
+    ground_truth_velocity_norms = []
 
     for i in range(batch_size):
         # Get masks for this example and combine them
@@ -166,6 +191,9 @@ def calculate_batch_cosine_similarity(
                 token_cos_sims = torch.nn.functional.cosine_similarity(pred_vel, gt_vel)
                 # Take mean across tokens
                 cos_sim = token_cos_sims.mean()
+
+                pred_norm = torch.norm(pred_vel, dim=1).mean()
+                gt_norm = torch.norm(gt_vel, dim=1).mean()
             else:
                 cos_sim = torch.tensor(1.0, device=pred_velocities.device)
         else:
@@ -180,8 +208,14 @@ def calculate_batch_cosine_similarity(
                 cos_sim = torch.tensor(1.0, device=pred_velocities.device)
 
         cos_sims.append(cos_sim)
+        pred_norm = torch.norm(pred_vel, dim=1).mean()
+        gt_norm = torch.norm(gt_vel, dim=1).mean()
 
-    return torch.stack(cos_sims)
+        # Store the batch norms
+        predicted_velocity_norms.append(pred_norm)
+        ground_truth_velocity_norms.append(gt_norm)
+
+    return torch.stack(cos_sims), torch.stack(predicted_velocity_norms), torch.stack(ground_truth_velocity_norms)
 
 
 def visualize_cosine_similarities(
@@ -437,7 +471,7 @@ def visualize_cosine_similarity_distribution(
 
     # Create subplots
     fig, axes = plt.subplots(nrows=(num_timesteps + 2) // 3, ncols=min(3, num_timesteps), figsize=figsize)
-    axes = axes.flatten() if num_timesteps > 1 else [axes]
+    axes = axes.flatten() if num_steps > 1 else [axes]
 
     for i, (idx, ts) in enumerate(zip(indices_to_plot, timesteps_to_plot, strict=False)):
         ax = axes[i]
@@ -462,6 +496,59 @@ def visualize_cosine_similarity_distribution(
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
     plt.show()
+
+
+def calculate_noise_to_target_distance(
+    target_embeddings: Tensor,
+    input_mask: Tensor,
+    padding_mask: Tensor,
+    num_samples: int = 100,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+) -> dict[str, float]:
+    """
+    Calculate L2 distance between random noise and target embeddings.
+
+    Args:
+        target_embeddings: Target embeddings [batch_size, seq_len, hidden_dim]
+        input_mask: Mask indicating input positions (0 for input, 1 for target) [batch_size, seq_len, 1]
+        padding_mask: Mask indicating padding (0 for padding, 1 for actual tokens) [batch_size, seq_len, 1]
+        num_samples: Number of random noise samples to generate
+        device: The device to use for computation
+
+    Returns:
+        Dictionary containing:
+        - mean_distance: Mean L2 distance across all samples
+        - std_distance: Standard deviation of L2 distances
+        - min_distance: Minimum L2 distance observed
+        - max_distance: Maximum L2 distance observed
+    """
+    distances = []
+
+    # Create mask for tokens we want to compute L2 distance for:
+    # - input_mask == 0 (input tokens)
+    # - padding_mask == 1 (non-padding tokens)
+    valid_token_mask = (input_mask.squeeze(-1) == 1) & (padding_mask == 1)
+
+    for _ in range(num_samples):
+        # Generate random noise with same shape as target embeddings
+        noise = torch.randn_like(target_embeddings)
+
+        # Calculate L2 distances only for valid tokens
+        l2_dists = torch.norm(
+            noise[valid_token_mask] - target_embeddings[valid_token_mask], dim=-1
+        )  # [num_valid_tokens]
+
+        # Average L2 distance across valid tokens
+        mean_dist = l2_dists.mean().item()
+        distances.append(mean_dist)
+
+    distances = torch.tensor(distances)
+    return {
+        "mean_distance": distances.mean().item(),
+        "std_distance": distances.std().item(),
+        "min_distance": distances.min().item(),
+        "max_distance": distances.max().item(),
+    }
 
 
 def analyze_velocity_predictions(
