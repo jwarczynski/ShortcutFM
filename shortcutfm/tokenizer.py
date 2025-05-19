@@ -14,16 +14,20 @@ class MyTokenizer:
     def __init__(self, args, is_eval=False):
         if args.vocab == "bert":
             tokenizer = AutoTokenizer.from_pretrained(args.config_name)
+            # Add null token if it doesn't exist
+            if "[NULL]" not in tokenizer.vocab:
+                tokenizer.add_special_tokens({"additional_special_tokens": ["[NULL]"]})
             self.tokenizer = tokenizer
             self.sep_token_id = tokenizer.sep_token_id
             self.pad_token_id = tokenizer.pad_token_id
+            self.null_token_id = tokenizer.convert_tokens_to_ids("[NULL]")
             # save
             if not is_eval:
                 tokenizer.save_pretrained(args.checkpoint_path)
         else:
             # load vocab from the path
             print("#" * 30, "load vocab from", args.vocab)
-            vocab_dict = {"[START]": 0, "[END]": 1, "[UNK]": 2, "[PAD]": 3}
+            vocab_dict = {"[START]": 0, "[END]": 1, "[UNK]": 2, "[PAD]": 3, "[NULL]": 4}
             with open(args.vocab, encoding="utf-8") as f:
                 for row in f:
                     vocab_dict[row.strip().split(" ")[0]] = len(vocab_dict)
@@ -31,6 +35,7 @@ class MyTokenizer:
             self.rev_tokenizer = {v: k for k, v in vocab_dict.items()}
             self.sep_token_id = vocab_dict["[END]"]
             self.pad_token_id = vocab_dict["[PAD]"]
+            self.null_token_id = vocab_dict["[NULL]"]
             # save
             if int(os.environ["LOCAL_RANK"]) == 0 and not is_eval:
                 path_save_vocab = f"{args.checkpoint_path}/vocab.json"
@@ -39,6 +44,7 @@ class MyTokenizer:
 
         self.vocab_size = len(self.tokenizer)
         args.vocab_size = self.vocab_size  # update vocab size in args
+        args.null_token_id = self.null_token_id  # update null token id in args
 
     def encode_token(self, sentences):
         if isinstance(self.tokenizer, dict):

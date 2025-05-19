@@ -133,10 +133,11 @@ class FlowMatchingCriterion(Criterion):
         train_unconditionally = self.should_apply_cfg()
 
         if train_unconditionally:
-            # For unconditional training, we mask all tokens (set input_ids_mask to all 1s)
-            # This is equivalent to discarding the conditioning information
-            # Create a version of x_t where all tokens are masked (replaced with noise)
-            x_t_uncond = torch.where(input_ids_mask.unsqueeze(-1) == 0, 0, x_t)
+            # For unconditional training, we use the null token embedding instead of zeros
+            # Create a version of x_t where input tokens are replaced with null token embeddings
+            null_token_id = self.training_cfg.model.null_token_id
+            null_token_embedding = self.model.get_embeddings(torch.tensor([null_token_id], device=x_t.device))
+            x_t_uncond = torch.where(input_ids_mask.unsqueeze(-1) == 0, null_token_embedding, x_t)
             # Train the model to predict the noise (or x0) for the unconditional case
             y = self.model(x_t_uncond, t, shortcut_size)
         else:
@@ -285,7 +286,10 @@ class FlowMatchingCriterion(Criterion):
         # 1. Get conditional prediction (with input_mask)
         y_cond = self.model(x_t, t, shortcut_size)
 
-        x_t_uncond = torch.where(input_mask == 0, 0, x_t)
+        # 2. Get unconditional prediction using null token embedding
+        null_token_id = self.training_cfg.model.null_token_id
+        null_token_embedding = self.model.get_embeddings(torch.tensor([null_token_id], device=x_t.device))
+        x_t_uncond = torch.where(input_mask == 0, null_token_embedding, x_t)
         y_uncond = self.model(x_t_uncond, t, shortcut_size)
 
         # 3. Apply guidance formula: y = y_uncond + guidance_scale * (y_cond - y_uncond)

@@ -52,6 +52,7 @@ if __name__ == "__main__":
             "model.init_pretrained": "modern_bert",
             "model.config_name": "answerdotai/ModernBERT-base",
             "model.vocab_size": 50368,
+            "model.null_token_id": 50288,
             "model.word_embedding_std": 0.5,
             "training_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/train",
             "validation_data_path": "datasets/tokenized/ModernBERT-base/QQP-Official/valid",

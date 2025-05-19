@@ -71,6 +71,7 @@ class BaseModelConfig(BaseModel):
         description="Name of the base model configuration to use",
     )
     vocab_size: int = Field(default=30522, description="Size of the vocabulary")
+    null_token_id: int = Field(default=15, description="ID of the null token used for classifier-free guidance")
     sc_rate: float = Field(default=0.5, description="Self-conditioning rate")
     max_position_embeddings: int | None = Field(default=None, description="Maximum position embeddings")
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
