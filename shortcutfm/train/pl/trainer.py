@@ -142,6 +142,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         num_timestep_bins=cfg.num_timestep_bins,
         log_train_predictions_every_n_epochs=cfg.log_train_predictions_every_n_epochs,
         log_train_predictions_from_n_epochs=cfg.log_train_predictions_from_n_epochs,
+        normalize_embeddings=cfg.normalize_embeddings,
     )
 
     train_dataloader, val_dataloader = create_dataloaders(cfg)

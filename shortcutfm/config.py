@@ -314,6 +314,11 @@ class TrainingConfig(BaseModel):
         default=1000,
         description="Number of training epochs to start logging train predictions from",
     )
+    normalize_embeddings: bool = Field(
+        default=False,
+        description="Whether to normalize word embeddings and language model head weights to lie on a hypersphere"
+        "after each optimizer step",
+    )
 
     # time and shortcut sampling
     time_shortcut_sampling: TimeShortcutConfig = Field(

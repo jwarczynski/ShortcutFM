@@ -32,10 +32,12 @@ class TrainModule(pl.LightningModule):
         num_timestep_bins: int = 4,  # Number of bins for timestep logging
         log_train_predictions_every_n_epochs: int = 100,  # Number of epochs between train prediction logging
         log_train_predictions_from_n_epochs: int = 1000,  # Number of epochs between train prediction logging
+        normalize_embeddings: bool = False,  # Whether to normalize embeddings after optimizer step
     ) -> None:
         super().__init__()
         self.criterion = criterion
         self.optimizer_config = optimizer_config
+        self.normalize_embeddings = normalize_embeddings
 
         self.tokenizer = tokenizer
         self.prediction_strategy = prediction_strategy
@@ -571,6 +573,39 @@ class TrainModule(pl.LightningModule):
             optimizer=optimizer,
             config=self.optimizer_config,
         )
+
+    def on_before_zero_grad(self, optimizer) -> None:
+        """Hook called after optimizer step.
+
+        This is where we normalize the embeddings to ensure they lie on a hypersphere
+        after the gradients have been computed but before the weights are updated.
+        """
+        if self.normalize_embeddings:
+            self._normalize_embeddings_matrices()
+
+    def _normalize_embeddings_matrices(self) -> None:
+        """Normalize embedding weights to lie on a hypersphere.
+
+        This method normalizes the word embeddings of the model to have unit L2 norm,
+        effectively placing them on a hypersphere. This can help with training stability
+        and prevent embedding weights from growing too large.
+        """
+        with torch.no_grad():
+            # Normalize word embeddings
+            self.criterion.model.module.word_embedding.weight.data.copy_(
+                justnorm(self.criterion.model.module.word_embedding.weight.data, 1)
+            )
+            # Normalize language model head weights
+            self.criterion.model.module.lm_head.weight.data.copy_(
+                justnorm(self.criterion.model.module.lm_head.weight.data, 1)
+            )
+
+
+def justnorm(x, idim=-1):
+    dtype = x.dtype
+    x = x.float()
+    res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
+    return res
 
 
 def _extract_clean_predicted_text(predicted_text):
