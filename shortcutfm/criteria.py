@@ -693,14 +693,17 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         return y
 
     @override
-    def _prepare_2_shortcut_input(self, step1_prediction, x_start, x_t, t, shorcut_size, input_ids_mask: Tensor):
+    def _prepare_2_shortcut_input(self, step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask: Tensor):
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
 
-        step_size = (shorcut_size / self.diffusion_steps)[:, None, None]
-        step2_input = (1 - step_size) * x_t + step_size * step1_prediction
+        v_hat = step1_prediction - x_t
+
+        step_size = (shortcut_size / self.diffusion_steps)[:, None, None]
+        # step2_input = (1 - step_size) * x_t + step_size * step1_prediction
+        step2_input = x_t + step_size * v_hat
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
 
@@ -711,8 +714,8 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         step2_prediction,
         x_start,
         x_t,
-        __,
-        ___,
+        _,
+        shortcut_size,
         input_ids_mask: Tensor,
         step2_input: Tensor,
     ):
@@ -720,7 +723,10 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
 
-        target = torch.where(input_ids_mask == 0, x_start, step2_prediction)
+        v2_hat = step2_prediction - step2_input
+        step_size = (shortcut_size / self.diffusion_steps)[:, None, None]
+        target = step2_input + step_size * v2_hat
+        target = torch.where(input_ids_mask == 0, x_start, target)
         return target
 
     @override
