@@ -277,7 +277,7 @@ class FlowMatchingCriterion(Criterion):
     def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
         """Call the model and restore input part of the prediction with optional CFG"""
         # Check if CFG should be applied during inference
-        if self.training_cfg.cfg_guidance_scale == 1.0:
+        if self.training_cfg.cfg_guidance_scale == 1.0 or self.training_cfg.cfg_start_step is None:
             # Standard prediction without guidance
             model_output = self.model(x_t, t, shortcut_size)
             return self._restore_input_part(model_output, x_t, input_mask)
