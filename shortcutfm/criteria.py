@@ -180,6 +180,7 @@ class FlowMatchingCriterion(Criterion):
         return_decoded: bool = False,
         return_logits: bool = False,
         step_size: int | None = None,
+        guidance_scale: float | None = None,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Denoises batch of examples with flexible probing and output options.
 
@@ -213,6 +214,8 @@ class FlowMatchingCriterion(Criterion):
         if (shortcut_size == 0 or shortcut_size is None) and step_size is None:
             raise ValueError("step_size must be provided when shortcut_size is 0 or None")
 
+        guidance_scale = guidance_scale or self.training_cfg.cfg_guidance_scale
+        self.model.eval()
         # Use step_size if shortcut_size is None or 0
         # effective_step = step_size if (shortcut_size is None or shortcut_size == 0) else shortcut_size
         effective_step = step_size or shortcut_size
@@ -248,7 +251,7 @@ class FlowMatchingCriterion(Criterion):
         shortcuts = torch.tensor(shortcut_size, device=input_mask.device).repeat(input_mask.shape[0])
         for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -effective_step, device=input_mask.device)):
             t: Tensor = t.repeat(input_mask.shape[0])
-            model_output = self.infere_model(self.x_t, t, shortcuts, input_mask)
+            model_output = self.infere_model(self.x_t, t, shortcuts, input_mask, guidance_scale=guidance_scale)
             v_hat = self.compute_velocity(self.x_t, model_output, t, shortcuts, input_mask)
             x0_hat = self.x_t + (effective_step / self.diffusion_steps) * v_hat
             self.x_t = x0_hat
@@ -275,10 +278,13 @@ class FlowMatchingCriterion(Criterion):
 
         return predictions
 
-    def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
+    def infere_model(
+        self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor, guidance_scale: float | None = None
+    ) -> Tensor:
         """Call the model and restore input part of the prediction with optional CFG"""
         # Check if CFG should be applied during inference
-        if self.training_cfg.cfg_guidance_scale == 1.0 or self.training_cfg.cfg_start_step is None:
+        guidance_scale = guidance_scale or self.training_cfg.cfg_guidance_scale
+        if guidance_scale == 1.0 or self.training_cfg.cfg_start_step is None:
             # Standard prediction without guidance
             model_output = self.model(x_t, t, shortcut_size)
             return self._restore_input_part(model_output, x_t, input_mask)
