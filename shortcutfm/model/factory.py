@@ -14,6 +14,7 @@ from shortcutfm.model.model import (
     FFNBackbone,
     FlowMatchingModel,
     ModernBertBackbone,
+    ShortcutTokenTransformerNetModel,
     StackedEmbeddingTransformerNetModel,
     TransformerNetModel,
 )
@@ -92,7 +93,6 @@ class TransformerNetModelFactory:
         shortcut_embedding = None
         if self.config.hidden_shortcut_dim is not None:
             shortcut_embedding = self._create_shortcut_embedding()
-            print(f"shortcut embedding: {shortcut_embedding}")
 
         # Create input projection if needed
         input_up_proj = self._create_input_projection()
@@ -406,3 +406,53 @@ class FFNFactory(TransformerNetModelFactory):
         )
 
         return ffn, None, None
+
+
+class ShortcutTokenFactory(TransformerNetModelFactory):
+    """Factory class to create ShortcutTokenTransformerNetModel instances."""
+
+    @override
+    def _create_word_embeddings(self) -> tuple[nn.Embedding, nn.Linear]:
+        """Create word embeddings and language model head with extra tokens for shortcuts.
+
+        :return: Tuple of (word_embedding, lm_head)
+        :rtype: Tuple[nn.Embedding, nn.Linear]
+        """
+        input_dims = self.config.input_dims
+        vocab_size = self.config.vocab_size + self.config.diffusion_steps  # Add diffusion_steps for shortcut tokens
+
+        # Create word embedding layer with extra tokens
+        word_embedding = nn.Embedding(vocab_size, input_dims)
+        nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
+
+        # Create lm_head with conditional weight sharing
+        lm_head = nn.Linear(input_dims, self.config.vocab_size, bias=True)  # Note: output size is original vocab_size
+        with torch.no_grad():
+            if self.config.freeze_word_embedding:
+                # Independent weights: copy word_embedding weights to lm_head
+                lm_head.weight.copy_(word_embedding.weight[: self.config.vocab_size])
+            else:
+                # Shared weights: tie lm_head weights to word_embedding for efficiency
+                lm_head.weight.copy_(word_embedding.weight[: self.config.vocab_size])
+
+        return word_embedding, lm_head
+
+    @override
+    def create_module(self, modules):
+        """Create a ShortcutTokenTransformerNetModel instance.
+
+        :param modules: Model modules
+        :type modules: TransformerNetModelModules
+        :return: ShortcutTokenTransformerNetModel instance
+        :rtype: ShortcutTokenTransformerNetModel
+        """
+        return ShortcutTokenTransformerNetModel(**modules.__dict__, config=self.config)
+
+    @override
+    def _create_position_ids(self) -> Tensor:
+        """Create position IDs tensor with extra position for shortcut token.
+
+        :return: Position IDs tensor
+        :rtype: Tensor
+        """
+        return torch.arange(self.bert_config.max_position_embeddings + 1).expand((1, -1))  # +1 for shortcut token

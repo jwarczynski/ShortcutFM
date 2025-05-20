@@ -20,6 +20,7 @@ from shortcutfm.criteria import (
 from shortcutfm.model.dit_factory import DiTFactory
 from shortcutfm.model.factory import (
     FFNFactory,
+    ShortcutTokenFactory,
     StackedEmbeddingTransformerNetModelFactory,
     TransformerNetModelFactory,
 )
@@ -78,6 +79,8 @@ def create_factory(training_cfg: TrainingConfig):
             return FFNFactory(training_cfg.model)
         case "dit":
             return DiTFactory(training_cfg.model)
+        case "shortcut_token":
+            return ShortcutTokenFactory(training_cfg.model)
         case _:
             raise ValueError(f"Unknown model type: {training_cfg.model.type}")
 
@@ -129,7 +132,6 @@ def get_reduction_fn(reduce_fn: str) -> Callable[[torch.Tensor, int], torch.Tens
 
 def create_flow_matching_loss_fn(training_cfg):
     if training_cfg.loss.type == "mse":
-        print("Using MSE loss")
         return torch.nn.MSELoss(reduction="none")
 
     elif training_cfg.loss.type == "vmf":

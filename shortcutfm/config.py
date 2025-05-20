@@ -157,8 +157,28 @@ class DiTModelConfig(BaseModelConfig):
     model_config = ConfigDict(extra="forbid")
 
 
+class ShortcutTokenModelConfig(BaseModelConfig):
+    """Configuration for architecture that handles shortcuts as separate tokens"""
+
+    type: Literal["shortcut_token"] = "shortcut_token"
+    init_pretrained: Literal["bert", "modern_bert"] = Field(
+        default="bert",
+        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
+    )
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)",
+    )
+    logits_mode: int = Field(default=1, description="Mode for logits computation")
+    predict_t: bool = Field(default=False, description="Whether to predict timestep")
+    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
+        default="gelu", description="Activation function for projection layers"
+    )
+    model_config = ConfigDict(extra="forbid")
+
+
 # Define the model config union with discriminator
-ModelConfig = TransformerModelConfig | StackedModelConfig | FFNModelConfig | DiTModelConfig
+ModelConfig = TransformerModelConfig | StackedModelConfig | FFNModelConfig | DiTModelConfig | ShortcutTokenModelConfig
 
 
 class BaseSchedulerConfig(BaseModel):
