@@ -12,141 +12,9 @@ import numpy as np
 import torch
 from torch import Tensor
 
-
-def denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True, device="cuda") -> dict[str, Any]:
-    """
-    Perform denoising while tracking model predictions and ground truth velocities.
-
-    Args:
-        model: The model to use for denoising
-        batch: The batch to denoise
-        shortcut_size: The shortcut size to use for denoising
-        per_token_cosine: If True, calculate cosine similarity for each token separately and take the mean.
-                          If False, flatten all tokens into a single vector before calculating similarity.
-        device: The device to use for computation
-
-    Returns:
-        A dictionary containing:
-        - predicted_velocities: Model's predicted velocities at each step
-        - ground_truth_velocities: Ground truth velocities at each step
-        - timesteps: Timesteps used during denoising
-        - cosine_similarities: Cosine similarities between predicted and ground truth velocities
-        - predicted_velocity_norms: L2 norms of predicted velocities at each step
-        - ground_truth_velocity_norms: L2 norms of ground truth velocities at each step
-        - model_outputs: Model's predicted clean embeddings at each step
-        - ground_truth_embeddings: Ground truth embeddings
-        - l2_distances: L2 distances between predicted and ground truth embeddings at each step
-        - velocity_l2_distances: L2 distances between predicted and ground truth velocities at each step
-    """
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.eval()
-    diffusion_steps = model.criterion.model.diffusion_steps
-
-    # Move individual tensors in batch to device instead of the whole batch
-    seqs = batch.seqs.to(device)
-    input_ids_mask = batch.input_ids_mask.to(device)
-    padding_mask = batch.padding_mask.to(device)
-
-    # Initialize tracking variables
-    predicted_velocities = []
-    ground_truth_velocities = []
-    timesteps_list = []
-    cosine_similarities = []
-    predicted_velocity_norms = []
-    ground_truth_velocity_norms = []
-    model_outputs = []
-    l2_distances = []
-    velocity_l2_distances = []
-
-    with torch.no_grad():
-        # Get input mask and embeddings
-        input_mask: Tensor = input_ids_mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
-        embeddings = model.criterion.model.get_embeddings(seqs)  # [batch_size, seq_len, hidden_dim]
-
-        # Initialize with noise where mask is 0
-        noise = torch.randn_like(embeddings)
-        x_t = torch.where(input_mask == 0, embeddings, noise)
-
-        # Store the original embeddings as ground truth x0
-        x0_ground_truth = embeddings.clone()
-
-        # Denoising loop
-        shortcuts = torch.tensor(shortcut_size, device=device).repeat(input_mask.shape[0])
-
-        for t in torch.arange(diffusion_steps, 0, -shortcut_size, device=device):
-            t_batch = t.repeat(input_mask.shape[0])
-            timesteps_list.append(t.item())
-
-            # Get model prediction (x0_hat, not velocity)
-            model_output = model.criterion.model(x_t, t_batch, shortcuts)
-
-            # Store model output
-            model_outputs.append(model_output.clone())
-
-            # Restore input part based on mask
-            model_output = torch.where(input_mask == 0, x_t, model_output)
-
-            # Calculate predicted velocity (v_hat)
-            v_hat = model_output - x_t
-            v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
-
-            # Calculate ground truth velocity
-            v_ground_truth = x0_ground_truth - x_t
-
-            # Store velocities
-            predicted_velocities.append(v_hat.clone())
-            ground_truth_velocities.append(v_ground_truth.clone())
-
-            # Calculate cosine similarity between predicted and ground truth velocities
-            cos_sim, pred_norm, gt_norm = calculate_batch_cosine_similarity(
-                v_hat, v_ground_truth, input_mask, padding_mask.unsqueeze(-1), per_token=per_token_cosine
-            )
-            cosine_similarities.append(cos_sim)
-
-            # Store velocity norms from cosine similarity calculation
-            predicted_velocity_norms.append(pred_norm.mean().item())
-            ground_truth_velocity_norms.append(gt_norm.mean().item())
-
-            # Calculate L2 distance between model prediction and ground truth for valid tokens
-            # Create mask for tokens we want to compute L2 distance for:
-            # - input_mask == 0 (input tokens)
-            # - padding_mask == 1 (non-padding tokens)
-            valid_token_mask = (input_mask.squeeze(-1) == 1) & (padding_mask == 1)
-
-            # Calculate L2 distances only for valid tokens
-            l2_dists = torch.norm(
-                model_output[valid_token_mask] - x0_ground_truth[valid_token_mask], dim=-1
-            )  # [num_valid_tokens]
-
-            # Average L2 distance across valid tokens
-            l2_dist = l2_dists.mean().item()
-            l2_distances.append(l2_dist)
-
-            # Calculate L2 distance between predicted and ground truth velocities for valid tokens
-            velocity_l2_dists = torch.norm(
-                v_hat[valid_token_mask] - v_ground_truth[valid_token_mask], dim=-1
-            )  # [num_valid_tokens]
-
-            # Average velocity L2 distance across valid tokens
-            velocity_l2_dist = velocity_l2_dists.mean().item()
-            velocity_l2_distances.append(velocity_l2_dist)
-
-            # Update x_t for next step
-            x0_hat = x_t + (shortcuts / diffusion_steps)[:, None, None] * v_hat
-            x_t = x0_hat
-
-    return {
-        "predicted_velocities": predicted_velocities,
-        "ground_truth_velocities": ground_truth_velocities,
-        "timesteps": timesteps_list,
-        "cosine_similarities": cosine_similarities,
-        "predicted_velocity_norms": predicted_velocity_norms,
-        "ground_truth_velocity_norms": ground_truth_velocity_norms,
-        "model_outputs": model_outputs,
-        "ground_truth_embeddings": x0_ground_truth,
-        "l2_distances": l2_distances,
-        "velocity_l2_distances": velocity_l2_distances,
-    }
+from shortcutfm.analysis.denoising import denoise_with_velocity_tracking
+from shortcutfm.batch import EncoderBatch
+from shortcutfm.criteria import FlowMatchingCriterion
 
 
 def calculate_batch_cosine_similarity(
@@ -290,15 +158,23 @@ def visualize_per_example_cosine_similarities(
 
 
 def compare_cosine_similarity_methods(
-    model, batch, shortcut_size, figsize: tuple[int, int] = (12, 6), save_path: str | None = None
+    criterion: FlowMatchingCriterion,
+    batch: EncoderBatch,
+    shortcut_size: int | None = None,
+    step_size: int | None = None,
+    guidance_scale: float | None = None,
+    figsize: tuple[int, int] = (12, 6),
+    save_path: str | None = None,
 ) -> dict[str, Any]:
     """
     Compare per-token vs flattened cosine similarity calculations.
 
     Args:
-        model: The model to use for denoising
+        criterion: The criterion to use for denoising
         batch: The batch to denoise
         shortcut_size: The shortcut size to use for denoising
+        step_size: The step size to use for denoising when shortcut_size is None or 0
+        guidance_scale: The guidance scale to use for classifier-free guidance
         figsize: Figure size for the plot
         save_path: Path to save the figure (optional)
 
@@ -306,8 +182,22 @@ def compare_cosine_similarity_methods(
         Dictionary with results from both methods
     """
     # Run denoising with both methods
-    results_per_token = denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=True)
-    results_flattened = denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=False)
+    results_per_token = denoise_with_velocity_tracking(
+        criterion,
+        batch,
+        shortcut_size=shortcut_size,
+        step_size=step_size,
+        guidance_scale=guidance_scale,
+        per_token_cosine=True,
+    )
+    results_flattened = denoise_with_velocity_tracking(
+        criterion,
+        batch,
+        shortcut_size=shortcut_size,
+        step_size=step_size,
+        guidance_scale=guidance_scale,
+        per_token_cosine=False,
+    )
 
     # Extract results
     timesteps = results_per_token["timesteps"]
@@ -335,9 +225,11 @@ def compare_cosine_similarity_methods(
 
 
 def analyze_multiple_batches(
-    model,
+    criterion: FlowMatchingCriterion,
     dataloader,
-    shortcut_size,
+    shortcut_size: int | None = None,
+    step_size: int | None = None,
+    guidance_scale: float | None = None,
     num_batches: int = 5,
     per_token_cosine: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
@@ -346,12 +238,13 @@ def analyze_multiple_batches(
     Analyze velocity predictions across multiple batches.
 
     Args:
-        model: The model to use for denoising
+        criterion: The criterion to use for denoising
         dataloader: DataLoader to get batches from
         shortcut_size: The shortcut size to use for denoising
+        step_size: The step size to use for denoising when shortcut_size is None or 0
+        guidance_scale: The guidance scale to use for classifier-free guidance
         num_batches: Number of batches to process
-        per_token_cosine: If True, calculate cosine similarity for each token separately and take the mean.
-                          If False, flatten all tokens into a single vector before calculating similarity.
+        per_token_cosine: If True, calculate cosine similarity for each token separately
         device: The device to use for computation
 
     Returns:
@@ -369,7 +262,15 @@ def analyze_multiple_batches(
             break
 
         # Run denoising with tracking
-        results = denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=per_token_cosine)
+        results = denoise_with_velocity_tracking(
+            criterion,
+            batch,
+            shortcut_size=shortcut_size,
+            step_size=step_size,
+            guidance_scale=guidance_scale,
+            per_token_cosine=per_token_cosine,
+            device=device,
+        )
 
         # Store timesteps from first batch
         if timesteps is None:
@@ -552,9 +453,11 @@ def calculate_noise_to_target_distance(
 
 
 def analyze_velocity_predictions(
-    model,
-    batch,
-    shortcut_size,
+    criterion: FlowMatchingCriterion,
+    batch: EncoderBatch,
+    shortcut_size: int | None = None,
+    step_size: int | None = None,
+    guidance_scale: float | None = None,
     per_token_cosine: bool = True,
     compare_methods: bool = False,
     output_dir: str | None = None,
@@ -564,17 +467,18 @@ def analyze_velocity_predictions(
     Analyze velocity predictions during denoising.
 
     Args:
-        model: The model to use for denoising
+        criterion: The criterion to use for denoising
         batch: The batch to denoise
         shortcut_size: The shortcut size to use for denoising
-        per_token_cosine: If True, calculate cosine similarity for each token separately and take the mean.
-                          If False, flatten all tokens into a single vector before calculating similarity.
+        step_size: The step size to use for denoising when shortcut_size is None or 0
+        guidance_scale: The guidance scale to use for classifier-free guidance
+        per_token_cosine: If True, calculate cosine similarity for each token separately
         compare_methods: Whether to compare per-token vs flattened methods
         output_dir: Directory to save figures (optional)
         prefix: Prefix for saved figure filenames
 
     Returns:
-        Results from denoise_with_tracking
+        Results from denoise_with_velocity_tracking
     """
     print("Running velocity tracking...")
 
@@ -585,11 +489,25 @@ def analyze_velocity_predictions(
     # Compare methods if requested
     if compare_methods:
         save_path = os.path.join(output_dir, f"{prefix}_method_comparison.png") if output_dir else None
-        comparison_results = compare_cosine_similarity_methods(model, batch, shortcut_size, save_path=save_path)
+        comparison_results = compare_cosine_similarity_methods(
+            criterion,
+            batch,
+            shortcut_size=shortcut_size,
+            step_size=step_size,
+            guidance_scale=guidance_scale,
+            save_path=save_path,
+        )
         results = comparison_results["per_token"] if per_token_cosine else comparison_results["flattened"]
     else:
         # Run denoising with velocity tracking
-        results = denoise_with_tracking(model, batch, shortcut_size, per_token_cosine=per_token_cosine)
+        results = denoise_with_velocity_tracking(
+            criterion,
+            batch,
+            shortcut_size=shortcut_size,
+            step_size=step_size,
+            guidance_scale=guidance_scale,
+            per_token_cosine=per_token_cosine,
+        )
 
         # Visualize cosine similarities
         save_path = os.path.join(output_dir, f"{prefix}_cosine_similarities.png") if output_dir else None
@@ -621,6 +539,8 @@ if __name__ == "__main__":
         help="Path to test data",
     )
     parser.add_argument("--shortcut_size", type=int, default=1024, help="Shortcut size for denoising")
+    parser.add_argument("--step_size", type=int, help="Step size for denoising when shortcut_size is None or 0")
+    parser.add_argument("--guidance_scale", type=float, help="Guidance scale for classifier-free guidance")
     parser.add_argument("--per-token", action="store_true", help="Calculate cosine similarity per token")
     parser.add_argument("--compare-methods", action="store_true", help="Compare per-token vs flattened methods")
     parser.add_argument("--output-dir", type=str, default="reports/figures", help="Directory to save figures")
@@ -710,7 +630,13 @@ if __name__ == "__main__":
         # Analyze multiple batches
         print(f"Analyzing {args.num_batches} batches...")
         batch_results = analyze_multiple_batches(
-            unit, test_dataloader, args.shortcut_size, num_batches=args.num_batches, per_token_cosine=args.per_token
+            unit.criterion,
+            test_dataloader,
+            shortcut_size=args.shortcut_size,
+            step_size=args.step_size,
+            guidance_scale=args.guidance_scale,
+            num_batches=args.num_batches,
+            per_token_cosine=args.per_token,
         )
 
         # Visualize batch statistics
@@ -729,9 +655,11 @@ if __name__ == "__main__":
 
         # Run analysis
         analyze_velocity_predictions(
-            unit,
+            unit.criterion,
             test_batch,
-            args.shortcut_size,
+            shortcut_size=args.shortcut_size,
+            step_size=args.step_size,
+            guidance_scale=args.guidance_scale,
             per_token_cosine=args.per_token,
             compare_methods=args.compare_methods,
             output_dir=args.output_dir,
