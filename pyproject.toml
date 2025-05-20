@@ -34,7 +34,7 @@ dev = [
 [tool.ruff]
 line-length = 120  # Matches black's default, adjust as needed
 target-version = "py312"  # Matches your requires-python
-exclude = [".git", "__pycache__", ".venv", "*.ipynb"]
+exclude = [".git", "__pycache__", ".venv", "*.ipynb", "FMSeq"]
 
 [tool.ruff.format]
 quote-style = "double"  # Consistent with black
