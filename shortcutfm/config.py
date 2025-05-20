@@ -50,6 +50,7 @@ class CheckpointConfig(BaseModel):
         default=None,
         description="Path to checkpoint file to resume from. None means start from scratch",
     )
+    enabled: bool = Field(default=True, description="Whether to enable checkpointing")
     model_config = ConfigDict(extra="forbid")
 
 
