@@ -247,6 +247,7 @@ class TrainModule(pl.LightningModule):
         :return: The cross entropy loss for this batch
         :rtype: float
         """
+        self.criterion.model.eval()
         with torch.no_grad():
             # Get logits from denoising process
             predictions: Tensor = self.criterion.denoise(
@@ -314,7 +315,8 @@ class TrainModule(pl.LightningModule):
                         on_epoch=True,
                     )
 
-            return ce_loss.mean().item()
+        self.criterion.model.train()
+        return ce_loss.mean().item()
 
     def _compute_masked_cross_entropy(self, predictions: Tensor, batch: EncoderBatch) -> Tensor:
         """Compute masked cross entropy loss for predictions.

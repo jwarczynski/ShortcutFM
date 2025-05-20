@@ -403,7 +403,14 @@ class GenerationConfig(BaseModel):
     )
 
     # Generation settings
-    generation_shortcut_size: int = Field(default=1, description="Size of generation shortcut")
+    generation_shortcut_size: int = Field(
+        default=1,
+        description="Shorcut value passed to the model in each denoising step."
+        "Do no influence number of denoising steps.",
+    )
+    denoising_step_size: int = Field(
+        default=1, description="Determines the number of denoising steps. Do not influence the shortcut size."
+    )
     seed: int = Field(default=44, description="Random seed for reproducibility")
     output_folder: str = Field(default="outputs", description="Folder to save generation outputs")
 

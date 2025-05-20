@@ -214,7 +214,8 @@ class FlowMatchingCriterion(Criterion):
             raise ValueError("step_size must be provided when shortcut_size is 0 or None")
 
         # Use step_size if shortcut_size is None or 0
-        effective_step = step_size if (shortcut_size is None or shortcut_size == 0) else shortcut_size
+        # effective_step = step_size if (shortcut_size is None or shortcut_size == 0) else shortcut_size
+        effective_step = step_size or shortcut_size
         shortcut_size = shortcut_size or 0
 
         self._reset()
@@ -1207,7 +1208,7 @@ class CompositeCriterion(Criterion):
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Denoises batch of examples with flexible probing and output options.
 
-        :param batch: batch of examples to denoise
+        :param batch: Batch of examples to denoise
         :type batch: EncoderBatch
         :param shortcut_size: shortcut size to use during denoising. If None or 0, step_size must be provided
         :type shortcut_size: Optional[int]

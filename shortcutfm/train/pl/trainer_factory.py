@@ -317,6 +317,8 @@ def load_unit_from_checkpoint(
     criterion: CompositeCriterion | FlowNllCriterion,
     checkpoint_path: Path | str,
     training_config: TrainingConfig,
+    denoisng_step_size: int | None = None,
+    prediction_shortcut_size: int | None = None,
 ) -> TrainModule:
     """Load and configure training unit from checkpoint.
 
@@ -329,10 +331,15 @@ def load_unit_from_checkpoint(
     :return: Configured training unit loaded from checkpoint
     :rtype: TrainModule
     """
+    denoisng_step_size: int | None = denoisng_step_size or training_config.denoising_step_size
+    prediction_shortcut_size: int | None = prediction_shortcut_size or training_config.prediction_shortcut_size
+
     unit = TrainModule.load_from_checkpoint(
         str(checkpoint_path),
         criterion=criterion,
         scheduler_config=training_config.optimizer.scheduler,
+        prediction_shortcut_size=prediction_shortcut_size,
+        denoising_step_size=denoisng_step_size,
     )
     return unit
 

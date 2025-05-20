@@ -79,7 +79,13 @@ if __name__ == "__main__":
     callbacks.append(save_outputs_callback)
 
     criterion = create_criterion(gen_cfg.training_config)
-    unit = load_unit_from_checkpoint(criterion, gen_cfg.checkpoint_path, gen_cfg.training_config)
+    unit = load_unit_from_checkpoint(
+        criterion,
+        gen_cfg.checkpoint_path,
+        gen_cfg.training_config,
+        gen_cfg.denoising_step_size,
+        gen_cfg.generation_shortcut_size,
+    )
     unit.set_prediction_shortcut_size(gen_cfg.generation_shortcut_size)
     test_dataloader = create_test_dataloader(gen_cfg)
 
