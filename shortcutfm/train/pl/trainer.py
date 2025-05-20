@@ -161,10 +161,14 @@ def get_lightning_trainer(cfg: TrainingConfig):
             save_last=cfg.checkpoint.save_last,
             monitor=cfg.checkpoint.monitor,
             mode=cfg.checkpoint.mode,
-        ),
+        )
+        if cfg.checkpoint.enabled
+        else None,
         LearningRateMonitor(logging_interval="step"),
         GradientMonitor(),
     ]
+    # Filter out None callbacks
+    callbacks = [cb for cb in callbacks if cb is not None]
 
     if ema_callback := get_ema_callback(cfg, cfg.checkpoint.path):
         callbacks.append(ema_callback)
@@ -173,6 +177,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         max_steps=cfg.max_steps,
         logger=wandb_logger,
         callbacks=callbacks,
+        enable_checkpointing=cfg.checkpoint.enabled,
         precision=32,
         gradient_clip_val=cfg.gradient_clipping,
         gradient_clip_algorithm="norm",

@@ -18,6 +18,22 @@ class EncoderBatch:
     def size(self):
         return self.seqs.size(0)
 
+    def to(self, device: torch.device | str) -> "EncoderBatch":
+        """Move all tensors in the batch to the specified device.
+
+        Args:
+            device: The target device to move tensors to.
+
+        Returns:
+            A new EncoderBatch instance with all tensors moved to the specified device.
+        """
+        return EncoderBatch(
+            seqs=self.seqs.to(device),
+            padding_mask=self.padding_mask.to(device),
+            input_ids_mask=self.input_ids_mask.to(device),
+            global_step=self.global_step,
+        )
+
     def split(self, index: int) -> tuple["EncoderBatch"] | tuple["EncoderBatch", "EncoderBatch"]:
         if isinstance(index, float):
             raise ValueError("split does not support floating point microbatch_size.")
@@ -42,6 +58,26 @@ class FlowMatchingBatch(EncoderBatch):
     x_t: Tensor
     noise: Tensor
     t: Tensor
+
+    def to(self, device: torch.device | str) -> "FlowMatchingBatch":
+        """Move all tensors in the batch to the specified device.
+
+        Args:
+            device: The target device to move tensors to.
+
+        Returns:
+            A new FlowMatchingBatch instance with all tensors moved to the specified device.
+        """
+        return FlowMatchingBatch(
+            seqs=self.seqs.to(device),
+            padding_mask=self.padding_mask.to(device),
+            input_ids_mask=self.input_ids_mask.to(device),
+            x_start=self.x_start.to(device),
+            x_t=self.x_t.to(device),
+            noise=self.noise.to(device),
+            t=self.t.to(device),
+            global_step=self.global_step,
+        )
 
     def split(self, index: int) -> tuple["FlowMatchingBatch", "FlowMatchingBatch"]:
         return (
@@ -84,6 +120,27 @@ class FlowMatchingBatch(EncoderBatch):
 @dataclass
 class ShortcutFMBatch(FlowMatchingBatch):
     shortcut_size: Tensor
+
+    def to(self, device: torch.device | str) -> "ShortcutFMBatch":
+        """Move all tensors in the batch to the specified device.
+
+        Args:
+            device: The target device to move tensors to.
+
+        Returns:
+            A new ShortcutFMBatch instance with all tensors moved to the specified device.
+        """
+        return ShortcutFMBatch(
+            seqs=self.seqs.to(device),
+            padding_mask=self.padding_mask.to(device),
+            input_ids_mask=self.input_ids_mask.to(device),
+            x_start=self.x_start.to(device),
+            x_t=self.x_t.to(device),
+            noise=self.noise.to(device),
+            t=self.t.to(device),
+            shortcut_size=self.shortcut_size.to(device),
+            global_step=self.global_step,
+        )
 
     @classmethod
     def from_flow_matching_batch(cls, fm_batch: FlowMatchingBatch, shortcut_size: Tensor) -> "ShortcutFMBatch":
