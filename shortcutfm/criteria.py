@@ -388,7 +388,7 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
     @override
     def compute_velocity(self, x_t, x0_hat: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
         t = self.scale_t(t).view(-1, 1, 1)
-        v_hat = (x0_hat - x_t) / t
+        v_hat = x0_hat - x_t
         assert torch.all(v_hat[input_mask.expand_as(v_hat) == 0] == 0), "v_hat is not zero where input_mask is zero"
         return v_hat
 
