@@ -730,10 +730,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
 
-        v2_hat = step2_prediction - step2_input
-        step_size = (shortcut_size / self.diffusion_steps)[:, None, None]
-        target = step2_input + step_size * v2_hat
-        target = torch.where(input_ids_mask == 0, x_start, target)
+        target = torch.where(input_ids_mask == 0, x_start, step2_prediction)
         return target
 
     @override
