@@ -39,8 +39,8 @@ class CheckpointConfig(BaseModel):
     """Checkpoint configuration settings"""
 
     save_folder: str = Field(default="checkpoints", description="Directory to save checkpoints")
-    save_interval: int = Field(default=100, description="How often to save checkpoints")
-    num_to_keep: int = Field(default=-1, description="Number of checkpoints to keep (-1 for all)")
+    save_interval: int = Field(default=1000, description="How often to save checkpoints")
+    num_to_keep: int = Field(default=15, description="Number of checkpoints to keep (-1 for all)")
     overwrite: bool = Field(default=False, description="Whether to overwrite existing checkpoints")
     save_last: bool = Field(default=True, description="Whether to save the last checkpoint")
     save_top_k: int = Field(default=-1, description="Number of top checkpoints to save (-1 for all)")
