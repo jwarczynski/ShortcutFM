@@ -22,6 +22,7 @@ def denoise_with_tracking(
     guidance_scale: float | None = None,
     tracking_fn: Callable[[Tensor, Tensor, Tensor, Tensor, Tensor], dict[str, Any]] | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    use_ground_truth_interpolation: bool = False,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking model predictions and optionally applying custom tracking.
@@ -34,6 +35,8 @@ def denoise_with_tracking(
         guidance_scale: The guidance scale to use for classifier-free guidance
         tracking_fn: Optional function to track additional metrics during denoising
         device: The device to use for computation
+        use_ground_truth_interpolation: If True, use ground truth interpolation between original
+                                        embedding and noise based on timestep t instead of model prediction
 
     Returns:
         A dictionary containing:
@@ -88,7 +91,7 @@ def denoise_with_tracking(
             model_output = criterion.infere_model(x_t, t_batch, shortcuts, input_mask, guidance_scale=guidance_scale)
 
             # Store model output
-            # model_outputs.append(model_output.clone())
+            model_outputs.append(model_output.clone())
 
             # Apply custom tracking if provided
             if tracking_fn:
@@ -98,10 +101,24 @@ def denoise_with_tracking(
                 tracking_results.append(tracking_result)
 
             # Update x_t for next step
-            v_hat = criterion.compute_velocity(x_t, model_output, t_batch, shortcuts, input_mask)
-            x0_hat = x_t + (effective_step / diffusion_steps) * v_hat
+            if use_ground_truth_interpolation:
+                # Use ground truth interpolation based on timestep t
+                # Calculate the next timestep
+                next_t = max(t.item() - effective_step, 0)
+                # Interpolate between ground truth and noise based on next timestep
+                next_t_scaled = next_t / diffusion_steps
+                # Apply the interpolation formula: x0 + (noise - x0) * t
+                x0_hat = torch.where(
+                    input_mask == 0,
+                    x0_ground_truth,  # Keep original embeddings for input tokens
+                    x0_ground_truth + (noise - x0_ground_truth) * next_t_scaled,  # Interpolate for masked tokens
+                )
+            else:
+                # Use model prediction (original behavior)
+                v_hat = criterion.compute_velocity(x_t, model_output, t_batch, shortcuts, input_mask)
+                x0_hat = x_t + (effective_step / diffusion_steps) * v_hat
+
             x_t = x0_hat
-            model_outputs.append(x0_hat.clone())
 
     results = {
         "timesteps": timesteps_list,
@@ -123,6 +140,7 @@ def denoise_with_velocity_tracking(
     guidance_scale: float | None = None,
     per_token_cosine: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    use_ground_truth_interpolation: bool = False,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking velocity predictions.
@@ -135,6 +153,8 @@ def denoise_with_velocity_tracking(
         guidance_scale: The guidance scale to use for classifier-free guidance
         per_token_cosine: If True, calculate cosine similarity for each token separately
         device: The device to use for computation
+        use_ground_truth_interpolation: If True, use ground truth interpolation between original
+                                        embedding and noise based on timestep t instead of model prediction
 
     Returns:
         A dictionary containing velocity tracking results
@@ -183,6 +203,7 @@ def denoise_with_velocity_tracking(
         guidance_scale=guidance_scale,
         tracking_fn=velocity_tracking_fn,
         device=device,
+        use_ground_truth_interpolation=use_ground_truth_interpolation,
     )
 
     # Extract and organize tracking results
@@ -211,6 +232,7 @@ def denoise_with_token_tracking(
     top_k: int = 5,
     example_idx: int = 0,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    use_ground_truth_interpolation: bool = False,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking token probabilities and L2 distances.
@@ -224,6 +246,8 @@ def denoise_with_token_tracking(
         top_k: Number of top tokens to track at each step
         example_idx: Index of the example in the batch to track
         device: The device to use for computation
+        use_ground_truth_interpolation: If True, use ground truth interpolation between original
+                                        embedding and noise based on timestep t instead of model prediction
 
     Returns:
         A dictionary containing token tracking results
@@ -296,6 +320,7 @@ def denoise_with_token_tracking(
         guidance_scale=guidance_scale,
         tracking_fn=token_tracking_fn,
         device=device,
+        use_ground_truth_interpolation=use_ground_truth_interpolation,
     )
 
     # Extract and organize tracking results
