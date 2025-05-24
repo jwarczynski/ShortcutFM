@@ -85,7 +85,7 @@ class FlowMatchingModel(Module):
     def __init__(
         self,
         module: Module,
-        diffusion_steps,
+        diffusion_steps: int,
         min_shortcut_size,
         scale_time,
         *args,

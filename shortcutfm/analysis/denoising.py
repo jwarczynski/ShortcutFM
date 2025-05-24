@@ -52,7 +52,7 @@ def denoise_with_tracking(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     criterion.model.eval()
-    diffusion_steps = criterion.model.diffusion_steps
+    diffusion_steps: int = criterion.model.diffusion_steps
 
     # Move individual tensors in batch to device
     seqs = batch.seqs.to(device)
