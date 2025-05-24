@@ -91,10 +91,6 @@ class TransformerModelConfig(BaseModelConfig):
     """Configuration for Transformer architecture"""
 
     type: Literal["transformer"] = "transformer"
-    init_pretrained: Literal["bert", "modern_bert"] = Field(
-        default="bert",
-        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
-    )
     use_pretrained_weights: bool = Field(
         default=False,
         description="Whether to use pretrained weights (True) or random initialization (False)",
@@ -111,10 +107,6 @@ class StackedModelConfig(BaseModelConfig):
     """Configuration for Stacked architecture"""
 
     type: Literal["stacked"] = "stacked"
-    init_pretrained: Literal["bert", "modern_bert"] = Field(
-        default="bert",
-        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
-    )
     use_pretrained_weights: bool = Field(
         default=False,
         description="Whether to use pretrained weights (True) or random initialization (False)",
@@ -131,10 +123,6 @@ class FFNModelConfig(BaseModelConfig):
     """Configuration for FFN architecture"""
 
     type: Literal["ffn"] = "ffn"
-    init_pretrained: Literal["bert", "modern_bert"] = Field(
-        default="bert",
-        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
-    )
     use_pretrained_weights: bool = Field(
         default=False,
         description="Whether to use pretrained weights (True) or random initialization (False)",
@@ -161,10 +149,6 @@ class ShortcutTokenModelConfig(BaseModelConfig):
     """Configuration for architecture that handles shortcuts as separate tokens"""
 
     type: Literal["shortcut_token"] = "shortcut_token"
-    init_pretrained: Literal["bert", "modern_bert"] = Field(
-        default="bert",
-        description="Which model architecture to use: 'bert' for BERT, 'modern_bert' for ModernBERT",
-    )
     use_pretrained_weights: bool = Field(
         default=False,
         description="Whether to use pretrained weights (True) or random initialization (False)",

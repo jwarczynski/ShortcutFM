@@ -196,12 +196,12 @@ class TransformerNetModelFactory:
         :return: Tuple of (input_transformers, position_embeddings, layer_norm)
         :rtype: Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]
         """
-        if self.config.init_pretrained == "bert":
+        if self.config.config_name == "bert-base-uncased":
             return self._create_bert_backbone(word_embedding)
-        elif self.config.init_pretrained == "modern_bert":
+        elif self.config.config_name == "answerdotai/ModernBERT-base":
             return self._create_modern_bert_backbone(word_embedding)
         else:
-            raise ValueError(f"Invalid init_pretrained value: {self.config.init_pretrained}")
+            raise ValueError(f"Invalid config value: {self.config.config_name}")
 
     def _create_bert_backbone(
         self, word_embedding: nn.Embedding

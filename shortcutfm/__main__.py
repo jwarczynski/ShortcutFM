@@ -49,7 +49,6 @@ if __name__ == "__main__":
 
     else:
         modern_bert_cfg = {
-            "model.init_pretrained": "modern_bert",
             "model.config_name": "answerdotai/ModernBERT-base",
             "model.vocab_size": 50368,
             "model.null_token_id": 50288,
