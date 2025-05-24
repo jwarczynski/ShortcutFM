@@ -700,6 +700,16 @@ class ConsistencyCriterion(Criterion, ABC):
         return trg
 
     @abstractmethod
+    def compute_velocity(
+        self,
+        *,
+        model_output: Tensor,
+        noise: Tensor,
+        input_mask: Tensor,
+    ) -> Tensor:
+        """Computes velocity based on models output for the denoising process"""
+
+    @abstractmethod
     def _modify_model_input_or_output(
         self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Tensor | None = None
     ) -> Tensor:
@@ -786,6 +796,19 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         return target
 
     @override
+    def compute_velocity(
+        self,
+        *,
+        model_output: Tensor,
+        noise: Tensor,
+        input_mask: Tensor,
+    ) -> Tensor:
+        v_hat = model_output - noise
+        input_mask = input_mask.unsqueeze(-1) if input_mask.dim() == 2 else input_mask
+        v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
+        return v_hat
+
+    @override
     def _modify_model_input_or_output(
         self, input_ids_mask: Tensor, x_start: Tensor, y_hat: Tensor | None = None
     ) -> Tensor:
@@ -832,6 +855,18 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         target = (step1_prediction + step2_prediction) / 2
         target = torch.where(input_ids_mask == 0, 0, target)
         return target
+
+    @override
+    def compute_velocity(
+        self,
+        *,
+        model_output: Tensor,  # v_hat
+        noise: Tensor,
+        input_mask: Tensor,
+    ) -> Tensor:
+        input_mask = input_mask.unsqueeze(-1) if input_mask.dim() == 2 else input_mask
+        v_hat = torch.where(input_mask == 0, torch.zeros_like(model_output), model_output)
+        return v_hat
 
     @override
     def _modify_model_input_or_output(
