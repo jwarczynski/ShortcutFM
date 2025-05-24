@@ -191,6 +191,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
         overfit_batches=int(cfg.overfit_batches) if cfg.overfit_batches >= 1 else cfg.overfit_batches,
+        num_sanity_val_steps=0,
     )
 
     return trainer, train_unit, train_dataloader, val_dataloader

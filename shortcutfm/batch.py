@@ -166,8 +166,8 @@ class ShortcutFMBatch(FlowMatchingBatch):
 
 def collate(
     batch: list[dict[str, Tensor]],
-    mark_first_padding: bool = False,
-    mark_second_padding: bool = False,
+    mark_first_padding: bool = True,
+    mark_second_padding: bool = True,
 ) -> EncoderBatch:
     """Collates a batch of dictionaries into an EncoderBatch.
 
