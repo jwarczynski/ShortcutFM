@@ -173,8 +173,8 @@ class TrainModule(pl.LightningModule):
         - Shortcut sizes that were used
         It also logs the count of samples for each.
         """
-        if self.timesteps_for_histogram:
-            self.logger.experiment.log(
+        if self.timesteps_for_histogram and hasattr(self.logger, "experiment"):
+            self.logger.experiment.log(  # type: ignore
                 {
                     "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
                     "train/timesteps_count": len(self.timesteps_for_histogram),
@@ -182,8 +182,8 @@ class TrainModule(pl.LightningModule):
             )
             self.timesteps_for_histogram = []  # Clear for next epoch
 
-        if self.shortcuts_for_histogram:
-            self.logger.experiment.log(
+        if self.shortcuts_for_histogram and hasattr(self.logger, "experiment"):
+            self.logger.experiment.log(  # type: ignore
                 {
                     "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
                     "train/shortcuts_count": len(self.shortcuts_for_histogram),
@@ -221,7 +221,7 @@ class TrainModule(pl.LightningModule):
                     "cross_entropy",
                     "bleu",
                 ]
-                self.logger.log_table("train/predictions", columns=columns, data=self.train_predictions)
+                self.logger.log_table("train/predictions", columns=columns, data=self.train_predictions)  # type: ignore
 
     def _process_batch_predictions(
         self,
@@ -542,7 +542,7 @@ class TrainModule(pl.LightningModule):
                 - predictions: Model predictions [batch_size, num_steps, seq_len]
 
         """
-        predictions = self.criterion.denoise(batch, self.prediction_shortcut_size)
+        predictions = self.criterion.denoise(batch, self.prediction_shortcut_size, step_size=self.denoising_step_size)
         return batch.seqs, predictions
 
     def _predict_step(self, batch: EncoderBatch, batch_idx: int) -> ndarray[str, dtype[str]]:
