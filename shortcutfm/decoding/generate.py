@@ -12,6 +12,7 @@ from shortcutfm.batch import collate
 from shortcutfm.config import GenerationConfig
 from shortcutfm.text_datasets import TextDataset
 from shortcutfm.train.pl.callbacks import SaveTestOutputsCallback
+from shortcutfm.train.pl.train_unit import TrainModule
 from shortcutfm.train.pl.trainer_factory import (
     create_criterion,
     get_ema_callback,
@@ -49,6 +50,8 @@ def create_test_dataloader(gen_cfg: GenerationConfig) -> DataLoader:
         batch_size=gen_cfg.batch_size,
         collate_fn=collate,
         shuffle=False,
+        num_workers=4,
+        persistent_workers=True,
     )
 
 
@@ -79,14 +82,13 @@ if __name__ == "__main__":
     callbacks.append(save_outputs_callback)
 
     criterion = create_criterion(gen_cfg.training_config)
-    unit = load_unit_from_checkpoint(
+    unit: TrainModule = load_unit_from_checkpoint(
         criterion,
         gen_cfg.checkpoint_path,
         gen_cfg.training_config,
         gen_cfg.denoising_step_size,
         gen_cfg.generation_shortcut_size,
     )
-    unit.set_prediction_shortcut_size(gen_cfg.generation_shortcut_size)
     test_dataloader = create_test_dataloader(gen_cfg)
 
     trainer = pl.Trainer(
