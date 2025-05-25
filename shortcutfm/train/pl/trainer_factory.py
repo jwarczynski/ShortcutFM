@@ -327,6 +327,7 @@ def load_unit_from_checkpoint(
     criterion: CompositeCriterion | FlowNllCriterion,
     checkpoint_path: Path | str,
     training_config: TrainingConfig,
+    tokenizer: AutoTokenizer | None,
     denoisng_step_size: int | None = None,
     prediction_shortcut_size: int | None = None,
 ) -> TrainModule:
@@ -338,21 +339,30 @@ def load_unit_from_checkpoint(
     :type checkpoint_path: Path | str
     :param training_config: Training configuration containing optimizer settings
     :type training_config: TrainingConfig
+    :param tokenizer: Optional tokenizer for model
+    :type tokenizer: AutoTokenizer | None
     :return: Configured training unit loaded from checkpoint
     :rtype: TrainModule
     """
     denoisng_step_size: int | None = denoisng_step_size or training_config.denoising_step_size
     prediction_shortcut_size: int | None = prediction_shortcut_size or training_config.prediction_shortcut_size
 
-    unit = TrainModule.load_from_checkpoint(
-        str(checkpoint_path),
+    train_unit = TrainModule.load_from_checkpoint(
+        checkpoint_path,
         criterion=criterion,
-        scheduler_config=training_config.optimizer.scheduler,
+        optimizer_config=training_config.optimizer.scheduler,
+        tokenizer=tokenizer,
+        prediction_shortcut_size=training_config.prediction_shortcut_size,
+        denoising_step_size=training_config.denoising_step_size,
+        num_val_batches_to_log=training_config.num_val_batches_to_log,
+        num_timestep_bins=training_config.num_timestep_bins,
+        log_train_predictions_every_n_epochs=training_config.log_train_predictions_every_n_epochs,
+        log_train_predictions_from_n_epochs=training_config.log_train_predictions_from_n_epochs,
+        normalize_embeddings=training_config.normalize_embeddings,
         prediction_shortcut_size=prediction_shortcut_size,
         denoising_step_size=denoisng_step_size,
     )
-    return unit
-
+    return train_unit
 
 def get_ema_callback(
     training_config: TrainingConfig,

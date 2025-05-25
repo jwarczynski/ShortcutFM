@@ -132,18 +132,35 @@ def get_lightning_trainer(cfg: TrainingConfig):
     # Create Lightning module
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.config_name)
     criterion = create_criterion(cfg, tokenizer=tokenizer)
-    train_unit = TrainModule(
-        criterion,
-        cfg.optimizer.scheduler,
-        tokenizer=tokenizer,
-        prediction_shortcut_size=cfg.prediction_shortcut_size,
-        denoising_step_size=cfg.denoising_step_size,
-        num_val_batches_to_log=cfg.num_val_batches_to_log,
-        num_timestep_bins=cfg.num_timestep_bins,
-        log_train_predictions_every_n_epochs=cfg.log_train_predictions_every_n_epochs,
-        log_train_predictions_from_n_epochs=cfg.log_train_predictions_from_n_epochs,
-        normalize_embeddings=cfg.normalize_embeddings,
-    )
+
+    # Create or load training unit
+    if cfg.checkpoint.path:
+        train_unit = TrainModule.load_from_checkpoint(
+            cfg.checkpoint.path,
+            criterion=criterion,
+            optimizer_config=cfg.optimizer.scheduler,
+            tokenizer=tokenizer,
+            prediction_shortcut_size=cfg.prediction_shortcut_size,
+            denoising_step_size=cfg.denoising_step_size,
+            num_val_batches_to_log=cfg.num_val_batches_to_log,
+            num_timestep_bins=cfg.num_timestep_bins,
+            log_train_predictions_every_n_epochs=cfg.log_train_predictions_every_n_epochs,
+            log_train_predictions_from_n_epochs=cfg.log_train_predictions_from_n_epochs,
+            normalize_embeddings=cfg.normalize_embeddings,
+        )
+    else:
+        train_unit = TrainModule(
+            criterion,
+            cfg.optimizer.scheduler,
+            tokenizer=tokenizer,
+            prediction_shortcut_size=cfg.prediction_shortcut_size,
+            denoising_step_size=cfg.denoising_step_size,
+            num_val_batches_to_log=cfg.num_val_batches_to_log,
+            num_timestep_bins=cfg.num_timestep_bins,
+            log_train_predictions_every_n_epochs=cfg.log_train_predictions_every_n_epochs,
+            log_train_predictions_from_n_epochs=cfg.log_train_predictions_from_n_epochs,
+            normalize_embeddings=cfg.normalize_embeddings,
+        )
 
     train_dataloader, val_dataloader = create_dataloaders(cfg)
 

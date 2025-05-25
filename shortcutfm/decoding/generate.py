@@ -3,16 +3,15 @@ import sys
 from pathlib import Path
 
 import lightning as pl
-from omegaconf import OmegaConf
-from omegaconf import OmegaConf as om
-from torch.utils.data import DataLoader
-
 from datasets import Dataset
+from omegaconf import OmegaConf, OmegaConf as om
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
+
 from shortcutfm.batch import collate
 from shortcutfm.config import GenerationConfig
 from shortcutfm.text_datasets import TextDataset
 from shortcutfm.train.pl.callbacks import SaveTestOutputsCallback
-from shortcutfm.train.pl.train_unit import TrainModule
 from shortcutfm.train.pl.trainer_factory import (
     create_criterion,
     get_ema_callback,
@@ -81,13 +80,16 @@ if __name__ == "__main__":
     )
     callbacks.append(save_outputs_callback)
 
+    tokenizer = AutoTokenizer.from_pretrained(gen_cfg.training_config.model.config_name)
+
     criterion = create_criterion(gen_cfg.training_config)
-    unit: TrainModule = load_unit_from_checkpoint(
+    unit = load_unit_from_checkpoint(
         criterion,
         gen_cfg.checkpoint_path,
         gen_cfg.training_config,
         gen_cfg.denoising_step_size,
         gen_cfg.generation_shortcut_size,
+        tokenizer=tokenizer
     )
     test_dataloader = create_test_dataloader(gen_cfg)
 

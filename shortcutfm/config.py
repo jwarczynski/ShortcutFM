@@ -377,7 +377,7 @@ class TrainingConfig(BaseModel):
         random.seed(self.seed)
         trainer, model, train_dataloader, val_dataloader = get_lightning_trainer(self)
         if not self.dry_run:
-            trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=self.checkpoint.path)
+            trainer.fit(model, train_dataloader, val_dataloader)
 
 
 class GenerationConfig(BaseModel):
