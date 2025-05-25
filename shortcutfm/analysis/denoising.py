@@ -115,7 +115,7 @@ def denoise_with_tracking(
                 )
             else:
                 # Use model prediction (original behavior)
-                v_hat = criterion.compute_velocity(x_t, model_output, t_batch, shortcuts, input_mask)
+                v_hat = criterion.compute_velocity(model_output, noise, input_mask)
                 x0_hat = x_t + (effective_step / diffusion_steps) * v_hat
 
             x_t = x0_hat

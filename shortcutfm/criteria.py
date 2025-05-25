@@ -251,7 +251,7 @@ class FlowMatchingCriterion(Criterion):
         for step_idx, t in enumerate(torch.arange(self.diffusion_steps, 0, -effective_step, device=input_mask.device)):
             t: Tensor = t.repeat(input_mask.shape[0])
             model_output = self.infere_model(self.x_t, t, shortcuts, input_mask, guidance_scale=guidance_scale)
-            v_hat = self.compute_velocity(self.x_t, model_output, t, shortcuts, input_mask)
+            v_hat = self.compute_velocity(model_output, noise, input_mask)
             x0_hat = self.x_t + (effective_step / self.diffusion_steps) * v_hat
             self.x_t = x0_hat
 
@@ -311,10 +311,8 @@ class FlowMatchingCriterion(Criterion):
     @abstractmethod
     def compute_velocity(
         self,
-        x_t,
         model_output: Tensor,
-        t: Tensor,
-        shortcut_size: Tensor,
+        noise: Tensor,
         input_mask: Tensor,
     ) -> Tensor:
         """Computes velocity based on models output for the denoising process"""
@@ -385,10 +383,10 @@ class X0FlowMatchingCriterion(FlowMatchingCriterion):
         return torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, batch.x_start, y_hat)
 
     @override
-    def compute_velocity(self, x_t, x0_hat: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
-        t = self.scale_t(t).view(-1, 1, 1)
-        v_hat = x0_hat - x_t
-        assert torch.all(v_hat[input_mask.expand_as(v_hat) == 0] == 0), "v_hat is not zero where input_mask is zero"
+    def compute_velocity(self, x0_hat: Tensor, noise: Tensor, input_mask: Tensor) -> Tensor:
+        v_hat = x0_hat - noise
+        input_mask = input_mask.unsqueeze(-1) if input_mask.dim() == 2 else input_mask
+        v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
         return v_hat
 
     @override
@@ -421,11 +419,13 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
 
     @override
     def get_x0_from_predicition(self, y_hat: Tensor, batch: FlowMatchingBatch) -> Tensor:
-        x0 = batch.x_t + y_hat
+        distance_to_x0 = batch.t[:, None, None] / self.diffusion_steps
+        x0 = batch.x_t + y_hat * distance_to_x0
         return torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, batch.x_start, x0)
 
     @override
-    def compute_velocity(self, x_t, v_hat: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
+    def compute_velocity(self, v_hat: Tensor, noise: Tensor, input_mask: Tensor) -> Tensor:
+        input_mask = input_mask.unsqueeze(-1) if input_mask.dim() == 2 else input_mask
         v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
         return v_hat
 
@@ -535,14 +535,12 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecora
     @override
     def compute_velocity(
         self,
-        x_t,
         model_output: Tensor,
-        t: Tensor,
-        shortcut_size: Tensor,
+        noise: Tensor,
         input_mask: Tensor,
     ) -> Tensor:
         """COmputes velocity from models output"""
-        return self.criterion.compute_velocity(x_t, model_output, t, shortcut_size, input_mask)
+        return self.criterion.compute_velocity(model_output, noise, input_mask)
 
     @override
     def _restore_input_part(self, model_output: Tensor, x_t: Tensor, input_mask: Tensor) -> Tensor:
@@ -577,6 +575,7 @@ class ConsistencyCriterion(Criterion, ABC):
             x_t=batch.x_t,
             x_start=batch.x_start,
             input_ids_mask=batch.input_ids_mask,
+            noise=batch.noise,
         )
         output = self._predict(
             x_start=batch.x_start,
@@ -599,11 +598,20 @@ class ConsistencyCriterion(Criterion, ABC):
         x_t: Tensor,
         x_start: Tensor,
         input_ids_mask: Tensor,
+        noise: Tensor,
     ):
         input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_t)
         step1_prediction = self.model(x_t, t, shortcut_size)
 
-        step2_input = self._prepare_2_shortcut_input(step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask)
+        step2_input = self._prepare_2_shortcut_input(
+            step1_prediction,
+            x_start,
+            x_t,
+            t,
+            shortcut_size,
+            input_ids_mask,
+            noise=noise,
+        )
         step2_prediction = self.model(step2_input, t - shortcut_size, shortcut_size)
 
         target = self._modify_target(
@@ -627,6 +635,7 @@ class ConsistencyCriterion(Criterion, ABC):
         t: Tensor,
         shortcut_size: Tensor,
         input_ids_mask: Tensor,
+        noise: Tensor,
     ) -> Tensor:
         """Prepares input for the second shorcut step of size d based on the first shorcut prediction"""
 
@@ -699,16 +708,24 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         return y
 
     @override
-    def _prepare_2_shortcut_input(self, step1_prediction, x_start, x_t, t, shortcut_size, input_ids_mask: Tensor):
+    def _prepare_2_shortcut_input(
+        self,
+        step1_prediction,
+        x_start,
+        x_t,
+        t,
+        shortcut_size,
+        input_ids_mask: Tensor,
+        noise: Tensor,
+    ):
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
 
-        v_hat = step1_prediction - x_t
+        v_hat = step1_prediction - noise
 
         step_size = (shortcut_size / self.diffusion_steps)[:, None, None]
-        # step2_input = (1 - step_size) * x_t + step_size * step1_prediction
         step2_input = x_t + step_size * v_hat
         step2_input = torch.where(input_ids_mask == 0, x_start, step2_input)
         return step2_input
@@ -729,7 +746,8 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_start = x_start[..., :embedding_dim]
 
-        target = torch.where(input_ids_mask == 0, x_start, step2_prediction)
+        target = (step1_prediction + step2_prediction) / 2
+        target = torch.where(input_ids_mask == 0, x_start, target)
         return target
 
     @override
@@ -753,13 +771,23 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         super().__init__(model, diffusion_steps, reduce_fn, training_cfg, loss_fn)
 
     @override
-    def _prepare_2_shortcut_input(self, velocity, x_start, x_t, t, shorcut_size, input_ids_mask: Tensor):
+    def _prepare_2_shortcut_input(
+        self,
+        velocity,
+        x_start,
+        x_t,
+        t,
+        shorcut_size,
+        input_ids_mask: Tensor,
+        noise: Tensor,
+    ):
         t = self.scale_t(t).view(-1, 1, 1)
         embedding_dim = velocity.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
         x_t = x_t[..., :embedding_dim]
         velocity = torch.where(input_ids_mask == 0, 0, velocity)
-        return x_t + velocity * shorcut_size[:, None, None].expand_as(x_start)
+        step_size = (shorcut_size / self.diffusion_steps)[:, None, None]
+        return x_t + velocity * step_size
 
     @override
     def _modify_target(
@@ -926,6 +954,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         t: Tensor,
         shortcut_size: Tensor,
         input_ids_mask: Tensor,
+        noise: Tensor,
     ) -> Tensor:
         raise NotImplementedError("This method should not be called on decorator")
 
