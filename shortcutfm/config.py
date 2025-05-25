@@ -281,6 +281,12 @@ class TrainingConfig(BaseModel):
         default=0.5, description="Probability of training unconditionally (discarding conditioning)"
     )
 
+    shortcut_target_x_start_probability: float = Field(
+        default=0.0,
+        description="Probability of using x_start or ground truth velocity as shortcut target"
+        " in consistency criterion (0.5 for half probability)",
+    )
+
     max_steps: int = Field(default=60000, description="Maximum training steps")
     reduce_fn: str = Field(default="mean", description="Reduce function")
     gradient_clipping: float | None = Field(default=None, description="Gradient clipping value")

@@ -607,6 +607,11 @@ class ConsistencyCriterion(Criterion, ABC):
         input_ids_mask: Tensor,
         noise: Tensor,
     ):
+        # Check if we should use the direct target (x_start for X0, velocity for Velocity)
+        if self._should_use_direct_target():
+            return self._get_direct_target(x_start, noise, input_ids_mask)
+
+        # Otherwise, use the original two-step computation
         input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_t)
         step1_prediction = self.model(x_t, t, shortcut_size)
 
@@ -632,6 +637,27 @@ class ConsistencyCriterion(Criterion, ABC):
             step2_input,
         )
         return target.detach()
+
+    def _should_use_direct_target(self) -> bool:
+        """Determine whether to use direct target based on probability.
+
+        Returns:
+            bool: True if direct target should be used, False otherwise
+        """
+        if self.training_cfg is None:
+            return False
+
+        probability = self.training_cfg.shortcut_target_x_start_probability
+        if probability <= 0.0:
+            return False
+
+        # Draw a random number and check if it's less than the probability
+        random_value = torch.rand(1).item()
+        return random_value < probability
+
+    @abstractmethod
+    def _get_direct_target(self, x_start: Tensor, noise: Tensor, input_ids_mask: Tensor) -> Tensor:
+        """Get the direct target (x_start for X0, velocity for Velocity) when using probability-based targeting."""
 
     @abstractmethod
     def _prepare_2_shortcut_input(
@@ -741,6 +767,11 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         return step2_input
 
     @override
+    def _get_direct_target(self, x_start: Tensor, noise: Tensor, input_ids_mask: Tensor) -> Tensor:
+        """Return x_start as the direct target for X0 consistency criterion."""
+        return x_start
+
+    @override
     def _modify_target(
         self,
         step1_prediction,
@@ -782,6 +813,16 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         loss_fn: Callable = None,
     ):
         super().__init__(model, diffusion_steps, reduce_fn, training_cfg, loss_fn)
+
+    @override
+    def _get_direct_target(self, x_start: Tensor, noise: Tensor, input_ids_mask: Tensor) -> Tensor:
+        """Return velocity (x_start - noise) as the direct target for Velocity consistency criterion."""
+        input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_start)
+        # For Velocity criterion, the direct target is the velocity (x_start - noise)
+        velocity = x_start - noise
+        # For input tokens, velocity should be 0 (no change needed)
+        target = torch.where(input_ids_mask == 0, torch.zeros_like(velocity), velocity)
+        return target.detach()
 
     @override
     def _prepare_2_shortcut_input(
