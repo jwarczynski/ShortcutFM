@@ -20,7 +20,7 @@ def denoise_with_tracking(
     shortcut_size: int | None = None,
     step_size: int | None = None,
     guidance_scale: float | None = None,
-    tracking_fn: Callable[[Tensor, Tensor, Tensor, Tensor, Tensor], dict[str, Any]] | None = None,
+    tracking_fn: Callable[[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor], dict[str, Any]] | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     use_ground_truth_interpolation: bool = False,
 ) -> dict[str, Any]:
@@ -52,6 +52,7 @@ def denoise_with_tracking(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     criterion.model.eval()
+    criterion.to(device)
     diffusion_steps: int = criterion.model.diffusion_steps
 
     # Move individual tensors in batch to device
@@ -96,7 +97,7 @@ def denoise_with_tracking(
             # Apply custom tracking if provided
             if tracking_fn:
                 tracking_result = tracking_fn(
-                    model_output, x_t, x0_ground_truth, input_mask, padding_mask.unsqueeze(-1)
+                    model_output, x_t, x0_ground_truth, input_mask, padding_mask.unsqueeze(-1), noise
                 )
                 tracking_results.append(tracking_result)
 
@@ -167,13 +168,14 @@ def denoise_with_velocity_tracking(
         x0_ground_truth: Tensor,
         input_mask: Tensor,
         padding_mask: Tensor,
+        noise: Tensor,
     ) -> dict[str, Any]:
         # Calculate predicted velocity
-        v_hat = model_output - x_t
+        v_hat = model_output - noise
         v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
 
         # Calculate ground truth velocity
-        v_ground_truth = x0_ground_truth - x_t
+        v_ground_truth = x0_ground_truth - noise
 
         # Calculate cosine similarity
         cos_sim, pred_norm, gt_norm = calculate_batch_cosine_similarity(
