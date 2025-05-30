@@ -225,3 +225,19 @@ class TimestepFirstTimeAndShortcutSampler(TimeAndShortcutSampler):
         """Update the reweighting using losses from a model."""
         if isinstance(self.time_step_sampler, LossAwareSampler):
             self.time_step_sampler.update_with_local_losses(ts, losses, world_size)
+
+
+class AllMaxTimestepSampler(ScheduleSampler):
+    """Sampler that always returns timesteps equal to diffusion_steps."""
+
+    def __init__(self, diffusion_steps):
+        self.diffusion_steps = diffusion_steps
+
+    def weights(self):
+        # Only one possible timestep, so weight is 1
+        return np.ones([1])
+
+    def sample(self, batch_size, device):
+        timesteps = torch.full((batch_size,), self.diffusion_steps, dtype=torch.long, device=device)
+        weights = torch.ones(batch_size, dtype=torch.float32, device=device)
+        return timesteps, weights

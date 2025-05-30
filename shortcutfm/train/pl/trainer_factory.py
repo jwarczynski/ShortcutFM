@@ -31,6 +31,7 @@ from shortcutfm.nn import (
     NormPenalizedVMFLoss,
 )
 from shortcutfm.shortcut_samplers import (
+    AllMaxTimestepSampler,  # <-- add this import
     LossSecondMomentResampler,
     ShortcutFirstTimeAndShortcutSampler,
     TimestepFirstTimeAndShortcutSampler,
@@ -202,19 +203,15 @@ def _create_composite_criterion(
     weights.append(training_cfg.nll_loss_weight)
 
     time_and_shortcut_sampler = create_time_and_shortcut_sampelr(training_cfg)
-    time_sampler = (
-        UniformSampler(diffusion_steps=training_cfg.model.diffusion_steps)
-        if training_cfg.time_shortcut_sampling.time_sampler == "uniform"
-        else LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
-    )
+    time_sampler = create_time_sampler(training_cfg)
 
     return CompositeCriterion(
         flow_matching_criterion=flow_matching_criterion,
         consistency_criterion=consistency_criterion,
         embedding_criterion=nll_criterion,
-        flow_matching_weight=training_cfg.flow_matching_loss_weight,
-        consistency_weight=training_cfg.consistency_loss_weight,
-        embedding_weight=training_cfg.nll_loss_weight,
+        flow_matching_weight=training_cfg.flow_matching_loss_weight,  # type: ignore
+        consistency_weight=training_cfg.consistency_loss_weight,  # type: ignore
+        embedding_weight=training_cfg.nll_loss_weight,  # type: ignore
         model=model,
         diffusion_steps=training_cfg.model.diffusion_steps,
         self_consistency_ratio=training_cfg.self_consistency_ratio,
@@ -225,13 +222,7 @@ def _create_composite_criterion(
 
 
 def create_time_and_shortcut_sampelr(training_cfg):
-    """Create time and shortcut sampler based on training configuration.
-
-    :param training_cfg: Training configuration containing sampler type
-    :type training_cfg: TrainingConfig
-    :return: Time and shortcut sampler
-    :rtype: TimeAndShortcutSampler
-    """
+    """Create time and shortcut sampler based on training configuration."""
 
     if training_cfg.time_shortcut_sampling.type == "shortcut_first":
         return ShortcutFirstTimeAndShortcutSampler(
@@ -239,17 +230,19 @@ def create_time_and_shortcut_sampelr(training_cfg):
             min_shortcut_size=training_cfg.model.min_shortcut_size,
         )
     elif training_cfg.time_shortcut_sampling.type == "timestep_first":
-        time_step_sampler = (
-            LossSecondMomentResampler(
+        # Add support for all_max sampler
+        if training_cfg.time_shortcut_sampling.time_sampler == "all_max":
+            time_step_sampler = AllMaxTimestepSampler(
                 diffusion_steps=training_cfg.model.diffusion_steps,
             )
-            if training_cfg.time_shortcut_sampling.shortcut_sampler == "loss_aware"
-            else (
-                UniformSampler(
-                    diffusion_steps=training_cfg.model.diffusion_steps,
-                )
+        elif training_cfg.time_shortcut_sampling.time_sampler == "loss_aware":
+            time_step_sampler = LossSecondMomentResampler(
+                diffusion_steps=training_cfg.model.diffusion_steps,
             )
-        )
+        else:
+            time_step_sampler = UniformSampler(
+                diffusion_steps=training_cfg.model.diffusion_steps,
+            )
         return TimestepFirstTimeAndShortcutSampler(
             diffusion_steps=training_cfg.model.diffusion_steps,
             min_shortcut_size=training_cfg.model.min_shortcut_size,
@@ -257,6 +250,18 @@ def create_time_and_shortcut_sampelr(training_cfg):
         )
     else:
         raise ValueError(f"Unknown time and shortcut sampler type: {training_cfg.time_shortcut_sampling.type}")
+
+
+def create_time_sampler(training_cfg):
+    """Create time sampler based on training configuration."""
+    if training_cfg.time_shortcut_sampling.time_sampler == "uniform":
+        return UniformSampler(diffusion_steps=training_cfg.model.diffusion_steps)
+    elif training_cfg.time_shortcut_sampling.time_sampler == "loss_aware":
+        return LossSecondMomentResampler(diffusion_steps=training_cfg.model.diffusion_steps)
+    elif training_cfg.time_shortcut_sampling.time_sampler == "all_max":
+        return AllMaxTimestepSampler(diffusion_steps=training_cfg.model.diffusion_steps)
+    else:
+        raise ValueError(f"Unknown time_sampler: {training_cfg.time_shortcut_sampling.time_sampler}")
 
 
 def create_consistency_criterion(model, training_cfg):
