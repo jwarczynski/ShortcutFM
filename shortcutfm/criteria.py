@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from itertools import zip_longest
 from typing import Any, override
 
 import numpy as np
@@ -1119,22 +1120,21 @@ class CompositeCriterion(Criterion):
     @override
     def compute_losses(self, batch: EncoderBatch, world_size) -> dict[str, Tensor]:
         self.global_step = batch.global_step
-        self.flow_matching_criterion.global_step = batch.global_step
+        self.flow_matching_criterion.global_step = batch.global_step  # type: ignore
 
         specific_batches, weights = self._prepare_batches(batch)
-        full_batch, consistency_batch = specific_batches
+        flow_matching_batch, consistency_batch, full_batch = specific_batches
         fm_weights, consistency_weights = weights
 
-        # Use full batch for flow matching and embedding losses
-        flow_and_decoder_loses = self.flow_matching_criterion(full_batch, world_size)
-        flow_matching_loss = flow_and_decoder_loses["flow_matching_loss"]
-        decoder_loss = flow_and_decoder_loses["decoder_loss"]
-        embedding_loss = self.embedding_criterion(full_batch, world_size)["nll_loss"]
+        flow_and_decoder_loses = self.flow_matching_criterion(flow_matching_batch, world_size)
+        flow_matching_loss: Tensor = flow_and_decoder_loses["flow_matching_loss"]
+        decoder_loss: Tensor = flow_and_decoder_loses["decoder_loss"]
+        embedding_loss: Tensor = self.embedding_criterion(full_batch, world_size)["nll_loss"]
 
         # Check if consistency loss is enabled
         if consistency_batch is not None:
             consistency_loss = self.consistency_criterion(consistency_batch, world_size)["consistency_loss"]
-            losses = [
+            losses: list[Tensor] = [
                 flow_matching_loss,
                 consistency_loss,
                 embedding_loss,
@@ -1156,7 +1156,7 @@ class CompositeCriterion(Criterion):
             }
         else:
             # If consistency is not enabled, only use flow matching and embedding losses
-            losses = [
+            losses: list[Tensor] = [
                 flow_matching_loss,
                 embedding_loss,
             ]  # no decoder_loss or consistency_loss
@@ -1173,16 +1173,16 @@ class CompositeCriterion(Criterion):
         losses[0] *= fm_weights
         if consistency_batch is not None:
             losses[1] *= consistency_weights
-            losses[2] *= fm_weights  # embedding loss
+            # losses[2] *= fm_weights
         else:
-            losses[1] *= fm_weights  # embedding loss
+            losses[1] *= fm_weights
 
         weighted_losses = [
-            loss.mean() * weight
-            for loss, weight in zip(
+            loss.mean() * (weight or 1)  # type: ignore
+            for loss, weight in zip_longest(
                 losses,
-                self.criteria_weights if consistency_batch is not None else criteria_weights,
-                strict=True,
+                self.criteria_weights if consistency_batch is not None else criteria_weights,  # type: ignore
+                fillvalue=1,
             )
         ]
 
@@ -1190,9 +1190,9 @@ class CompositeCriterion(Criterion):
         result["loss"] = total_loss
 
         if isinstance(self.sampler, LossAwareSampler):
-            total_loss_per_sample = flow_matching_loss
+            total_loss_per_sample = flow_matching_loss + decoder_loss
             self.sampler.update_with_local_losses(
-                full_batch.t - 1,
+                flow_matching_batch.t - 1,
                 total_loss_per_sample.detach(),
                 world_size=world_size,
             )
@@ -1200,17 +1200,11 @@ class CompositeCriterion(Criterion):
         return result
 
     def _prepare_batches(
-        self,
-        batch: EncoderBatch,
-    ) -> tuple[tuple[FlowMatchingBatch, ShortcutFMBatch | None], tuple[Any, Any | None]]:
-        """Prepare batches for composite criterion.
-
-        Returns:
-            - full_batch: FlowMatchingBatch for the entire input (used for flow matching)
-            - consistency_batch: Optional ShortcutFMBatch for consistency loss (subset of full batch)
-            - fm_weights: Weights from flow matching sampler
-            - consistency_weights: Weights from consistency sampler (None if consistency disabled)
-        """
+        self, batch: EncoderBatch
+    ) -> (
+        tuple[tuple[FlowMatchingBatch, None, FlowMatchingBatch], tuple[Any, None]]
+        | tuple[tuple[FlowMatchingBatch, ShortcutFMBatch, FlowMatchingBatch], tuple[Any, Any]]
+    ):
         bsz = batch.size()
 
         use_consistency = (
@@ -1218,17 +1212,28 @@ class CompositeCriterion(Criterion):
             and self.training_cfg.self_consistency_ratio > 0
         )
 
-        # Always prepare a full batch for flow matching
-        embeddings = self.model.get_embeddings(batch.seqs)
-        t, fm_weights = self.sampler(batch_size=bsz, device=batch.seqs.device)
-        x_t, noise = self._interpolate_data_noise(embeddings, t)
-        x_t = torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, embeddings, x_t)
+        if not use_consistency:
+            num_consistency_elems = 0
+            num_flow_matching_elems = bsz
+        else:
+            num_consistency_elems = int(self.self_consistency_ratio * bsz)
+            num_flow_matching_elems = bsz - num_consistency_elems
 
-        full_batch = FlowMatchingBatch(
-            seqs=batch.seqs,
-            padding_mask=batch.padding_mask,
-            input_ids_mask=batch.input_ids_mask,
-            x_start=embeddings,
+        embeddings = self.model.get_embeddings(batch.seqs)
+
+        # prepare_flow_matching_batch
+        fm_seqs = batch.seqs[:num_flow_matching_elems]
+        fm_x_start = embeddings[:num_flow_matching_elems]
+        fm_padding_mask = batch.padding_mask[:num_flow_matching_elems]
+        fm_input_ids_mask = batch.input_ids_mask[:num_flow_matching_elems]
+        t, fm_weights = self.sampler(batch_size=num_flow_matching_elems, device=batch.seqs.device)
+        x_t, noise = self._interpolate_data_noise(fm_x_start, t)
+        x_t = torch.where(fm_input_ids_mask.unsqueeze(-1) == 0, fm_x_start, x_t)
+        fm_batch = FlowMatchingBatch(
+            seqs=fm_seqs,
+            padding_mask=fm_padding_mask,
+            input_ids_mask=fm_input_ids_mask,
+            x_start=embeddings[:num_flow_matching_elems],
             x_t=x_t,
             noise=noise,
             t=t,
@@ -1237,7 +1242,18 @@ class CompositeCriterion(Criterion):
 
         # If consistency is not enabled, return None for consistency_batch
         if not use_consistency:
-            return (full_batch, None), (fm_weights, None)
+            # prepare_full_batch for embedding loss (same as flow matching batch in this case)
+            full_batch = FlowMatchingBatch(
+                seqs=batch.seqs,
+                padding_mask=batch.padding_mask,
+                input_ids_mask=batch.input_ids_mask,
+                x_start=embeddings,
+                x_t=x_t,
+                noise=noise,
+                t=t,
+                global_step=batch.global_step,
+            )
+            return (fm_batch, None, full_batch), (fm_weights, None)
 
         # prepare_consistency_batch (only if consistency is enabled)
         num_consistency_elems = int(self.self_consistency_ratio * bsz)
@@ -1261,7 +1277,7 @@ class CompositeCriterion(Criterion):
             seqs=consistency_seqs,
             padding_mask=consistency_padding_mask,
             input_ids_mask=consistency_input_ids_mask,
-            x_start=consistency_x_start,
+            x_start=embeddings[num_flow_matching_elems:],
             x_t=consistency_x_t,
             noise=consistency_noise,
             t=consistency_t,
@@ -1269,7 +1285,19 @@ class CompositeCriterion(Criterion):
             global_step=batch.global_step,
         )
 
-        return (full_batch, consistency_batch), (fm_weights, consistency_weights)
+        # prepare_full_batch for embedding loss
+        full_batch = FlowMatchingBatch(
+            seqs=batch.seqs,
+            padding_mask=batch.padding_mask,
+            input_ids_mask=batch.input_ids_mask,
+            x_start=embeddings,
+            x_t=torch.cat([fm_batch.x_t, consistency_batch.x_t], dim=0),
+            noise=torch.cat([fm_batch.noise, consistency_batch.noise], dim=0),
+            t=torch.cat([fm_batch.t, consistency_batch.t], dim=0),
+            global_step=batch.global_step,
+        )
+
+        return (fm_batch, consistency_batch, full_batch), (fm_weights, consistency_weights)
 
     def denoise(
         self,
