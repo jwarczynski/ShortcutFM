@@ -570,10 +570,12 @@ class ConsistencyCriterion(Criterion, ABC):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
         super().__init__(model=model, diffusion_steps=diffusion_steps, training_cfg=training_cfg)
         self.reduce_fn = reduce_fn
         self.loss_fn = loss_fn
+        self.default_shortcut_factory = default_shortcut_factory
 
     @override
     def compute_losses(self, batch: ShortcutFMBatch, world_size) -> dict[str, Tensor]:
@@ -608,24 +610,28 @@ class ConsistencyCriterion(Criterion, ABC):
         input_ids_mask: Tensor,
         noise: Tensor,
     ):
+        # Decide which value to use for shortcut input
+        use_default_t = self.training_cfg.model.use_default_t_for_shortcut
+        shortcut_input = self.default_shortcut_factory(t) if use_default_t else shortcut_size
+
         # Check if we should use the direct target (x_start for X0, velocity for Velocity)
         if self._should_use_direct_target():
             return self._get_direct_target(x_start, noise, input_ids_mask)
 
         # Otherwise, use the original two-step computation
         input_ids_mask = input_ids_mask.unsqueeze(-1).expand_as(x_t)
-        step1_prediction = self.model(x_t, t, shortcut_size)
+        step1_prediction = self.model(x_t, t, shortcut_input)
 
         step2_input = self._prepare_2_shortcut_input(
             step1_prediction,
             x_start,
             x_t,
             t,
-            shortcut_size,
+            shortcut_input,
             input_ids_mask,
             noise=noise,
         )
-        step2_prediction = self.model(step2_input, t - shortcut_size, shortcut_size)
+        step2_prediction = self.model(step2_input, t - shortcut_input, shortcut_input)
 
         target = self._modify_target(
             step1_prediction,
@@ -633,7 +639,7 @@ class ConsistencyCriterion(Criterion, ABC):
             x_start,
             x_t,
             t,
-            shortcut_size,
+            shortcut_input,
             input_ids_mask,
             step2_input,
         )
@@ -720,6 +726,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
         super().__init__(
             model,
@@ -727,6 +734,7 @@ class X0ConsistencyCriterion(ConsistencyCriterion):
             reduce_fn,
             training_cfg=training_cfg,
             loss_fn=loss_fn,
+            default_shortcut_factory=default_shortcut_factory,
         )
 
     @override
@@ -812,8 +820,9 @@ class VelocityConsistencyCriterion(ConsistencyCriterion):
         reduce_fn: Callable = torch.mean,
         training_cfg: TrainingConfig = None,
         loss_fn: Callable = None,
+        default_shortcut_factory: Callable = lambda t: t,
     ):
-        super().__init__(model, diffusion_steps, reduce_fn, training_cfg, loss_fn)
+        super().__init__(model, diffusion_steps, reduce_fn, training_cfg, loss_fn, default_shortcut_factory)
 
     @override
     def _get_direct_target(self, x_start: Tensor, noise: Tensor, input_ids_mask: Tensor) -> Tensor:
@@ -885,6 +894,7 @@ class ConsistencyCriterionDecorator(ConsistencyCriterion, ABC):
             criterion.reduce_fn,
             criterion.training_cfg,
             criterion.loss_fn,
+            criterion.default_shortcut_factory,
         )
         self._criterion = criterion
 

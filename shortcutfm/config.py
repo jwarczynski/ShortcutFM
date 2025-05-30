@@ -84,6 +84,11 @@ class BaseModelConfig(BaseModel):
         description="Whether to scale time and shortcut embeddings by the diffusion steps",
     )
     default_shortcut: Literal["0", "t"] = Field(default="t", description="Default shortcut for flow matching loss")
+    use_default_t_for_shortcut: bool = Field(
+        default=False,
+        description="If True, use default shortcut instead of shortcut_size"
+        "for step1/step2 prediction in consistency criterion",
+    )
     model_config = ConfigDict(extra="forbid")
 
 
@@ -309,6 +314,8 @@ class TrainingConfig(BaseModel):
         default=32,
         description="Step size used during denoising process when shortcut_size is 0 or None",
     )
+    prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
+
     num_val_batches_to_log: int = Field(
         default=1,
         description="Number of validation batches to log predictions for in WandB",
@@ -317,7 +324,6 @@ class TrainingConfig(BaseModel):
         default=4,
         description="Number of linearly spaced bins for tracking losses at different timesteps",
     )
-    prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
     log_train_predictions_every_n_epochs: int = Field(
         default=100, description="Number of epochs between train prediction logging"
     )

@@ -262,6 +262,9 @@ def create_time_and_shortcut_sampelr(training_cfg):
 def create_consistency_criterion(model, training_cfg):
     reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
     loss_fn = create_flow_matching_loss_fn(training_cfg)
+    default_shortcut_factory = create_default_shortcut_factory(
+        training_cfg.model.default_shortcut,
+    )
 
     if training_cfg.model.parametrization == "x0":
         consistency_criterion = X0ConsistencyCriterion(
@@ -270,6 +273,7 @@ def create_consistency_criterion(model, training_cfg):
             reduce_fn,
             training_cfg,
             loss_fn,
+            default_shortcut_factory,
         )
     elif training_cfg.model.parametrization == "velocity":
         consistency_criterion = VelocityConsistencyCriterion(
@@ -278,6 +282,7 @@ def create_consistency_criterion(model, training_cfg):
             reduce_fn,
             training_cfg,
             loss_fn,
+            default_shortcut_factory,
         )
     else:
         raise ValueError(f"Unknown parametrization: {training_cfg.model.parametrization}")
