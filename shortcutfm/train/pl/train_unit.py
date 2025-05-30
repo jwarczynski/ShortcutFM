@@ -5,13 +5,13 @@ import evaluate
 import lightning as pl
 import numpy as np
 import torch
+import wandb
 from numpy import dtype, ndarray
 from torch import Tensor
 from torch.nn import functional as F
 from torch.optim import AdamW
 from transformers import PreTrainedTokenizer
 
-import wandb
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
 from shortcutfm.criteria import CompositeCriterion
@@ -173,7 +173,11 @@ class TrainModule(pl.LightningModule):
         - Shortcut sizes that were used
         It also logs the count of samples for each.
         """
-        if self.timesteps_for_histogram and hasattr(self.logger, "experiment"):
+        if (
+            self.timesteps_for_histogram
+            and hasattr(self.logger, "experiment")
+            and isinstance(self.logger.experiment, wandb.sdk.wandb_run.Run)
+        ):
             self.logger.experiment.log(  # type: ignore
                 {
                     "train/timesteps_histogram": wandb.Histogram(self.timesteps_for_histogram),
@@ -182,7 +186,11 @@ class TrainModule(pl.LightningModule):
             )
             self.timesteps_for_histogram = []  # Clear for next epoch
 
-        if self.shortcuts_for_histogram and hasattr(self.logger, "experiment"):
+        if (
+            self.shortcuts_for_histogram
+            and hasattr(self.logger, "experiment")
+            and isinstance(self.logger.experiment, wandb.sdk.wandb_run.Run)
+        ):
             self.logger.experiment.log(  # type: ignore
                 {
                     "train/shortcuts_histogram": wandb.Histogram(self.shortcuts_for_histogram),
