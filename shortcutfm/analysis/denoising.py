@@ -23,6 +23,7 @@ def denoise_with_tracking(
     tracking_fn: Callable[[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor], dict[str, Any]] | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     use_ground_truth_interpolation: bool = False,
+    velocity_scale: float | str = 1.0,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking model predictions and optionally applying custom tracking.
@@ -37,6 +38,7 @@ def denoise_with_tracking(
         device: The device to use for computation
         use_ground_truth_interpolation: If True, use ground truth interpolation between original
                                         embedding and noise based on timestep t instead of model prediction
+        velocity_scale: Scale factor for velocity tracking, can be a float or "norm" to normalize velocities
 
     Returns:
         A dictionary containing:
@@ -117,6 +119,16 @@ def denoise_with_tracking(
             else:
                 # Use model prediction (original behavior)
                 v_hat = criterion.compute_velocity(model_output, noise, input_mask)
+                v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
+                if isinstance(velocity_scale, str) and velocity_scale == "norm":
+                    # Normalize velocity to match the ground truth
+                    v_hat_norm = torch.norm(v_hat, dim=-1, keepdim=True)
+                    v_ground_truth_norm = torch.norm(x0_ground_truth - noise, dim=-1, keepdim=True)
+                    v_hat = v_hat * (v_ground_truth_norm / (v_hat_norm + 1e-8))
+                elif isinstance(velocity_scale, int | float):
+                    # Scale the velocity by a constant factor
+                    v_hat = v_hat * velocity_scale
+
                 x0_hat = x_t + (effective_step / diffusion_steps) * v_hat
 
             x_t = x0_hat
@@ -142,6 +154,7 @@ def denoise_with_velocity_tracking(
     per_token_cosine: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     use_ground_truth_interpolation: bool = False,
+    velocity_scale: float | str = 1.0,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking velocity predictions.
@@ -173,6 +186,15 @@ def denoise_with_velocity_tracking(
         # Calculate predicted velocity
         v_hat = model_output - noise
         v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
+
+        if isinstance(velocity_scale, str) and velocity_scale == "norm":
+            # enforce velocity norm tp match the ground truth
+            v_hat_norm = torch.norm(v_hat, dim=-1, keepdim=True)
+            v_ground_truth_norm = torch.norm(x0_ground_truth - noise, dim=-1, keepdim=True)
+            v_hat = v_hat * (v_ground_truth_norm / (v_hat_norm + 1e-8))
+        elif isinstance(velocity_scale, int | float):
+            # scale the velocity by a constant factor
+            v_hat = v_hat * velocity_scale
 
         # Calculate ground truth velocity
         v_ground_truth = x0_ground_truth - noise
@@ -206,6 +228,7 @@ def denoise_with_velocity_tracking(
         tracking_fn=velocity_tracking_fn,
         device=device,
         use_ground_truth_interpolation=use_ground_truth_interpolation,
+        velocity_scale=velocity_scale,
     )
 
     # Extract and organize tracking results

@@ -21,7 +21,7 @@ from shortcutfm.train.pl.train_unit import TrainModule
 from shortcutfm.train.pl.trainer_factory import create_criterion
 
 
-def extract_config_params(config: TrainingConfig) -> dict[str, Any]:
+def extract_config_params(config: TrainingConfig, checkponit_dir: Path) -> dict[str, Any]:
     """Extract key parameters from training config for legend."""
     return {
         "sc_p": config.shortcut_target_x_start_probability,
@@ -29,11 +29,14 @@ def extract_config_params(config: TrainingConfig) -> dict[str, Any]:
         "sc_r": config.self_consistency_ratio,
         "cl_w": config.consistency_loss_weight,
         "d_sc": config.model.default_shortcut,
+        "run_id": checkponit_dir.name.replace("run_", ""),
+        "run_name": config.wandb.run_name,
     }
 
 
 def create_abbreviated_legend(params: dict[str, Any]) -> str:
     """Create abbreviated legend from parameters."""
+    return params.get("run_id", params.get("run_name", "unknown"))
     return (
         f"sc_p={params['sc_p']:.1f}, "
         f"type={params['type']}, "
@@ -125,7 +128,7 @@ def analyze_checkpoint(
 
     with open(config_path) as f:
         yaml_cfg = OmegaConf.load(f)
-    config = TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True))
+    config = TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True))  # type: ignore
 
     # Load model
     criterion = create_criterion(config)  # noqa: F821
@@ -156,7 +159,7 @@ def analyze_checkpoint(
     )
 
     # Extract config parameters
-    params = extract_config_params(config)
+    params = extract_config_params(config, checkpoint_dir)
 
     return {
         "results": results,
@@ -232,7 +235,12 @@ def main():
     analyses = []
     for checkpoint_dir in checkpoint_dirs:
         print(f"Analyzing checkpoint: {checkpoint_dir}")
-        analysis = analyze_checkpoint(checkpoint_dir, test_dataset, batch_size, shortcut_size)
+        analysis = analyze_checkpoint(
+            checkpoint_dir,
+            test_dataset,
+            batch_size,
+            shortcut_size,
+        )
         analyses.append(analysis)
 
     # Create comparison plots
