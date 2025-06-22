@@ -183,6 +183,7 @@ class FlowMatchingCriterion(Criterion):
         return_logits: bool = False,
         step_size: int | None = None,
         guidance_scale: float | None = None,
+        use_ground_truth_embeddings: bool = False,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Denoises batch of examples with flexible probing and output options.
 
@@ -226,6 +227,14 @@ class FlowMatchingCriterion(Criterion):
         self._reset()
         input_mask = batch.input_ids_mask.unsqueeze(-1)
         embeddings = self.model.get_embeddings(batch.seqs)
+
+        if use_ground_truth_embeddings:
+            # Use ground truth embeddings instead of model embeddings
+            predicitons = self.probe(embeddings, return_logits=return_logits)
+            if return_decoded:
+                return self.tokenizer.batch_decode(predicitons, skip_special_tokens=True)
+            return predicitons
+
         noise = torch.randn_like(embeddings)
         self.x_t = torch.where(input_mask == 0, embeddings, noise)
 
@@ -239,10 +248,10 @@ class FlowMatchingCriterion(Criterion):
                         num_steps,
                         batch.seqs.shape[1],
                         self.model.vocab_size,
-                    ),
+                    ),  # type: ignore
                     dtype=torch.float,
                     device=batch.seqs.device,
-                )
+                )  # type: ignore
             else:
                 predictions = torch.zeros(
                     (batch.seqs.shape[0], num_steps, batch.seqs.shape[1]),
@@ -527,8 +536,11 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecora
         return self.criterion.get_x0_from_predicition(y_hat, batch)
 
     @override
-    def infere_model(self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor) -> Tensor:
+    def infere_model(
+        self, x_t: Tensor, t: Tensor, shortcut_size: Tensor, input_mask: Tensor, guidance_scale: float | None = None
+    ) -> Tensor:
         """Adds self-conditioning part to the model's input. Call the model and resotre input part of the predicition"""
+        # TODO: add classifer free guidance as in base method
         if self.y_hat is None:
             self.y_hat = torch.zeros_like(x_t)
 
@@ -1317,6 +1329,7 @@ class CompositeCriterion(Criterion):
         return_decoded: bool = False,
         return_logits: bool = False,
         step_size: int | None = None,
+        use_ground_truth_embeddings: bool = False,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Denoises batch of examples with flexible probing and output options.
 
@@ -1352,6 +1365,7 @@ class CompositeCriterion(Criterion):
             return_decoded=return_decoded,
             return_logits=return_logits,
             step_size=step_size,
+            use_ground_truth_embeddings=use_ground_truth_embeddings,
         )
 
 
