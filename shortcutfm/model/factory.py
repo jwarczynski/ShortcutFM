@@ -104,6 +104,11 @@ class TransformerNetModelFactory:
         if self.config.tie_word_embedding:
             lm_head.weight = word_embedding.weight
             print("Tied lm_head.weight to word_embedding.weight after pretrained loading")
+        else:
+            print("Not tying lm_head.weight to word_embedding.weight")
+            with torch.no_grad():
+                # Copy weights initially
+                lm_head.weight.copy_(word_embedding.weight)
 
         if self.config.tie_word_embedding and self.config.freeze_word_embedding != self.config.freeze_lm_head:
             print(
