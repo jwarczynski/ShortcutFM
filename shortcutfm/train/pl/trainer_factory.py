@@ -328,7 +328,7 @@ def load_unit_from_checkpoint(
     checkpoint_path: Path | str,
     training_config: TrainingConfig,
     tokenizer: AutoTokenizer | None,
-    denoisng_step_size: int | None = None,
+    denoising_step_size: int | None = None,
     prediction_shortcut_size: int | None = None,
 ) -> TrainModule:
     """Load and configure training unit from checkpoint.
@@ -344,8 +344,8 @@ def load_unit_from_checkpoint(
     :return: Configured training unit loaded from checkpoint
     :rtype: TrainModule
     """
-    denoising_step_size: int | None = denoisng_step_size or training_config.denoising_step_size
-    pred_shortcut_size: int | None = prediction_shortcut_size or training_config.prediction_shortcut_size
+    denoising_step_size: int | None = denoising_step_size or training_config.denoising_step_size
+    prediction_shortcut_size: int | None = prediction_shortcut_size or training_config.prediction_shortcut_size
 
     train_unit = TrainModule.load_from_checkpoint(
         checkpoint_path,
@@ -357,7 +357,7 @@ def load_unit_from_checkpoint(
         log_train_predictions_every_n_epochs=training_config.log_train_predictions_every_n_epochs,
         log_train_predictions_from_n_epochs=training_config.log_train_predictions_from_n_epochs,
         normalize_embeddings=training_config.normalize_embeddings,
-        prediction_shortcut_size=pred_shortcut_size,
+        prediction_shortcut_size=prediction_shortcut_size,
         denoising_step_size=denoising_step_size,
     )
     return train_unit
