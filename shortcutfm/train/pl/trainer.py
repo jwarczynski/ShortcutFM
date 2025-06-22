@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
+def create_dataloaders(cfg: TrainingConfig, num_workers=8) -> tuple[DataLoader, DataLoader]:
     """Create train and validation dataloaders from config.
 
     :param cfg: Training configuration
@@ -55,7 +55,7 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
         batch_size=cfg.batch_size,
         collate_fn=configured_collate,
         shuffle=True,
-        num_workers=8,
+        num_workers=num_workers,
         persistent_workers=True,
     )
     val_dataloader = DataLoader(
@@ -63,7 +63,7 @@ def create_dataloaders(cfg: TrainingConfig) -> tuple[DataLoader, DataLoader]:
         batch_size=cfg.batch_size,
         collate_fn=configured_collate,
         shuffle=False,
-        num_workers=8,
+        num_workers=num_workers,
         persistent_workers=True,
     )
 

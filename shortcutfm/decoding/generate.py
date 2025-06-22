@@ -3,11 +3,12 @@ import sys
 from pathlib import Path
 
 import lightning as pl
-from datasets import Dataset
-from omegaconf import OmegaConf, OmegaConf as om
+from omegaconf import OmegaConf
+from omegaconf import OmegaConf as om
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+from datasets import Dataset
 from shortcutfm.batch import collate
 from shortcutfm.config import GenerationConfig
 from shortcutfm.text_datasets import TextDataset
@@ -89,7 +90,7 @@ if __name__ == "__main__":
         gen_cfg.training_config,
         gen_cfg.denoising_step_size,
         gen_cfg.generation_shortcut_size,
-        tokenizer=tokenizer
+        tokenizer=tokenizer,
     )
     test_dataloader = create_test_dataloader(gen_cfg)
 
