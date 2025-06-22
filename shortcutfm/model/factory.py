@@ -99,11 +99,28 @@ class TransformerNetModelFactory:
 
         # Create transformer backbone
         backbone_transformer, position_embeddings, layer_norm = self._create_transformer_backbone(word_embedding)
+
+        # IMPORTANT: Tie weights AFTER pretrained loading to ensure they remain tied
+        if self.config.tie_word_embedding:
+            lm_head.weight = word_embedding.weight
+            print("Tied lm_head.weight to word_embedding.weight after pretrained loading")
+
+        if self.config.tie_word_embedding and self.config.freeze_word_embedding != self.config.freeze_lm_head:
+            print(
+                "Warning: Tying word embedding and lm_head with different freeze settings. "
+                f"Setting both to {self.config.freeze_word_embedding}"
+            )
+            self.config.freeze_lm_head = self.config.freeze_word_embedding
+
+        if self.config.freeze_lm_head:
+            lm_head.weight.requires_grad = False
+
         if self.config.freeze_word_embedding:
             word_embedding.weight.requires_grad = False
-            lm_head.weight.requires_grad = True
-            print(f"word emebedding reuires grad: {word_embedding.weight.requires_grad}")
-            print(f"lm head requires grad: {lm_head.weight.requires_grad}")
+
+        print(f"word emebedding requires grad: {word_embedding.weight.requires_grad}")
+        print(f"lm head requires grad: {lm_head.weight.requires_grad}")
+        print(f"lm_head tied to word_embedding: {lm_head.weight is word_embedding.weight}")
 
         # Create output projection if needed
         output_down_proj = self._create_output_projection()
@@ -137,15 +154,11 @@ class TransformerNetModelFactory:
         word_embedding = nn.Embedding(vocab_size, input_dims)
         nn.init.normal_(word_embedding.weight, mean=0.0, std=self.config.word_embedding_std)
 
-        # Create lm_head with conditional weight sharing
-        lm_head = nn.Linear(input_dims, vocab_size, bias=True)
+        # Create lm_head - DON'T tie here yet, do it after pretrained loading
+        lm_head = nn.Linear(input_dims, vocab_size, bias=False)
         with torch.no_grad():
-            if self.config.freeze_word_embedding:
-                # Independent weights: copy word_embedding weights to lm_head
-                lm_head.weight.copy_(word_embedding.weight)
-            else:
-                # Shared weights: tie lm_head weights to word_embedding for efficiency
-                lm_head.weight = word_embedding.weight
+            # Always copy weights initially (tying will happen later if needed)
+            lm_head.weight.copy_(word_embedding.weight)
 
         return word_embedding, lm_head
 
@@ -216,12 +229,16 @@ class TransformerNetModelFactory:
         if self.config.use_pretrained_weights:
             temp_bert = BertModel.from_pretrained(self.config.config_name, config=self.bert_config)
             with torch.no_grad():
-                word_embedding.weight = temp_bert.embeddings.word_embeddings.weight
+                word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
             input_transformers = temp_bert.encoder
             position_embeddings = temp_bert.embeddings.position_embeddings
             layer_norm = temp_bert.embeddings.LayerNorm
             backbone_transformer = BertEncoderBackbone(input_transformers)
         else:
+            if self.config.use_pretrained_embeddings:
+                temp_bert = BertModel.from_pretrained(self.config.config_name, config=self.bert_config)
+                with torch.no_grad():
+                    word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
             input_transformers = BertEncoder(self.bert_config)
             backbone_transformer = BertEncoderBackbone(input_transformers)
             position_embeddings = nn.Embedding(self.bert_config.max_position_embeddings, self.bert_config.hidden_size)
@@ -244,14 +261,20 @@ class TransformerNetModelFactory:
                 self.config.config_name, config=self.bert_config, trust_remote_code=True
             )
             with torch.no_grad():
-                word_embedding.weight = temp_bert.embeddings.weight
+                word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
             input_transformers = temp_bert
-            backbone_trasnformer = ModernBertBackbone(input_transformers)
+            backbone_transformer = ModernBertBackbone(input_transformers)
         else:
+            if self.config.use_pretrained_embeddings:
+                temp_bert = ModernBertModel.from_pretrained(
+                    self.config.config_name, config=self.bert_config, trust_remote_code=True
+                )
+                with torch.no_grad():
+                    word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
             input_transformers = ModernBertModel(self.bert_config)
-            backbone_trasnformer = ModernBertBackbone(input_transformers)
+            backbone_transformer = ModernBertBackbone(input_transformers)
 
-        return backbone_trasnformer, None, None
+        return backbone_transformer, None, None
 
     def _create_output_projection(self) -> nn.Sequential | None:
         """Create output projection if dimensions don't match.

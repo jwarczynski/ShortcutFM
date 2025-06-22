@@ -78,6 +78,17 @@ class BaseModelConfig(BaseModel):
     word_embedding_std: float = Field(default=1.0, description="Standard deviation for word embedding initialization")
     parametrization: Literal["x0", "velocity"] = Field(default="x0", description="Parametrization for diffusion")
     freeze_word_embedding: bool = Field(default=False, description="Whether to freeze word embeddings")
+    freeze_lm_head: bool = Field(
+        default=False,
+        description="Whether to freeze language model head (if shared with embeddings)."
+            "If both freeze_word_embedding and freeze_lm_head are True, parameters are shared and both are frozen."
+    )
+    tie_word_embedding: bool = Field(
+        default=True,
+        description="Whether to tie word embeddings with language model head weights"
+        " (if true freeze_word_embedding and )."
+    )
+    use_pretrained_embeddings: bool = Field(default=False, description="Whether to use only pretrained word embeddings (not full model weights)")
     normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
     scale_time: bool = Field(
         default=False,
