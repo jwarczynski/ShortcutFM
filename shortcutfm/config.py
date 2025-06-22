@@ -81,14 +81,16 @@ class BaseModelConfig(BaseModel):
     freeze_lm_head: bool = Field(
         default=False,
         description="Whether to freeze language model head (if shared with embeddings)."
-            "If both freeze_word_embedding and freeze_lm_head are True, parameters are shared and both are frozen."
+        "If both freeze_word_embedding and freeze_lm_head are True, parameters are shared and both are frozen.",
     )
     tie_word_embedding: bool = Field(
         default=True,
         description="Whether to tie word embeddings with language model head weights"
-        " (if true freeze_word_embedding and )."
+        " (if true freeze_word_embedding and ).",
     )
-    use_pretrained_embeddings: bool = Field(default=False, description="Whether to use only pretrained word embeddings (not full model weights)")
+    use_pretrained_embeddings: bool = Field(
+        default=False, description="Whether to use only pretrained word embeddings (not full model weights)"
+    )
     normalize_word_embedding: bool = Field(default=False, description="Whether to normalize word embeddings")
     scale_time: bool = Field(
         default=False,
