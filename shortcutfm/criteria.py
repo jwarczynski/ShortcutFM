@@ -1345,6 +1345,8 @@ class CompositeCriterion(Criterion):
         :type return_logits: bool
         :param step_size: step size to use during denoising when shortcut_size is None or 0
         :type step_size: Optional[int]
+        :param use_ground_truth_embeddings: whether to use ground truth embeddings instead of model embeddings
+        :type use_ground_truth_embeddings: bool
 
         :returns: One of the following based on parameters:
             - If return_logits=True:
