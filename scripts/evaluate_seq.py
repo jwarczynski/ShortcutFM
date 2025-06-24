@@ -29,10 +29,18 @@ def process_sequence(text: str, tokenizer) -> tuple[str, str]:
     """Process a sequence by splitting on separator and removing special tokens."""
     # Split on first separator token
     parts = text.split(tokenizer.sep_token)
-    if len(parts) < 2:
-        return text, text
-
-    source, target = parts[0], parts[1]
+    # print(f"Parts: {parts}")
+    if len(parts) < 3:
+        raise ValueError(f"Input text does not contain a valid separator: {text}")
+    if len(parts) == 3:
+        # If there are exactly three parts, use them as source and target
+        source, target = parts[0], parts[1]
+    elif len(parts) == 4:
+        # If there are four parts, there were 2 PAD tokens
+        source, target = parts[0], parts[2]
+    else:
+        # If there are more than three parts, raise an error
+        raise ValueError(f"Input text contains too many parts: {parts}")
 
     # Remove special tokens
     special_tokens = {
