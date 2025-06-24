@@ -43,7 +43,7 @@ from shortcutfm.train.pl.train_unit import TrainModule
 logger = logging.getLogger(__name__)
 
 
-def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeCriterion | FlowNllCriterion:
+def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeCriterion:
     """Create model, tokenizer and criterion based on training config.
 
     :param training_cfg: Training configuration containing model and training parameters
