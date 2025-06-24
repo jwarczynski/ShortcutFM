@@ -17,13 +17,14 @@ from shortcutfm.criteria import FlowMatchingCriterion
 def denoise_with_tracking(
     criterion: FlowMatchingCriterion,
     batch: EncoderBatch,
-    shortcut_size: int | None = None,
-    step_size: int | None = None,
+    shortcut_size: int = 2048,
+    step_size: int = 2048,
     guidance_scale: float | None = None,
     tracking_fn: Callable[[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor], dict[str, Any]] | None = None,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     use_ground_truth_interpolation: bool = False,
     velocity_scale: float | str = 1.0,
+    std_dev: float = 1.0,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking model predictions and optionally applying custom tracking.
@@ -73,14 +74,14 @@ def denoise_with_tracking(
         embeddings = criterion.model.get_embeddings(seqs)  # [batch_size, seq_len, hidden_dim]
 
         # Initialize with noise where mask is 0
-        noise = torch.randn_like(embeddings)
+        noise = torch.randn_like(embeddings) * std_dev
         x_t = torch.where(input_mask == 0, embeddings, noise)
 
         # Store the original embeddings as ground truth x0
         x0_ground_truth = embeddings.clone()
 
         # Use step_size if shortcut_size is None or 0
-        effective_step = step_size or shortcut_size
+        effective_step: int = step_size or shortcut_size
         shortcut_size = shortcut_size or 0
 
         # Denoising loop
@@ -101,7 +102,7 @@ def denoise_with_tracking(
                 tracking_result = tracking_fn(
                     model_output, x_t, x0_ground_truth, input_mask, padding_mask.unsqueeze(-1), noise
                 )
-                tracking_results.append(tracking_result)
+                tracking_results.append(tracking_result)  # type: ignores
 
             # Update x_t for next step
             if use_ground_truth_interpolation:
@@ -155,6 +156,7 @@ def denoise_with_velocity_tracking(
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     use_ground_truth_interpolation: bool = False,
     velocity_scale: float | str = 1.0,
+    noise_std_dev: float = 1.0,
 ) -> dict[str, Any]:
     """
     Perform denoising while tracking velocity predictions.
@@ -169,6 +171,8 @@ def denoise_with_velocity_tracking(
         device: The device to use for computation
         use_ground_truth_interpolation: If True, use ground truth interpolation between original
                                         embedding and noise based on timestep t instead of model prediction
+        velocity_scale: Scale factor for predicted velocity, can be a float or "norm" to match ground truth norm
+        noise_std_dev: Standard deviation for noise initialization
 
     Returns:
         A dictionary containing velocity tracking results
@@ -182,6 +186,7 @@ def denoise_with_velocity_tracking(
         input_mask: Tensor,
         padding_mask: Tensor,
         noise: Tensor,
+        velocity_scale: float | str = 1.0,
     ) -> dict[str, Any]:
         # Calculate predicted velocity
         v_hat = model_output - noise
@@ -198,6 +203,15 @@ def denoise_with_velocity_tracking(
 
         # Calculate ground truth velocity
         v_ground_truth = x0_ground_truth - noise
+        gt_norm = torch.norm(v_ground_truth, dim=-1, keepdim=True)
+        predicted_velocity_norm = torch.norm(v_hat, dim=-1, keepdim=True)
+
+        if isinstance(velocity_scale, str) and velocity_scale == "norm":
+            # enforce velocity norm to match ground ground_truth
+            v_hat = v_hat * (gt_norm / predicted_velocity_norm)
+        else:
+            # Scale the predicted velocity
+            v_hat = v_hat * velocity_scale
 
         # Calculate cosine similarity
         cos_sim, pred_norm, gt_norm = calculate_batch_cosine_similarity(
@@ -229,19 +243,20 @@ def denoise_with_velocity_tracking(
         device=device,
         use_ground_truth_interpolation=use_ground_truth_interpolation,
         velocity_scale=velocity_scale,
+        std_dev=noise_std_dev,
     )
 
     # Extract and organize tracking results
     tracking_results = results.pop("tracking_results")
     results.update(
         {
-            "predicted_velocities": [r["predicted_velocity"] for r in tracking_results],
-            "ground_truth_velocities": [r["ground_truth_velocity"] for r in tracking_results],
-            "cosine_similarities": [r["cosine_similarity"] for r in tracking_results],
-            "predicted_velocity_norms": [r["predicted_velocity_norm"] for r in tracking_results],
-            "ground_truth_velocity_norms": [r["ground_truth_velocity_norm"] for r in tracking_results],
-            "l2_distances": [r["l2_distance"] for r in tracking_results],
-            "velocity_l2_distances": [r["velocity_l2_distance"] for r in tracking_results],
+            "predicted_velocities": [r["predicted_velocity"].cpu().numpy() for r in tracking_results],
+            "ground_truth_velocities": [r["ground_truth_velocity"].cpu().numpy() for r in tracking_results],
+            "cosine_similarities": [r["cosine_similarity"].cpu().numpy() for r in tracking_results],
+            "predicted_velocity_norms": [r["predicted_velocity_norm"].cpu().numpy() for r in tracking_results],
+            "ground_truth_velocity_norms": [r["ground_truth_velocity_norm"].cpu().numpy() for r in tracking_results],
+            "l2_distances": [r["l2_distance"].cpu().numpy() for r in tracking_results],
+            "velocity_l2_distances": [r["velocity_l2_distance"].cpu().numpy() for r in tracking_results],
         }
     )
 
