@@ -1,7 +1,8 @@
 import argparse
 
+import datasets
 from datasets import DatasetDict
-from shortcutfm.text_datasets import get_corpus
+from shortcutfm.text_datasets import get_corpus, get_webnlg_tokenize_fn, helper_tokenize
 from shortcutfm.tokenizer import MyTokenizer
 
 if __name__ == "__main__":
@@ -20,10 +21,61 @@ if __name__ == "__main__":
     # Initialize tokenizer
     tokenizer = MyTokenizer(args, True)
 
-    # Load datasets
-    train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)
-    val_corpus = get_corpus(args, args.max_seq_length, split="valid", loaded_vocab=tokenizer)
-    test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)
+    if (args.dataset).lower() == "webnlg":
+        data = datasets.load_dataset("GEM/web_nlg", "en")
+        # drop all features except 'input' and 'target'
+        data = data.map(
+            lambda x: {"input": x["input"], "target": x["target"]},
+            remove_columns=[col for col in data["train"].column_names if col not in ["input", "target"]],
+        )
+
+        train_corpus = helper_tokenize(
+            data["train"],
+            tokenizer,
+            args.max_seq_length,
+            from_dict=False,
+            tokenize_function=get_webnlg_tokenize_fn(tokenizer.tokenizer),
+        )
+        # drop all features except ['input_id_y', 'input_ids', 'input_mask', 'padding_mask'],
+        train_corpus = train_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in train_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        val_corpus = helper_tokenize(
+            data["validation"],
+            tokenizer,
+            args.max_seq_length,
+            from_dict=False,
+            tokenize_function=get_webnlg_tokenize_fn(tokenizer.tokenizer),
+        )
+        # drop all features except ['input_id_y', 'input_ids', 'input_mask', 'padding_mask']
+        val_corpus = val_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in val_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        test_corpus = helper_tokenize(
+            data["test"],
+            tokenizer,
+            args.max_seq_length,
+            from_dict=False,
+            tokenize_function=get_webnlg_tokenize_fn(tokenizer.tokenizer),
+        )
+        # drop all features except ['input_id_y', 'input_ids', 'input_mask', 'padding_mask']
+        test_corpus = test_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+    else:
+        # Load datasets
+        train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)
+        val_corpus = get_corpus(args, args.max_seq_length, split="valid", loaded_vocab=tokenizer)
+        test_corpus = get_corpus(args, args.max_seq_length, split="test", loaded_vocab=tokenizer)
 
     # Create DatasetDict
     ds_dict = DatasetDict({"train": train_corpus, "valid": val_corpus, "test": test_corpus})

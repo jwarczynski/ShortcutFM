@@ -42,22 +42,33 @@ def get_corpus(data_args, seq_len, split="train", loaded_vocab=None, max_example
     return train_dataset
 
 
-def helper_tokenize(sentence_lst, vocab_dict, seq_len):
-    raw_datasets = Dataset2.from_dict(sentence_lst)
-    print(raw_datasets)
+def helper_tokenize(data, vocab_dict=None, seq_len=None, tokenize_function=None, from_dict=True):
+    if from_dict:
+        dataset = Dataset2.from_dict(data)
+    else:
+        dataset = data
+    print(dataset)
 
-    def tokenize_function(examples):
-        input_id_x = vocab_dict.encode_token(examples["src"])
-        input_id_y = vocab_dict.encode_token(examples["trg"])
-        result_dict = {"input_id_x": input_id_x, "input_id_y": input_id_y}
+    if tokenize_function is None:
 
-        return result_dict
+        def tokenize_function(examples):
+            input_id_x = vocab_dict.encode_token(examples["src"])
+            input_id_y = vocab_dict.encode_token(examples["trg"])
+            result_dict = {"input_id_x": input_id_x, "input_id_y": input_id_y}
+            return result_dict
 
-    tokenized_datasets = raw_datasets.map(
+    tokenized_datasets = dataset.map(
         tokenize_function,
         batched=True,
         num_proc=4,
-        remove_columns=["src", "trg"],
+        remove_columns=["src", "trg"] if "src" in dataset.column_names and "trg" in dataset.column_names else [],
+        load_from_cache_file=True,
+        desc="Running tokenizer on dataset",
+    )
+    tokenized_datasets = tokenized_datasets.map(
+        tokenize_function,
+        batched=True,
+        num_proc=4,
         load_from_cache_file=True,
         desc="Running tokenizer on dataset",
     )
@@ -146,6 +157,36 @@ def _collate_batch_helper(examples, pad_token_id, max_length, return_mask=False)
     if return_mask:
         return result, mask_
     return result
+
+
+def get_webnlg_tokenize_fn(bert_tokenizer):
+    """
+    Returns a function to tokenize WebNLG dataset using the provided BERT tokenizer.
+
+    Args:
+        bert_tokenizer: A tokenizer instance compatible with the Hugging Face Transformers library.
+
+    Returns:
+        A function that takes a dictionary of examples and returns tokenized inputs and targets.
+    """
+
+    def tokenize_webnlg(examples):
+        # Join the input list elements with " ; " separator for each example
+        input_texts = [" ; ".join(inp) for inp in examples["input"]]
+        target_texts = examples["target"]
+
+        input_encoding = bert_tokenizer(input_texts, truncation=True, max_length=128)
+        target_encoding = bert_tokenizer(target_texts, truncation=True, max_length=128)
+
+        # Extract the actual lists from BatchEncoding objects
+        result_dict = {
+            "input_id_x": input_encoding["input_ids"],
+            "input_id_y": target_encoding["input_ids"],
+        }
+
+        return result_dict
+
+    return tokenize_webnlg
 
 
 class TextDataset(Dataset):
