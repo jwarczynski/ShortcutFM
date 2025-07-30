@@ -5,13 +5,13 @@ import evaluate
 import lightning as pl
 import numpy as np
 import torch
-import wandb
 from numpy import dtype, ndarray
 from torch import Tensor
 from torch.nn import functional as F
 from torch.optim import AdamW
 from transformers import PreTrainedTokenizer
 
+import wandb
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
 from shortcutfm.criteria import CompositeCriterion
@@ -79,7 +79,8 @@ class TrainModule(pl.LightningModule):
 
         # Log only loss-related metrics
         loss_metrics = {f"train/{k}": v.mean() for k, v in outputs.items() if "loss" in k.lower()}
-        self.log_dict(loss_metrics, on_step=True, on_epoch=False, prog_bar=True)
+        self.log_dict(loss_metrics, on_step=True, on_epoch=False, prog_bar=True,
+                     batch_size=batch.seqs.size(0), sync_dist=True)
 
         # Store exact timesteps and shortcuts for histogram logging
         if "timestep" in outputs:
@@ -138,7 +139,7 @@ class TrainModule(pl.LightningModule):
         """Log average losses for each timestep bin and full denoising predictions for one batch."""
         self._log_timestep_bin_losses()
         self._log_sampling_histograms()
-        self._process_train_batch_predictions()
+        # self._process_train_batch_predictions()
         self.log_anisotropy()
 
     def _log_timestep_bin_losses(self) -> None:
@@ -157,7 +158,7 @@ class TrainModule(pl.LightningModule):
 
                     # Log average loss for this timestep bin and component
                     metric_name = f"train/{loss_name}_t{bin_start:04d}_t{bin_end:04d}"
-                    self.log(metric_name, avg_loss, on_step=False, on_epoch=True)
+                    self.log(metric_name, avg_loss, on_step=False, on_epoch=True, sync_dist=True)
 
         # Clear losses for next epoch
         self.timestep_losses = {
@@ -312,6 +313,7 @@ class TrainModule(pl.LightningModule):
                     ce_loss.mean().item(),
                     on_step=False,
                     on_epoch=True,
+                    sync_dist=True,
                 )
                 if stage == "train" and create_entries:
                     # log mean bleu
@@ -321,6 +323,7 @@ class TrainModule(pl.LightningModule):
                         float(mean_bleu),
                         on_step=False,
                         on_epoch=True,
+                        sync_dist=True,
                     )
 
         self.criterion.model.train()
@@ -442,7 +445,7 @@ class TrainModule(pl.LightningModule):
         if hasattr(self.criterion.model.module, "word_embedding"):
             embedding_weights = self.criterion.model.module.word_embedding.weight
             anisotropy = self._calculate_anisotropy(embedding_weights)
-            self.log("train/anisotropy", anisotropy, on_step=False, on_epoch=True)
+            self.log("train/anisotropy", anisotropy, on_step=False, on_epoch=True, sync_dist=True)
 
     @torch.no_grad()
     def _calculate_anisotropy(self, model_emb):
@@ -458,6 +461,8 @@ class TrainModule(pl.LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            batch_size=batch.seqs.size(0),
+            sync_dist=True,
         )
 
         self.compute_and_log_bleu(batch)
@@ -504,7 +509,8 @@ class TrainModule(pl.LightningModule):
             self.print(f"BLEU computation failed: {e}")
             mean_bleu = 0.0
 
-        self.log("val/bleu", mean_bleu, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/bleu", mean_bleu, on_step=False, on_epoch=True, prog_bar=True,
+                batch_size=batch.seqs.size(0), sync_dist=True)
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.

@@ -26,7 +26,7 @@ def parse_config(config_path: str, args_list: list[str]) -> TrainingConfig:
 
     # Convert to dict and validate with Pydantic
     config_dict = om.to_container(merged_cfg, resolve=True)
-    training_config = TrainingConfig(**config_dict)
+    training_config = TrainingConfig(**config_dict) # type: ignore
 
     return training_config
 

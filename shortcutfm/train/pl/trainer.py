@@ -14,6 +14,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+import wandb
 from datasets import Dataset
 from shortcutfm.batch import collate
 from shortcutfm.config import TrainingConfig
@@ -50,21 +51,28 @@ def create_dataloaders(cfg: TrainingConfig, num_workers=8) -> tuple[DataLoader, 
         mark_second_padding=cfg.padding_strategy.mark_second_padding,
     )
 
+    # Reduce num_workers and disable persistent_workers in distributed setting to avoid shared memory issues
+    adjusted_num_workers = min(num_workers, 4)  # Limit to 4 workers max
+    num_gpus = cfg.num_gpus if isinstance(cfg.num_gpus, int) else 1
+    use_persistent_workers = num_workers > 0 and num_gpus <= 1  # Only use persistent workers on single GPU
+
     train_dataloader = DataLoader(
         train_text_ds,
         batch_size=cfg.batch_size,
         collate_fn=configured_collate,
         shuffle=True,
-        num_workers=num_workers,
-        persistent_workers=True,
+        num_workers=adjusted_num_workers,
+        persistent_workers=use_persistent_workers,
+        pin_memory=True,
     )
     val_dataloader = DataLoader(
         val_text_ds,
         batch_size=cfg.batch_size,
         collate_fn=configured_collate,
         shuffle=False,
-        num_workers=num_workers,
-        persistent_workers=True,
+        num_workers=adjusted_num_workers,
+        persistent_workers=use_persistent_workers,
+        pin_memory=True,
     )
 
     return train_dataloader, val_dataloader
@@ -81,13 +89,18 @@ def create_wandb_logger(cfg: TrainingConfig, model: FlowMatchingModel) -> WandbL
     :rtype: Optional[WandbLogger]
     """
     if not cfg.dry_run and cfg.wandb.enabled:
+        wandb_settings = wandb.Settings(
+            init_timeout=600,  # 5 minutes
+            start_method="thread"  # Can help with multiprocessing issues
+        )
         wandb_logger = WandbLogger(
             project=cfg.wandb.project_name,
             name=cfg.wandb.run_name,
             id=cfg.wandb.run_id,
             resume=cfg.wandb.resume,
+            settings=wandb_settings,
         )
-        wandb_logger.watch(model.module, log="all")
+        # wandb_logger.watch(model.module, log="all")
         wandb_logger.log_hyperparams(cfg.model_dump())
         return wandb_logger
     return None
@@ -130,7 +143,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
     :rtype: tuple[pl.Trainer, TrainModule, DataLoader, DataLoader]
     """
     # Create Lightning module
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model.config_name)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.model.tokenizer_config_name)
     criterion = create_criterion(cfg, tokenizer=tokenizer)
 
     # Create or load training unit
@@ -190,6 +203,14 @@ def get_lightning_trainer(cfg: TrainingConfig):
     if ema_callback := get_ema_callback(cfg, cfg.checkpoint.path):
         callbacks.append(ema_callback)
 
+    # Configure distributed strategy to prevent bus errors
+    strategy = "auto"
+    if isinstance(cfg.num_gpus, int) and cfg.num_gpus > 1:
+        # Use DDP with find_unused_parameters=False for better memory efficiency
+        strategy = "ddp"
+    elif isinstance(cfg.num_gpus, str) and cfg.num_gpus != "1":
+        strategy = "ddp"
+
     trainer = pl.Trainer(
         max_steps=cfg.max_steps,
         logger=wandb_logger,
@@ -201,13 +222,17 @@ def get_lightning_trainer(cfg: TrainingConfig):
         deterministic=cfg.deterministic,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=cfg.num_gpus,
+        strategy=strategy,
         log_every_n_steps=cfg.log_interval,
         check_val_every_n_epoch=cfg.check_val_every_n_epoch,
         val_check_interval=cfg.val_interval,
         accumulate_grad_batches=cfg.accumulate_grad_batches,
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
-        overfit_batches=int(cfg.overfit_batches) if cfg.overfit_batches >= 1 else cfg.overfit_batches,
+        overfit_batches=(
+            int(cfg.overfit_batches) if cfg.overfit_batches and cfg.overfit_batches >= 1
+            else cfg.overfit_batches
+        ),
         num_sanity_val_steps=0,
     )
 

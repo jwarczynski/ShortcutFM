@@ -55,7 +55,7 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     model = factory.build()
 
     # Initialize tokenizer
-    tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.config_name)
+    tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.tokenizer_config_name)
 
     # Create base flow matching criterion
     flow_matching_criterion = create_flow_matching_criterion(model, tokenizer, training_cfg)

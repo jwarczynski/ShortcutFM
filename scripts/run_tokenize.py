@@ -19,6 +19,7 @@ if __name__ == "__main__":
     save_path = f"datasets/tokenized/{config_name}/{args.dataset}"
 
     # Initialize tokenizer
+    args.tokenizer_config_name = args.config_name
     tokenizer = MyTokenizer(args, True)
 
     if (args.dataset).lower() == "webnlg":
@@ -76,9 +77,11 @@ if __name__ == "__main__":
         data = datasets.load_dataset("wmt19", "de-en")
         # rename columns to 'src' and 'trg' to match the expected format of helper_tokenize
         data = data.map(lambda x: {"src": x["translation"]["de"], "trg": x["translation"]["en"]})
+        # split train split into train and validation
+        data["train"], data["val"] = data["train"].train_test_split(test_size=0.1).values()
         # Tokenize the dataset
         train_corpus = helper_tokenize(
-            data["train"],
+            data["train"],  # Limit to 1000 samples for testing
             tokenizer,
             args.max_seq_length,
             from_dict=False,
@@ -91,7 +94,7 @@ if __name__ == "__main__":
             ],
         )
         val_corpus = helper_tokenize(
-            data["validation"],
+            data["val"],  # Limit to 1000 samples for testing
             tokenizer,
             args.max_seq_length,
             from_dict=False,
@@ -104,7 +107,7 @@ if __name__ == "__main__":
             ],
         )
         test_corpus = helper_tokenize(
-            data["test"],
+            data["validation"],  # Limit to 1000 samples for testing
             tokenizer,
             args.max_seq_length,
             from_dict=False,
@@ -116,6 +119,7 @@ if __name__ == "__main__":
                 col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
             ],
         )
+        # test_corpus = val_corpus  # For simplicity, use validation set as test set
     else:
         # Load datasets
         train_corpus = get_corpus(args, args.max_seq_length, split="train", loaded_vocab=tokenizer)

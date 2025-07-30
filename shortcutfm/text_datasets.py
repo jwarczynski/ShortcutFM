@@ -65,13 +65,6 @@ def helper_tokenize(data, vocab_dict=None, seq_len=None, tokenize_function=None,
         load_from_cache_file=True,
         desc="Running tokenizer on dataset",
     )
-    tokenized_datasets = tokenized_datasets.map(
-        tokenize_function,
-        batched=True,
-        num_proc=4,
-        load_from_cache_file=True,
-        desc="Running tokenizer on dataset",
-    )
     print("### tokenized_datasets", tokenized_datasets)
     print("### tokenized_datasets...example", tokenized_datasets["input_id_x"][0])
 

@@ -5,12 +5,9 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 class MyTokenizer:
     """Load tokenizer from bert config or defined BPE vocab dict"""
 
-    ################################################
-    ### You can custome your own tokenizer here. ###
-    ################################################
     def __init__(self, args, is_eval=False):
         if args.vocab == "bert":
-            tokenizer = AutoTokenizer.from_pretrained(args.config_name)
+            tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_config_name)
             # Add null token if it doesn't exist
             if "[NULL]" not in tokenizer.vocab:
                 tokenizer.add_special_tokens({"additional_special_tokens": ["[NULL]"]})
@@ -22,7 +19,7 @@ class MyTokenizer:
             if not is_eval:
                 tokenizer.save_pretrained(args.checkpoint_path)
         elif args.vocab == "mt":
-            self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-de")
+            self.tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_config_name)
             self.sep_token_id = self.tokenizer.convert_tokens_to_ids("</s>")
             self.pad_token_id = self.tokenizer.convert_tokens_to_ids("<pad>")
             self.null_token_id = self.tokenizer.convert_tokens_to_ids("<unk>")

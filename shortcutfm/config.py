@@ -67,6 +67,10 @@ class BaseModelConfig(BaseModel):
     diffusion_steps: int = Field(default=2048, description="Number of diffusion steps")
     min_shortcut_size: int = Field(default=1, description="Minimum shortcut size")
     dropout: float = Field(default=0.1, description="Dropout rate")
+    tokenizer_config_name: Literal["bert-base-uncased", "answerdotai/ModernBERT-base", "Helsinki-NLP/opus-mt-en-de"] = Field(
+        default="bert-base-uncased",
+        description="Name of the tokenizer configuration to use",
+    )
     config_name: Literal["bert-base-uncased", "answerdotai/ModernBERT-base"] = Field(
         default="bert-base-uncased",
         description="Name of the base model configuration to use",
@@ -378,13 +382,32 @@ class TrainingConfig(BaseModel):
     dry_run: bool = Field(default=False, description="Whether this is a dry run")
     use_composer: bool = Field(default=False, description="Whether to use Composer for training")
 
+    # Environment variables for distributed training
+    environment_variables: dict[str, str] = Field(
+        default_factory=lambda: {
+            "NCCL_TIMEOUT": "300",
+            "NCCL_BLOCKING_WAIT": "1",
+            "NCCL_DEBUG": "INFO",
+            "OMP_NUM_THREADS": "1",
+            "TOKENIZERS_PARALLELISM": "false",
+            "TORCH_MULTIPROCESSING_SHARING_STRATEGY": "file_system",
+        },
+        description="Environment variables to set for distributed training"
+    )
+
     infra: exca.TaskInfra = exca.TaskInfra()
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     @infra.apply
     def train(self) -> None:
+        import os
+
         from shortcutfm.train.pl.trainer import get_lightning_trainer
+
+        # Set environment variables for distributed training from configuration
+        for key, value in self.environment_variables.items():
+            os.environ[key] = value
 
         seed_everything(self.seed)
         random.seed(self.seed)
