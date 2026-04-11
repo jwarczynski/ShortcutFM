@@ -74,11 +74,11 @@ optimizer:
 
 wandb:
   project_name: "Thesis"
-  run_name: "qqp_scut_768_fix"
+  run_name: "qqp_scut_768_fix_padnoise"
   enabled: true
 
 checkpoint:
-  save_folder: "checkpoints/qqp/scut_768_fix"
+  save_folder: "checkpoints/qqp/scut_768_fix_padnoise"
   enabled: true
 
 use_exca: true

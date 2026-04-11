@@ -236,7 +236,9 @@ class FlowMatchingCriterion(Criterion):
             return predicitons
 
         noise = torch.randn_like(embeddings)
-        self.x_t = torch.where(input_mask == 0, embeddings, noise)
+        # Only noise real target tokens (input_mask=1 AND padding_mask=1), keep source and padding clean
+        denoise_mask = (batch.input_ids_mask * batch.padding_mask).unsqueeze(-1)
+        self.x_t = torch.where(denoise_mask == 0, embeddings, noise)
 
         # Pre-allocate tensor for predictions if probing every step
         num_steps = len(range(self.diffusion_steps, 0, -effective_step))
@@ -1006,6 +1008,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             self.diffusion_steps,
         )
         x_t_next, noise = self._interpolate_data_noise(x_start, t_next)
+        # TODO: also mask padding here when sc_rate > 0 (needs padding_mask passed through)
         x_t_next = torch.where(input_ids_mask.unsqueeze(-1) == 0, x_start, x_t_next)
         empty_self_conditioning_input = self._criterion._modify_model_input_or_output(
             input_ids_mask.unsqueeze(-1),
@@ -1260,7 +1263,9 @@ class CompositeCriterion(Criterion):
         fm_input_ids_mask = batch.input_ids_mask[:num_flow_matching_elems]
         t, fm_weights = self.sampler(batch_size=num_flow_matching_elems, device=batch.seqs.device)
         x_t, noise = self._interpolate_data_noise(fm_x_start, t)
-        x_t = torch.where(fm_input_ids_mask.unsqueeze(-1) == 0, fm_x_start, x_t)
+        # Only noise real target tokens, keep source and padding clean
+        fm_denoise_mask = (fm_input_ids_mask * fm_padding_mask).unsqueeze(-1)
+        x_t = torch.where(fm_denoise_mask == 0, fm_x_start, x_t)
         fm_batch = FlowMatchingBatch(
             seqs=fm_seqs,
             padding_mask=fm_padding_mask,
@@ -1300,8 +1305,10 @@ class CompositeCriterion(Criterion):
             device=batch.seqs.device,
         )
         consistency_x_t, consistency_noise = self._interpolate_data_noise(consistency_x_start, consistency_t)
+        # Only noise real target tokens, keep source and padding clean
+        consistency_denoise_mask = (consistency_input_ids_mask * consistency_padding_mask).unsqueeze(-1)
         consistency_x_t = torch.where(
-            consistency_input_ids_mask.unsqueeze(-1) == 0,
+            consistency_denoise_mask == 0,
             consistency_x_start,
             consistency_x_t,
         )
