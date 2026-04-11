@@ -1,0 +1,119 @@
+# QQP Training Configuration
+# Extends default.yaml with QQP-specific settings
+
+dry_run: false
+use_exca: true
+
+infra:
+  cluster: "slurm"
+  folder: "jobs"
+  timeout_min: 10080
+  mode: "force"
+  slurm_partition: "hgx"
+  gpus_per_node: 2
+  tasks_per_node: 2
+  cpus_per_task: 8
+  slurm_use_srun: true
+  slurm_additional_parameters:
+    nodelist: "hgx2"
+
+
+# Data paths
+training_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/train"
+validation_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
+padding_strategy:
+  mark_first_padding: true
+  mark_second_padding: true
+
+check_val_every_n_epoch: 10
+val_interval: null
+
+denoising_step_size: 512  # Step size for denoising process
+num_val_batches_to_log: 1  # Number of validation batches to log predictions for
+num_timestep_bins: 4
+prediction_shortcut_size: 512
+log_train_predictions_every_n_epochs: 10  # Number of epochs between train prediction logging
+log_train_predictions_from_n_epochs: 10  # Number of epochs between train prediction logging
+
+limit_train_batches: null
+limit_val_batches: null
+overfit_batches: 0
+
+max_steps: 60000
+gradient_clipping: 1
+reduce_fn: "mean"
+
+batch_size: 256
+accumulate_grad_batches: 2
+
+seed: 44
+
+loss:
+  type: mse
+
+normalize_flow_matching_loss: false
+
+flow_matching_loss_weight: 1.0
+consistency_loss_weight: 1.0
+nll_loss_weight: 1.0
+isotropy_loss_weight: 0.0
+
+# Classifier-free guidance settings
+cfg_guidance_scale: 2.0  # Set to 1.0 for no guidance, >1.0 to enable guidance (e.g., 3.0)
+cfg_start_step: null  # Global step to start applying classifier-free guidance, null for disabling cfg
+cfg_probability: 0.2  # Probability of training unconditionally (discarding conditioning)
+
+consistency_start_step: 0
+self_consistency_ratio: 0.25
+model:
+  type: "dit"  # This is the discriminator field
+  diffusion_steps: 2048
+  config_name: bert-base-uncased
+  freeze_word_embedding: false
+  vocab_size: 30522
+  null_token_id: 15
+  word_embedding_std: 1.0
+  input_dims: 128
+  output_dims: 128
+  sc_rate: 0.0
+  parametrization: "x0"
+  hidden_t_dim: 128
+  hidden_shortcut_dim: 128
+  normalize_word_embedding: false
+  scale_time: false
+  # DiT-specific parameters
+  embedding_dim: 768
+  num_attention_heads: 8
+  mlp_ratio: 4.0
+  num_layers: 12
+
+time_shortcut_sampling:
+    type: "timestep_first"
+    time_sampler: "uniform"
+    shortcut_sampler: "uniform"
+
+# Optimizer configuration
+optimizer:
+  scheduler:
+    lr: 1e-4
+    type: "linear"
+    start_factor: 1.0
+    end_factor: 0.0
+    total_steps: 60000
+
+#ema: null
+
+# WandB configuration
+wandb:
+#  project_name: "test_v3"
+  project_name: "shortcutFM"
+#  project_name: "test"
+  run_name: scut=.25_dit
+  enabled: true
+
+# Checkpoint configuration
+checkpoint:
+  save_folder: "checkpoints/qqp"
+  save_interval: 1000
+  num_to_keep: 15
+#  path: "checkpoints/qqp/bert-base/run_hv5ivw2s/last.ckpt"

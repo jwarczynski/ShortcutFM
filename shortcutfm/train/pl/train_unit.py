@@ -1,10 +1,10 @@
 from itertools import islice
 from typing import Literal
 
-import evaluate
 import lightning as pl
 import numpy as np
 import torch
+from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from numpy import dtype, ndarray
 from torch import Tensor
 from torch.nn import functional as F
@@ -16,6 +16,8 @@ from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
 from shortcutfm.criteria import CompositeCriterion
 from shortcutfm.decoding.prediction_strategies import PredictionStrategy
+from shortcutfm.decoding.text_processing import process_batch_predictions
+from shortcutfm.evaluation import compute_bleu_from_batch
 from shortcutfm.train.optim import SchedulerFactory
 
 
@@ -272,29 +274,35 @@ class TrainModule(pl.LightningModule):
             if create_entries:
                 predicted_tokens = predictions.argmax(dim=-1)
 
-                source_text, reference_text, predicted_text = self._extract_text_parts(batch, predicted_tokens)
-
-                clean_predicted_text = _extract_clean_predicted_text(predicted_text)
+                source_text, reference_text, predicted_text = process_batch_predictions(
+                    batch, predicted_tokens, self.tokenizer, use_fallback_processing=False
+                )
 
                 # Compute individual BLEU scores for each example
-                bleu = evaluate.load("bleu")
+                # Use simple sentence-level BLEU for individual examples
                 bleu_scores = []
+                smoothing_function = SmoothingFunction().method4
 
-                for ref, hyp in zip(reference_text, clean_predicted_text, strict=False):
+                for ref, hyp in zip(reference_text, predicted_text, strict=False):
                     ref_clean = ref.strip()
                     hyp_clean = hyp.strip()
 
-                    # Debugging: Print the problematic pair
+                    # Handle empty cases
                     if not hyp_clean or not ref_clean:
-                        bleu_scores.append(0.0)  # Assign a default score (e.g., 0) for empty cases
+                        bleu_scores.append(0.0)
                         continue
 
-                    # BLEU expects a list of lists for references
-                    reference = [[ref_clean]]
-                    hypothesis = hyp_clean
+                    # Sentence-level BLEU expects tokenized input
+                    ref_tokens = ref_clean.split()
+                    hyp_tokens = hyp_clean.split()
 
-                    individual_bleu = bleu.compute(predictions=[hypothesis], references=reference)
-                    bleu_scores.append(individual_bleu["bleu"])
+                    try:
+                        individual_bleu = sentence_bleu(
+                            [ref_tokens], hyp_tokens, smoothing_function=smoothing_function
+                        )
+                        bleu_scores.append(individual_bleu)
+                    except Exception:
+                        bleu_scores.append(0.0)
 
                 # Create and store prediction entries
                 prediction_entries = self._create_prediction_entries(
@@ -477,39 +485,26 @@ class TrainModule(pl.LightningModule):
         return outputs["loss"]
 
     def compute_and_log_bleu(self, batch):
-        # Compute predictions and BLEU scores
+        # Compute predictions and BLEU scores using shared function
+        # Use probe_every_step=True to be consistent with test_step
         predictions = self.criterion.denoise(
             batch=batch,
             shortcut_size=self.prediction_shortcut_size,
-            probe_every_step=False,
+            probe_every_step=True,  # Changed to True for consistency with test_step
             return_logits=False,
             step_size=self.denoising_step_size,
         )
 
-        source_text, reference_text, predicted_text = self._extract_text_parts(batch, predictions)
+        # Use shared BLEU computation function
+        bleu_score = compute_bleu_from_batch(
+            batch=batch,
+            predicted_tokens=predictions,
+            tokenizer=self.tokenizer,
+            use_fallback_processing=False,  # Can enable if needed
+            smoothing_method=4  # Chen & Cherry smoothing
+        )
 
-        clean_predicted_text = _extract_clean_predicted_text(predicted_text)
-
-        # Handle references: convert to list of lists
-        references = [[ref] for ref in reference_text]
-
-        bleu = evaluate.load("bleu")
-        try:
-            # Validate input
-            if not references or not any(references) or not clean_predicted_text:
-                raise ValueError("Empty references or predictions passed to BLEU computation.")
-
-            bleu_result = bleu.compute(predictions=clean_predicted_text, references=references)
-
-            mean_bleu = bleu_result.get("bleu", 0.0)
-        except ZeroDivisionError:
-            self.print("Warning: ZeroDivisionError in BLEU computation. Likely due to empty references.")
-            mean_bleu = 0.0
-        except Exception as e:
-            self.print(f"BLEU computation failed: {e}")
-            mean_bleu = 0.0
-
-        self.log("val/bleu", mean_bleu, on_step=False, on_epoch=True, prog_bar=True,
+        self.log("val/bleu", bleu_score, on_step=False, on_epoch=True, prog_bar=True,
                 batch_size=batch.seqs.size(0), sync_dist=True)
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
@@ -622,39 +617,3 @@ def justnorm(x, idim=-1):
     x = x.float()
     res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
     return res
-
-
-def _extract_clean_predicted_text(predicted_text):
-    """Extract clean predicted text from the model prediction part.
-    The function assumes:
-    1. Each text starts with a CLS token
-    2. There's a SEP token after the source sequence
-    3. Everything after this SEP is the model's prediction
-    4. We want text up to the first SEP token in the prediction part
-
-    Args:
-        predicted_text (list[str]): List of predicted texts with special tokens
-
-    Returns:
-        list[str]: List of clean predicted texts
-
-    """
-    clean_texts = []
-
-    for text in predicted_text:
-        # First, find the SEP token that comes after the source sequence
-        parts = text.split("[SEP]", 1)  # Split on first SEP
-        # The prediction part starts after the first SEP
-        # stripping sep in case of double sep after src sequence
-        prediction_part = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-        if prediction_part.find("[SEP]") == 0:
-            prediction_part = prediction_part[len("[SEP]") :].strip()
-
-        # If there are more SEP tokens in the prediction, take only up to the first one
-        prediction_part = prediction_part.split("[SEP]", 1)[0]
-
-        # Remove any remaining special tokens (like CLS) and strip whitespace
-        clean_prediction = prediction_part.replace("[CLS]", "").replace("[PAD]", "").replace("[SEP]", "").strip()
-        clean_texts.append(clean_prediction)
-
-    return clean_texts

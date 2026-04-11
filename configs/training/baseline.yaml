@@ -1,0 +1,95 @@
+# QQP Training Configuration
+# Extends default.yaml with QQP-specific settings
+training_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/train"
+validation_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
+
+normalize_embeddings: true  # Enable embedding normalization
+normalize_flow_matching_loss: false
+
+use_exca: true
+infra:
+  cluster: "slurm"
+  folder: "jobs"
+  timeout_min: 10080
+  mode: "force"
+  slurm_partition: "hgx"
+  gpus_per_node: 2
+  tasks_per_node: 2
+  cpus_per_task: 8
+  slurm_use_srun: true
+  slurm_additional_parameters:
+    nodelist: "hgx1"
+
+denoising_step_size: 2048  # Step size for denoising process
+prediction_shortcut_size: 2048
+
+check_val_every_n_epoch: 5
+log_train_predictions_every_n_epochs: 5  # Number of epochs between train prediction logging
+log_train_predictions_from_n_epochs: 5  # Number of epochs between train prediction logging
+
+batch_size: 128
+accumulate_grad_batches: 4
+gradient_clipping: 1
+
+limit_train_batches: null
+limit_val_batches: null
+overfit_batches: 0.0
+
+# Classifier-free guidance settings
+cfg_guidance_scale: 1.0  # Set to 1.0 for no guidance, >1.0 to enable guidance (e.g., 3.0)
+cfg_start_step: null  # Global step to start applying classifier-free guidance, null for disabling cfg
+cfg_probability: 0.0  # Probability of training unconditionally (discarding conditioning)
+
+consistency_start_step: 0
+self_consistency_ratio: 0.0
+shortcut_target_x_start_probability: 0.0
+
+flow_matching_loss_weight: 1.0
+consistency_loss_weight: 0.0
+nll_loss_weight: 1.0
+
+model:
+  type: "transformer"  # This is the discriminator field
+  config_name: "bert-base-uncased"
+  tokenizer_config_name: "bert-base-uncased"
+  diffusion_steps: 2048
+  use_pretrained_weights: false
+  use_pretrained_embeddings: false
+  freeze_word_embedding: false
+  freeze_lm_head: false
+  tie_word_embedding: true
+  input_dims: 128
+  output_dims: 128
+  sc_rate: 0.0
+  hidden_t_dim: 128
+  hidden_shortcut_dim: null
+  parametrization: "x0"
+  default_shortcut: "0"
+  projection_activation: "tanh"
+
+time_shortcut_sampling:
+  type: timestep_first
+  shortcut_sampler: "uniform"
+  time_sampler: "uniform"
+
+# Optimizer configuration
+max_steps: 50000
+optimizer:
+  scheduler:
+    lr: 1e-4
+    type: "linear"
+    start_factor: 1.0
+    end_factor: 0.01
+    total_steps: 60000
+
+# WandB configuration
+wandb:
+  project_name: "Thesis"
+  run_name: "qqp_baseline_norm_e"
+  enabled: true
+
+# Checkpoint configuration
+checkpoint:
+  save_folder: "checkpoints/qqp/qqp_baseline_norm_e"
+  enabled: true
+#  path: "checkpoints/qqp/bert-base/run_hv5ivw2s/last.ckpt"

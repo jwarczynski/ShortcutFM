@@ -1,0 +1,41 @@
+# Generation config for QQP scut_768 checkpoint with multiple NFEs
+# Checkpoint: checkpoints/qqp/scut_768/run_ll9cnmi5/epoch=147-step=21000-val_bleu=0.0000.ckpt
+
+training_config_path: "checkpoints/qqp/scut_768/run_ll9cnmi5/training_config.yaml"
+checkpoint_path: "checkpoints/qqp/scut_768/run_ll9cnmi5/epoch=147-step=21000-val_bleu=0.0000.ckpt"
+use_ema_weights: true
+
+# Data settings
+split: "test"
+batch_size: 128
+limit_test_batches: null
+
+# Generation settings - these will be overridden per NFE in the job array
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+seed: 44
+# output_folder is computed by the sweep script per NFE
+output_folder: "generation_outputs/qqp/scut_768/run_ll9cnmi5/scut=2048"
+
+# Evaluation settings
+run_evaluation: true
+use_fallback_processing: false
+
+# Disable plot analysis for batch runs
+run_plot_analysis: false
+
+# Force regeneration to get fresh results
+force_regeneration: true
+
+# Use exca for SLURM submission
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  timeout_min: 360
+  slurm_partition: hgx
+  gpus_per_node: 1
+  cpus_per_task: 4
+  mem_gb: 32
+  slurm_additional_parameters:
+    nodelist: hgx1

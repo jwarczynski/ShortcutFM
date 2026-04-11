@@ -1,0 +1,26 @@
+# QQP Embedding and BERT Pretrained Checkpoints
+# Format: checkpoint_path|training_config_path|subdir|run_id|step
+
+# baseline_emb-pt-l-tied/run_djh9w1v8 - 1000 steps
+checkpoints/qqp/baseline_emb-pt-l-tied/run_djh9w1v8/epoch=7-step=1000.ckpt|checkpoints/qqp/baseline_emb-pt-l-tied/run_djh9w1v8/training_config.yaml|baseline_emb-pt-l-tied|run_djh9w1v8|1000
+
+# baseline_emb-pt-l-tied/run_djh9w1v8 - 4000 steps  
+checkpoints/qqp/baseline_emb-pt-l-tied/run_djh9w1v8/epoch=28-step=4000.ckpt|checkpoints/qqp/baseline_emb-pt-l-tied/run_djh9w1v8/training_config.yaml|baseline_emb-pt-l-tied|run_djh9w1v8|4000
+
+# scut_emb-pt-frze-tied/run_xxha8oi0 - 1000 steps
+checkpoints/qqp/scut_emb-pt-frze-tied/run_xxha8oi0/epoch=7-step=1000.ckpt|checkpoints/qqp/scut_emb-pt-frze-tied/run_xxha8oi0/training_config.yaml|scut_emb-pt-frze-tied|run_xxha8oi0|1000
+
+# scut_emb-pt-frze-tied/run_xxha8oi0 - 4000 steps
+checkpoints/qqp/scut_emb-pt-frze-tied/run_xxha8oi0/epoch=28-step=4000.ckpt|checkpoints/qqp/scut_emb-pt-frze-tied/run_xxha8oi0/training_config.yaml|scut_emb-pt-frze-tied|run_xxha8oi0|4000
+
+# baseline_bert-pt-l-tied/run_2s598de3 - 1000 steps
+checkpoints/qqp/baseline_bert-pt-l-tied/run_2s598de3/epoch=7-step=1000.ckpt|checkpoints/qqp/baseline_bert-pt-l-tied/run_2s598de3/training_config.yaml|baseline_bert-pt-l-tied|run_2s598de3|1000
+
+# baseline_bert-pt-l-tied/run_2s598de3 - 4000 steps
+checkpoints/qqp/baseline_bert-pt-l-tied/run_2s598de3/epoch=28-step=4000.ckpt|checkpoints/qqp/baseline_bert-pt-l-tied/run_2s598de3/training_config.yaml|baseline_bert-pt-l-tied|run_2s598de3|4000
+
+# baseline-emb-pt-frze-tied/run_wmw10pxp - 1000 steps
+checkpoints/qqp/baseline-emb-pt-frze-tied/run_wmw10pxp/epoch=7-step=1000.ckpt|checkpoints/qqp/baseline-emb-pt-frze-tied/run_wmw10pxp/training_config.yaml|baseline-emb-pt-frze-tied|run_wmw10pxp|1000
+
+# baseline-emb-pt-frze-tied/run_wmw10pxp - 4000 steps
+checkpoints/qqp/baseline-emb-pt-frze-tied/run_wmw10pxp/epoch=28-step=4000.ckpt|checkpoints/qqp/baseline-emb-pt-frze-tied/run_wmw10pxp/training_config.yaml|baseline-emb-pt-frze-tied|run_wmw10pxp|4000

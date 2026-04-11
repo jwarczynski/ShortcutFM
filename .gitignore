@@ -10,7 +10,16 @@ wandb/*
 
 .idea
 .vscode
+.kiro
 
 checkpoints
 datasets
 lightning_logs
+flow_visualizations
+
+sbatch
+notebooks/*
+.github
+docs
+
+patches

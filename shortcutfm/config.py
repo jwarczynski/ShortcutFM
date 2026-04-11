@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 import exca
+import torch
 from lightning import seed_everything
 from omegaconf import OmegaConf
 from pydantic import (
@@ -404,6 +405,14 @@ class TrainingConfig(BaseModel):
         import os
 
         from shortcutfm.train.pl.trainer import get_lightning_trainer
+        from shortcutfm.utils.logging_utils import configure_logging_for_slurm
+
+        # Configure logging for SLURM/EXCA jobs first
+        configure_logging_for_slurm()
+
+        # Set environment variables for distributed training from configuration
+        for key, value in self.environment_variables.items():
+            os.environ[key] = value
 
         # Set environment variables for distributed training from configuration
         for key, value in self.environment_variables.items():
@@ -416,18 +425,78 @@ class TrainingConfig(BaseModel):
             trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=self.checkpoint.path)
 
 
+class PlotAnalysisConfig(BaseModel):
+    """Configuration for cosine similarity and velocity analysis."""
+
+    # Primary analysis focus - cosine similarity with/without ground truth interpolation
+    run_cosine_analysis: bool = Field(default=True, description="Whether to run cosine similarity analysis")
+
+    # Legacy analysis options (can be disabled for focus on cosine analysis)
+    run_token_analysis: bool = Field(default=True, description="Whether to run token analysis")
+    run_embedding_analysis: bool = Field(default=True, description="Whether to run embedding analysis")
+    run_interpolation_analysis: bool = Field(default=True, description="Whether to run interpolation analysis")
+    run_quality_analysis: bool = Field(default=True, description="Whether to run quality analysis")
+
+    # Analysis parameters
+    num_examples: int = Field(default=3, description="Number of examples to analyze in detail")
+    top_k_tokens: int = Field(default=5, description="Number of top tokens to track in analysis")
+
+    # Ground truth interpolation comparison (main focus)
+    use_ground_truth_embeddings: list[bool] = Field(
+        default_factory=lambda: [True, False],
+        description="Whether to test with/without ground truth embeddings in cosine similarity analysis"
+    )
+
+    # Parameter testing
+    analysis_shortcut_sizes: list[int] = Field(
+        default_factory=lambda: [256, 512, 1024, 2048],
+        description="Shortcut sizes to test in quality analysis"
+    )
+    analysis_step_sizes: list[int] = Field(
+        default_factory=lambda: [256, 512, 1024, 2048],
+        description="Step sizes to test in quality analysis"
+    )
+
+    # Embedding analysis parameters
+    embedding_k: int = Field(default=100, description="Number of top frequent tokens for embedding analysis")
+
+    # Plot formatting
+    figure_size: tuple[int, int] = Field(default=(10, 8), description="Figure size for plots")
+    save_format: str = Field(default="png", description="Format to save plots in")
+    dpi: int = Field(default=300, description="DPI for saved plots")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class GenerationConfig(BaseModel):
     """Configuration for model generation/inference."""
 
     # Path to training config YAML and the loaded config
-    training_config_path: str = Field(description="Path to training config YAML file")
+    training_config_path: str | None = Field(
+        default=None,
+        description="Path to training config YAML file. Required unless checkpoint_list_file is provided"
+    )
 
     # Model checkpoint and weights
-    checkpoint_path: str = Field(description="Path to model checkpoint")
+    checkpoint_path: str | None = Field(
+        default=None,
+        description="Path to model checkpoint. Required unless checkpoint_list_file is provided"
+    )
+    checkpoint_list_file: str | None = Field(
+        default=None,
+        description="Path to file containing list of checkpoints to process. Alternative to individual checkpoint_path"
+    )
     use_ema_weights: bool = Field(default=True, description="Whether to use EMA weights for generation")
 
     # Data and batch settings
-    test_data_path: str = Field(description="Path to test dataset")
+    test_data_path: str | None = Field(
+        default=None,
+        description="Path to test dataset. If None, will be auto-determined from training_config_path and split"
+    )
+    split: Literal["test", "valid"] = Field(
+        default="test",
+        description="Which dataset split to use for generation (test or valid)"
+    )
     batch_size: int = Field(default=32, description="Batch size for generation")
     limit_test_batches: float | int | None = Field(
         default=None,
@@ -445,20 +514,81 @@ class GenerationConfig(BaseModel):
     )
     seed: int = Field(default=44, description="Random seed for reproducibility")
     output_folder: str = Field(default="outputs", description="Folder to save generation outputs")
+    generation_suffix: str = Field(default="", description="Suffix to append to generation output files")
+
+    # Evaluation settings
+    run_evaluation: bool = Field(default=True, description="Whether to run evaluation after generation")
+    evaluation_device: str = Field(
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        description="Device to use for evaluation (e.g., BERTScore computation)",
+    )
+    use_fallback_processing: bool = Field(
+        default=False,
+        description="Whether to use fallback processing for empty predictions during evaluation"
+    )
+
+    # Plot analysis settings
+    run_plot_analysis: bool = Field(
+        default=True,
+        description="Whether to run comprehensive plot analysis after generation"
+    )
+    plot_analysis_config: PlotAnalysisConfig = Field(
+        default_factory=PlotAnalysisConfig,
+        description="Configuration for plot analysis"
+    )
+
+    # Runtime settings
+    use_exca: bool = Field(default=False, description="Whether to use Exca for submitting generation tasks")
+    force_regeneration: bool = Field(
+        default=False,
+        description="Whether to force regeneration even if metrics files already exist"
+    )
+
+    # Infrastructure for exca job submission
+    infra: exca.TaskInfra = exca.TaskInfra()
 
     model_config = ConfigDict(validate_assignment=True)
 
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude computed fields for exca compatibility."""
+        # Set exclude to exclude computed fields
+        if 'exclude' not in kwargs:
+            kwargs['exclude'] = set()
+        elif not isinstance(kwargs['exclude'], set):
+            kwargs['exclude'] = set(kwargs['exclude']) if kwargs['exclude'] else set()
+
+        kwargs['exclude'].add('training_config')
+        kwargs['exclude'].add('effective_test_data_path')
+        return super().model_dump(**kwargs)
+
     @computed_field
     @property
-    def training_config(self) -> TrainingConfig:
+    def training_config(self) -> TrainingConfig | None:
         """Load and return the training configuration."""
+        if self.training_config_path is None:
+            return None
+
         if not Path(self.training_config_path).exists():
             raise ValueError(f"Training config file not found: {self.training_config_path}")
 
         with open(self.training_config_path) as f:
             yaml_cfg = OmegaConf.load(f)
 
-        return TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True))
+        return TrainingConfig(**OmegaConf.to_container(yaml_cfg, resolve=True)) # type: ignore
+
+    @computed_field
+    @property
+    def effective_test_data_path(self) -> str | None:
+        """Get the effective test data path, either explicit or auto-determined."""
+        if self.test_data_path is not None:
+            return self.test_data_path
+
+        if self.training_config_path is None:
+            return None
+
+        # Auto-determine from training config and split
+        from shortcutfm.decoding.generation_runner import determine_test_data_path
+        return determine_test_data_path(self.training_config_path, self.split)
 
     @field_validator("output_folder")
     @classmethod
@@ -473,10 +603,43 @@ class GenerationConfig(BaseModel):
 
         # Find a unique path by appending a number if needed
         counter = 1
-        while path.exists():
+        while path.exists() and any(path.iterdir()):  # Check if directory exists AND has content
             path = base_path / f"{seed_str}_v{counter}"
             counter += 1
 
-        # Create the unique output directory
-        path.mkdir(parents=True, exist_ok=True)
+        # Don't create the directory here - let it be created when actually needed
+        # This prevents empty directories from being created
         return str(path)
+
+    @field_validator("split")
+    @classmethod
+    def validate_split(cls, v: str) -> str:
+        """Validate that split is either 'test' or 'valid'."""
+        if v not in ["test", "valid"]:
+            raise ValueError("split must be either 'test' or 'valid'")
+        return v
+
+    def model_post_init(self, __context) -> None:
+        """Validate that either individual checkpoint fields or checkpoint_list_file is provided."""
+        has_individual = self.training_config_path is not None and self.checkpoint_path is not None
+        has_list = self.checkpoint_list_file is not None
+
+        if not has_individual and not has_list:
+            raise ValueError(
+                "Either provide training_config_path + checkpoint_path OR checkpoint_list_file"
+            )
+
+        if has_individual and has_list:
+            # Both provided - checkpoint_list_file takes precedence, ignore individual fields
+            pass
+
+    @infra.apply
+    def generate(self) -> None:
+        """Run model generation/inference with this configuration."""
+        from shortcutfm.decoding.generation_runner import run_generation_with_evaluation
+        from shortcutfm.utils.logging_utils import configure_logging_for_slurm
+
+        # Configure logging for SLURM/EXCA jobs first
+        configure_logging_for_slurm()
+
+        run_generation_with_evaluation(self)

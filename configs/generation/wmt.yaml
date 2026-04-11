@@ -1,0 +1,27 @@
+# Path to training config
+training_config_path: "checkpoints/wmt19/baseline/run_eaqjiubr/training_config.yaml"
+
+# Model checkpoint and weights
+checkpoint_path: "checkpoints/wmt19/baseline/run_eaqjiubr/last.ckpt"
+use_ema_weights: true
+
+# Data and batch settings
+test_data_path: "datasets/tokenized/opus-mt-en-de/wmt/test"
+limit_test_batches: null # Set to null for all batches
+
+# Generation settings
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+output_folder: "generation_outputs/wmt19/baseline/run_eaqjiubr/scut=2048"
+seed: 44
+
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 360

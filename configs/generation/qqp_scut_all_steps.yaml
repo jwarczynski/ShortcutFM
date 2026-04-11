@@ -1,0 +1,42 @@
+# These 2 should be ignored when checkpoint list file is set
+# training_config_path: "checkpoints/qqp/scut/run_si0oeu2i/training_config.yaml"
+# checkpoint_path: "checkpoints/qqp/scut/run_si0oeu2i/last.ckpt"
+
+# Checkpoint list file instead of individual paths
+# checkpoint_list_file: "configs/generation/individual_runs/qqp/scut_11k.txt"
+checkpoint_list_file: "configs/generation/individual_runs/webnlg/scut-cfg_checkpoints.txt"
+
+# Model checkpoint and weights  
+use_ema_weights: false
+
+# Data and batch settings
+# test_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/test"  # Auto-determined from training_config_path and split
+split: "test"  # Which dataset split to use (test or valid)
+batch_size: 128
+limit_test_batches: null # Set to null for all batches
+
+# Generation settings
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+seed: 44
+
+# Evaluation settings
+run_evaluation: true
+use_fallback_processing: true
+generation_suffix: "nltk_fallback_test"
+force_regeneration: false
+
+# Plot analysis settings
+run_plot_analysis: false  # Disable for faster generation
+
+# ExCA job submission
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: hgx
+  slurm_additional_parameters:
+    nodelist: hgx2
+  cpus_per_task: 1
+  mem_gb: 16
+  timeout_min: 2880  # 48 hours for multiple checkpoints

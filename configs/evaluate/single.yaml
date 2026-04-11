@@ -1,0 +1,20 @@
+# Evaluation configuration for single directory evaluation
+output_dir: "generation_outputs/qqp/baseline/run_sd8em29t/scut=2048/seed_44_v1"
+tokenizer: "bert-base-uncased"
+device: "cuda"
+use_fallback_processing: false
+suffix: ""
+batch_qqp: false
+skip_existing: true  # Skip if metrics file already exists
+force_overwrite: false  # Set to true to overwrite existing metrics
+
+use_exca: false
+infra:
+  cluster: slurm
+  folder: "jobs/eval"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 1
+  mem_gb: 16
+  timeout_min: 360

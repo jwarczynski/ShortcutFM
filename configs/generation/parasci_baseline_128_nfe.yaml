@@ -1,0 +1,26 @@
+# ParaSCI Baseline 128 — last.ckpt
+training_config_path: "checkpoints/parasci/baseline_128/run_ryrkvw5f/training_config.yaml"
+checkpoint_path: "checkpoints/parasci/baseline_128/run_ryrkvw5f/last.ckpt"
+use_ema_weights: true
+split: "test"
+batch_size: 128
+limit_test_batches: null
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+seed: 44
+output_folder: "generation_outputs/parasci/baseline_128/run_ryrkvw5f/scut=2048"
+run_evaluation: true
+use_fallback_processing: false
+run_plot_analysis: false
+force_regeneration: true
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  timeout_min: 360
+  slurm_partition: hgx
+  gpus_per_node: 1
+  cpus_per_task: 4
+  mem_gb: 32
+  slurm_additional_parameters:
+    nodelist: hgx1

@@ -441,14 +441,14 @@ class VelocityFlowMatchingCriterion(FlowMatchingCriterion):
         return torch.where(batch.input_ids_mask.unsqueeze(-1) == 0, batch.x_start, x0)
 
     @override
-    def compute_velocity(self, v_hat: Tensor, noise: Tensor, input_mask: Tensor) -> Tensor:
+    def compute_velocity(self, model_output: Tensor, noise: Tensor, input_mask: Tensor) -> Tensor:
         input_mask = input_mask.unsqueeze(-1) if input_mask.dim() == 2 else input_mask
-        v_hat = torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
-        return v_hat
+        model_output = torch.where(input_mask == 0, torch.zeros_like(model_output), model_output)
+        return model_output
 
     @override
-    def _restore_input_part(self, v_hat: Tensor, x_t: Tensor, input_mask: Tensor) -> Tensor:
-        return torch.where(input_mask == 0, torch.zeros_like(v_hat), v_hat)
+    def _restore_input_part(self, model_output: Tensor, x_t: Tensor, input_mask: Tensor) -> Tensor:
+        return torch.where(input_mask == 0, torch.zeros_like(model_output), model_output)
 
 
 class FlowMatchingCriterionDecorator(FlowMatchingCriterion, ABC):
@@ -518,7 +518,7 @@ class SelfConditioningFlowMatchingCriterionDecorator(FlowMatchingCriterionDecora
 
         y_hat = self._modify_model_input(input_ids_mask, x_start, y_hat)
         y_hat = torch.cat((x_t, y_hat), dim=-1)
-        shortcut_size = torch.zeros_like(t) if self.training_cfg.model.default_shortcut == "0" else t
+        shortcut_size = self.default_shortcut_factory(t)
         return self.model(y_hat, t, shortcut_size)
 
     def _should_apply_self_conditioning(self) -> Tensor:
@@ -934,6 +934,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         t: Tensor,
         shortcut_size: Tensor,
         input_ids_mask: Tensor,
+        noise: Tensor,
     ) -> Tensor:
         original_result = self._original_modify_first_step_prediction(
             step1_prediction,
@@ -942,6 +943,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             t,
             shortcut_size,
             input_ids_mask,
+            noise=noise
         )
         embedding_dim = step1_prediction.size(-1)
         input_ids_mask = input_ids_mask[..., :embedding_dim]
@@ -958,6 +960,7 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         x_t: Tensor,
         x_start: Tensor,
         input_ids_mask: Tensor,
+        noise: Tensor,
     ) -> Tensor:
         x_0_hat = self._modify_model_input_or_output(input_ids_mask.unsqueeze(-1), x_start)
         x_t = torch.cat((x_t, x_0_hat), dim=-1)
@@ -967,12 +970,14 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
             x_t=x_t,
             t=t,
             input_ids_mask=input_ids_mask,
+            noise=noise,
         )
         return target
 
     @override
     def _predict(
         self,
+        *,
         x_start: Tensor,
         x_t: Tensor,
         noise: Tensor,
@@ -1034,6 +1039,11 @@ class SelfConditioningConsistencyCriterionDecorator(ConsistencyCriterionDecorato
         y_hat: Tensor | None = None,
     ) -> Tensor:
         return self._criterion._modify_model_input_or_output(input_ids_mask, x_start, y_hat)
+
+    @override
+    def _get_direct_target(self, x_start: Tensor, noise: Tensor, input_ids_mask: Tensor) -> Tensor:
+        """Delegate to the wrapped criterion's _get_direct_target method."""
+        return self._criterion._get_direct_target(x_start, noise, input_ids_mask)
 
     def _prepare_2_shortcut_input(
         self,
@@ -1280,11 +1290,11 @@ class CompositeCriterion(Criterion):
         # prepare_consistency_batch (only if consistency is enabled)
         num_consistency_elems = int(self.self_consistency_ratio * bsz)
 
-        # Use a subset of the batch for consistency
-        consistency_seqs = batch.seqs[:num_consistency_elems]
-        consistency_x_start = embeddings[:num_consistency_elems]
-        consistency_padding_mask = batch.padding_mask[:num_consistency_elems]
-        consistency_input_ids_mask = batch.input_ids_mask[:num_consistency_elems]
+        # Use the tail of the batch for consistency (non-overlapping with FM batch)
+        consistency_seqs = batch.seqs[num_flow_matching_elems:]
+        consistency_x_start = embeddings[num_flow_matching_elems:]
+        consistency_padding_mask = batch.padding_mask[num_flow_matching_elems:]
+        consistency_input_ids_mask = batch.input_ids_mask[num_flow_matching_elems:]
         consistency_t, shortcuts, consistency_weights = self.time_shortcut_sampler(
             batch_size=num_consistency_elems,
             device=batch.seqs.device,

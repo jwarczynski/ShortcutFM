@@ -1,0 +1,11 @@
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=11-step=1000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|1000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=56-step=5000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|5000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=113-step=10000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|10000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=170-step=15000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|15000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=227-step=20000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|20000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=284-step=25000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|25000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=340-step=30000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|30000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=397-step=35000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|35000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=454-step=40000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|40000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=511-step=45000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zc9tiswx|45000
+checkpoints/grammar/baseline_128/run_zc9tiswx/epoch=568-step=50000-val_bleu=0.0000.ckpt|checkpoints/grammar/baseline_128/run_zc9tiswx/training_config.yaml|baseline_128|run_zKCEKc9tiswx|50000

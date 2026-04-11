@@ -1,0 +1,44 @@
+# QQP Generation Configuration for Embedding and BERT Pretrained Checkpoints
+# This config targets runs with embedding or BERT pretraining at 1000 and 4000 steps
+
+# these 2 shold be ignored a checkpoint list file set
+training_config_path: "checkpoints/qqp/baseline/run_sd8em29t/training_config.yaml"
+checkpoint_path: "checkpoints/qqp/baseline/run_sd8em29t/last.ckpt"
+
+# Checkpoint list file instead of individual paths
+checkpoint_list_file: "configs/generation/qqp_emb_bert_checkpoints.txt"
+
+# Model checkpoint and weights  
+use_ema_weights: false
+
+# Data and batch settings
+# test_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/test"  # Auto-determined from training_config_path and split
+split: "test"  # Which dataset split to use (test or valid)
+batch_size: 128
+limit_test_batches: null # Set to null for all batches
+
+# Generation settings
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+seed: 44
+
+# Evaluation settings
+run_evaluation: true
+use_fallback_processing: true
+generation_suffix: "nltk_fallback_test"
+force_regeneration: true
+
+# Plot analysis settings
+run_plot_analysis: false  # Disable for faster generation
+
+# ExCA job submission
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 2880  # 48 hours for multiple checkpoints

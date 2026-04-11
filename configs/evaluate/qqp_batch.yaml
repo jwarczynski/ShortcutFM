@@ -1,0 +1,20 @@
+# Evaluation configuration for batch QQP evaluation
+output_dir: "generation_outputs/qqp"
+tokenizer: "bert-base-uncased"
+# device: "cuda"
+use_fallback_processing: true
+suffix: ""
+batch_qqp: true
+skip_existing: true  # Skip directories that already have metrics files
+force_overwrite: false  # Set to true to overwrite existing metrics
+
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/eval"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 1
+  mem_gb: 16
+  timeout_min: 360

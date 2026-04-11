@@ -1,0 +1,28 @@
+# Path to training config
+training_config_path: "checkpoints/webnlg/baseline/run_4awyv7xh/training_config.yaml"
+
+# Model checkpoint and weights
+checkpoint_path: "checkpoints/webnlg/baseline/run_4awyv7xh/last.ckpt"
+use_ema_weights: true
+
+# Data and batch settings
+test_data_path: "datasets/tokenized/bert-base-uncased/webnlg/test"
+batch_size: 128  # Reduced from default 32 for CPU efficiency
+limit_test_batches: null # Set to null for all batches
+
+# Generation settings
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+output_folder: "generation_outputs/webnlg/baseline/run_4awyv7xh/scut=2048"
+seed: 44
+
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 360

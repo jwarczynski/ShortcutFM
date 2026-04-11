@@ -1,0 +1,2 @@
+# checkpoints/qqp/scut/run_si0oeu2i/epoch=77-step=11000.ckpt|checkpoints/qqp/scut/run_si0oeu2i/training_config.yaml|scut|run_si0oeu2i|11000
+checkpoints/qqp/scut_dim128_w=.1/run_zqcubtg0/epoch=323-step=46000.ckpt|checkpoints/qqp/scut_dim128_w=.1/run_zqcubtg0/training_config.yaml|scut_dim128_w=.1|run_zqcubtg0|46000

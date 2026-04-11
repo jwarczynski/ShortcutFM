@@ -1,16 +1,51 @@
 # Path to training config
-training_config_path: "checkpoints/qqp-simple/training_config.yaml"
+training_config_path: "checkpoints/qqp/baseline/run_sd8em29t/training_config.yaml"
 
 # Model checkpoint and weights
-checkpoint_path: "checkpoints/qqp-simple/last.ckpt"
-use_ema_weights: true
+checkpoint_path: "checkpoints/qqp/baseline/run_sd8em29t/last.ckpt"
+use_ema_weights: false
 
 # Data and batch settings
-test_data_path: "datasets/tokenized/QQP-Official/test"
-batch_size: 16
-limit_test_batches: 2  # Set to null for all batches
+test_data_path: "datasets/tokenized/bert-base-uncased/QQP-Official/valid"
+batch_size: 128
+limit_test_batches: null # Set to null for all batches
 
 # Generation settings
-generation_shortcut_size: 32
-output_folder: "generation_outputs/qqp"
+generation_shortcut_size: 2048
+denoising_step_size: 2048
+output_folder: "generation_outputs/qqp/baseline/run_sd8em29t/scut=2048"
 seed: 44
+
+# Evaluation settings
+run_evaluation: true  # Set to false to disable evaluation
+# evaluation_device: "cuda"  # Uncomment to override default device detection
+
+# Plot analysis settings
+run_plot_analysis: true  # Set to false to disable cosine similarity analysis
+plot_analysis_config:
+  # Primary focus: cosine similarity analysis with/without ground truth interpolation
+  run_cosine_analysis: true
+  use_ground_truth_embeddings: [true, false]  # Compare both settings
+  
+  # Disable other analysis for focus on cosine similarity
+  # run_token_analysis: false
+  # run_embedding_analysis: false
+  # run_interpolation_analysis: false
+  # run_quality_analysis: false
+  
+  # Analysis parameters
+  num_examples: 3
+  figure_size: [14, 8]  # Larger plots for better visibility
+  save_format: "png"
+  dpi: 300
+
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl1
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 360

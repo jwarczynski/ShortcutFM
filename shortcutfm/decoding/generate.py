@@ -2,21 +2,13 @@ import logging
 import sys
 from pathlib import Path
 
-import lightning as pl
 from omegaconf import OmegaConf
 from omegaconf import OmegaConf as om
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
 
-from datasets import Dataset
-from shortcutfm.batch import collate
 from shortcutfm.config import GenerationConfig
-from shortcutfm.text_datasets import TextDataset
-from shortcutfm.train.pl.callbacks import SaveTestOutputsCallback
-from shortcutfm.train.pl.trainer_factory import (
-    create_criterion,
-    get_ema_callback,
-    load_unit_from_checkpoint,
+from shortcutfm.decoding.generation_runner import (
+    run_exca_job_submission,
+    run_generation_with_evaluation,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -36,23 +28,8 @@ def parse_generation_config(config_path: str, args_list: list[str]) -> Generatio
     merged_dict = OmegaConf.to_container(merged_cfg, resolve=True)
 
     # Use model_validate to create config which will trigger field validators
-    cfg = GenerationConfig.model_validate(merged_dict)
+    cfg = GenerationConfig(**merged_dict) # type: ignore
     return cfg
-
-
-def create_test_dataloader(gen_cfg: GenerationConfig) -> DataLoader:
-    """Create test dataloader from config."""
-    test_ds = Dataset.load_from_disk(gen_cfg.test_data_path)
-    test_text_ds = TextDataset(test_ds)
-
-    return DataLoader(
-        test_text_ds,
-        batch_size=gen_cfg.batch_size,
-        collate_fn=collate,
-        shuffle=False,
-        num_workers=4,
-        persistent_workers=True,
-    )
 
 
 if __name__ == "__main__":
@@ -65,37 +42,10 @@ if __name__ == "__main__":
     # Parse and validate generation config
     gen_cfg = parse_generation_config(yaml_path, args_list)
     logger.info("Generation Configuration:\n" + om.to_yaml(gen_cfg.model_dump()))
-    logger.info("Training Configuration:\n" + om.to_yaml(gen_cfg.training_config.model_dump()))
 
-    pl.seed_everything(gen_cfg.seed)
-
-    callbacks = []
-    if gen_cfg.use_ema_weights:
-        callbacks.append(get_ema_callback(gen_cfg.training_config, gen_cfg.checkpoint_path))
-
-    save_outputs_callback = SaveTestOutputsCallback(
-        save_path=Path(gen_cfg.output_folder),
-        diff_steps=gen_cfg.training_config.model.diffusion_steps,
-        shortcut_size=gen_cfg.generation_shortcut_size,
-        start_example_idx=1,
-    )
-    callbacks.append(save_outputs_callback)
-
-    tokenizer = AutoTokenizer.from_pretrained(gen_cfg.training_config.model.tokenizer_config_name)
-
-    criterion = create_criterion(gen_cfg.training_config)
-    unit = load_unit_from_checkpoint(
-        criterion,
-        gen_cfg.checkpoint_path,
-        gen_cfg.training_config,
-        tokenizer=tokenizer,
-        denoising_step_size=gen_cfg.denoising_step_size,
-        prediction_shortcut_size=gen_cfg.generation_shortcut_size,
-    )
-    test_dataloader = create_test_dataloader(gen_cfg)
-
-    trainer = pl.Trainer(
-        callbacks=callbacks,
-        limit_test_batches=gen_cfg.limit_test_batches,
-    )
-    trainer.test(unit, dataloaders=test_dataloader)
+    if not gen_cfg.use_exca:
+        # Run generation directly using the extracted module
+        run_generation_with_evaluation(gen_cfg)
+    else:
+        # Use exca for job submission using the extracted module
+        run_exca_job_submission(gen_cfg)

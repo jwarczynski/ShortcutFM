@@ -187,7 +187,7 @@ def get_lightning_trainer(cfg: TrainingConfig):
             dirpath=str(checkpoint_dir),
             save_top_k=cfg.checkpoint.save_top_k,
             every_n_train_steps=cfg.checkpoint.save_interval,
-            filename="{epoch}-{step}",
+            filename="{epoch}-{step}-{val_bleu:.4f}",
             save_last=cfg.checkpoint.save_last,
             monitor=cfg.checkpoint.monitor,
             mode=cfg.checkpoint.mode,

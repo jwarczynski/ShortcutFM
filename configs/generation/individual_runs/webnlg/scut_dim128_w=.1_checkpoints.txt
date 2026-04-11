@@ -1,0 +1,6 @@
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=28-step=1000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|1000
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=57-step=2000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|2000
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=85-step=3000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|3000
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=114-step=4000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|4000
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=142-step=5000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|5000
+checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/epoch=171-step=6000.ckpt|checkpoints/webnlg/scut_dim128_w=.1/run_7cjb2xq7/training_config.yaml|scut_dim128_w=.1|run_7cjb2xq7|6000

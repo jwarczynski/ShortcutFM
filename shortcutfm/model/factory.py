@@ -266,8 +266,11 @@ class TransformerNetModelFactory:
                 self.config.config_name, config=self.bert_config, trust_remote_code=True
             )
             with torch.no_grad():
-                word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
+                word_embedding.weight.copy_(temp_bert.embeddings.tok_embeddings.weight)
             input_transformers = temp_bert
+            # Replace the ModernBERT model's embeddings with our custom word_embedding
+            # to ensure consistency and avoid unused parameters
+            input_transformers.embeddings.tok_embeddings = word_embedding
             backbone_transformer = ModernBertBackbone(input_transformers)
         else:
             if self.config.use_pretrained_embeddings:
@@ -275,8 +278,11 @@ class TransformerNetModelFactory:
                     self.config.config_name, config=self.bert_config, trust_remote_code=True
                 )
                 with torch.no_grad():
-                    word_embedding.weight.copy_(temp_bert.embeddings.word_embeddings.weight)
+                    word_embedding.weight.copy_(temp_bert.embeddings.tok_embeddings.weight)
             input_transformers = ModernBertModel(self.bert_config)
+            # Replace the ModernBERT model's embeddings with our custom word_embedding
+            # to avoid unused parameters
+            input_transformers.embeddings.tok_embeddings = word_embedding
             backbone_transformer = ModernBertBackbone(input_transformers)
 
         return backbone_transformer, None, None

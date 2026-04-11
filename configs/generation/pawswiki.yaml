@@ -1,0 +1,36 @@
+# Test configuration for parasci dataset generation
+# This tests the new dataset support in the generation pipeline
+
+# Checkpoint list file (using the generated checkpoint list)
+checkpoint_list_file: "configs/generation/individual_runs/pawswiki/scut_768_checkpoints.txt"
+
+# Data and batch settings
+batch_size: 128
+limit_test_batches: null  # Limit for testing
+split: "test"  # Use test split
+
+# Generation settings  
+generation_shortcut_size: 2048  # Use smaller size for testing
+denoising_step_size: 2048
+seed: 44
+
+use_fallback_processing: true
+generation_suffix: "nltk_fallback"
+force_regeneration: false
+
+# Evaluation settings
+run_evaluation: true
+
+# Plot analysis settings (disabled for testing)
+run_plot_analysis: false
+
+use_exca: true
+infra:
+  cluster: slurm
+  folder: "jobs/generation"
+  slurm_partition: obl
+  slurm_additional_parameters:
+    nodelist: obl2
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 360
