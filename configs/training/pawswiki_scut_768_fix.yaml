@@ -1,0 +1,96 @@
+# PAWS-Wiki Shortcut 768 — consistency batch fix + padding noise fix
+training_data_path: "datasets/tokenized/bert-base-uncased/paws_wiki/train"
+validation_data_path: "datasets/tokenized/bert-base-uncased/paws_wiki/valid"
+
+normalize_embeddings: false
+normalize_flow_matching_loss: false
+
+self_consistency_ratio: 0.25
+consistency_start_step: 0
+shortcut_target_x_start_probability: 0.0
+
+flow_matching_loss_weight: 1.0
+consistency_loss_weight: 1.0
+nll_loss_weight: 1.0
+isotropy_loss_weight: 1.0
+
+cfg_guidance_scale: 1.0
+cfg_start_step: null
+cfg_probability: 0.0
+
+denoising_step_size: 2048
+prediction_shortcut_size: 2048
+
+check_val_every_n_epoch: null
+val_interval: 5000
+log_train_predictions_every_n_epochs: 5
+log_train_predictions_from_n_epochs: 5
+
+batch_size: 128
+accumulate_grad_batches: 4
+gradient_clipping: 1
+max_steps: 50000
+
+limit_train_batches: null
+limit_val_batches: null
+overfit_batches: 0.0
+
+model:
+  type: "transformer"
+  config_name: "bert-base-uncased"
+  tokenizer_config_name: "bert-base-uncased"
+  diffusion_steps: 2048
+  use_pretrained_weights: false
+  use_pretrained_embeddings: false
+  freeze_word_embedding: false
+  freeze_lm_head: false
+  tie_word_embedding: true
+  input_dims: 768
+  output_dims: 768
+  sc_rate: 0.0
+  hidden_t_dim: 128
+  hidden_shortcut_dim: 128
+  default_shortcut: "0"
+  projection_activation: "tanh"
+  parametrization: "x0"
+  scale_time: false
+  min_shortcut_size: 1
+
+time_shortcut_sampling:
+  type: timestep_first
+  shortcut_sampler: "uniform"
+  time_sampler: "uniform"
+
+loss:
+  type: mse
+
+optimizer:
+  scheduler:
+    lr: 1e-4
+    type: "linear"
+    start_factor: 1.0
+    end_factor: 0.01
+    total_steps: 60000
+
+wandb:
+  project_name: "Thesis"
+  run_name: "pawswiki_scut_768_fix_padnoise"
+  enabled: true
+
+checkpoint:
+  save_folder: "checkpoints/pawswiki/scut_768_fix_padnoise"
+  enabled: true
+
+use_exca: true
+infra:
+  cluster: "slurm"
+  folder: "jobs"
+  timeout_min: 10080
+  mode: "force"
+  slurm_partition: "hgx"
+  gpus_per_node: 4
+  tasks_per_node: 4
+  cpus_per_task: 4
+  slurm_use_srun: true
+  slurm_additional_parameters:
+    nodelist: "hgx2"
