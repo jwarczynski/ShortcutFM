@@ -31,7 +31,7 @@ if __name__ == "__main__":
     print(f"Submitting: {cfg.wandb.run_name}")
     print(f"  Checkpoint: {cfg.checkpoint.save_folder}")
     print(f"  GPUs: {cfg.infra.gpus_per_node}")
-    print(f"  Node: {cfg.infra.slurm_additional_parameters.get('nodelist', 'any')}")
+    print(f"  Node: {(cfg.infra.slurm_additional_parameters or {}).get('nodelist', 'any')}")
     print(f"  Pretrained weights: {cfg.model.use_pretrained_weights}")
     print(f"  Pretrained embeddings: {cfg.model.use_pretrained_embeddings}")
 
