@@ -3,11 +3,20 @@ import logging
 import sys
 from pathlib import Path
 
+import torch
 from lightning import seed_everything
 from omegaconf import OmegaConf as om
 
 from shortcutfm.config import TrainingConfig
 from shortcutfm.train.pl.trainer import get_lightning_trainer
+
+# Allow loading checkpoints saved with custom config classes
+torch.serialization.add_safe_globals([])  # clear any defaults
+import shortcutfm.config as _cfg
+for _name in dir(_cfg):
+    _obj = getattr(_cfg, _name)
+    if isinstance(_obj, type):
+        torch.serialization.add_safe_globals([_obj])
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
