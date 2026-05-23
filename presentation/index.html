@@ -387,95 +387,171 @@
   }
   .kbd { font-family: "JetBrains Mono", monospace; padding: 0.15em 0.5em; border: 1px solid var(--rule); border-radius: 4px; background: rgba(255,255,255,0.04); margin: 0 0.2em; }
 
-  /* loss-decomposition layout */
-  .loss-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4em; flex: 1; min-height: 0; }
-  .loss-card {
-    display: flex; flex-direction: column;
-    opacity: 0;
-    transform: translateY(18px) scale(0.97);
-    transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 0.61, 0.36, 1), border-color 400ms ease, box-shadow 400ms ease;
-  }
-  .slide.active .loss-card { opacity: 1; transform: translateY(0) scale(1); }
-  .slide.active .loss-card:nth-child(1) { transition-delay: 350ms; }
-  .slide.active .loss-card:nth-child(2) { transition-delay: 1100ms; }
-  .slide.active .loss-card:nth-child(3) { transition-delay: 1850ms; }
-  .loss-card.glow { border-color: var(--accent); box-shadow: 0 0 24px rgba(124,196,255,0.25); }
-  .loss-card .ix { color: var(--accent); font-family: "JetBrains Mono", monospace; font-size: 0.9vw; letter-spacing: 0.15em; }
-  .loss-card:nth-child(2) .ix { color: var(--accent-2); }
-  .loss-card:nth-child(3) .ix { color: var(--accent-3); }
-  .loss-card .name { font-size: 1.6vw; font-weight: 700; margin: 0.3em 0 0.6em; color: var(--fg-0); }
-  .loss-card .eqn-mini { background: rgba(124,196,255,0.05); border-radius: 8px; padding: 0.7em 1em; margin: 0.5em 0; font-size: 1.1vw; }
-  .loss-card p { font-size: 1.05vw; }
-  .loss-total {
-    opacity: 0; transform: translateY(8px);
-    transition: opacity 700ms ease, transform 700ms ease;
-  }
-  .slide.active .loss-total { opacity: 1; transform: translateY(0); transition-delay: 2700ms; }
-
-  /* slide 8: setup visual */
-  .setup-grid {
+  /* loss slides (one loss per slide) */
+  .loss-stage {
     display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
-    gap: 3vw;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 4vw;
     flex: 1;
+    align-items: center;
     min-height: 0;
-    align-items: stretch;
   }
-  .setup-encoder {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 1em;
-  }
-  .enc-stack {
-    display: flex; flex-direction: column; gap: 6px;
-    width: 100%; max-width: 22vw;
-  }
-  .enc-layer {
+  .loss-stage-text { display: flex; flex-direction: column; gap: 1em; }
+  .loss-stage-text p { font-size: 1.3vw; }
+  .loss-stage-text .eqn { font-size: 1.4vw; }
+  .loss-stage-card {
     background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
     border: 1px solid var(--rule);
-    border-radius: 8px;
-    padding: 0.5em 0.9em;
-    font-family: "JetBrains Mono", monospace;
-    font-size: 0.9vw;
-    color: var(--fg-1);
+    border-radius: 18px;
+    padding: 2.4em 2em;
     text-align: center;
+    box-shadow: 0 0 40px rgba(124,196,255,0.06);
+    opacity: 0; transform: scale(0.94);
+    transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition-delay: 400ms;
+  }
+  .slide.active .loss-stage-card { opacity: 1; transform: scale(1); }
+  .loss-bigtag { font-family: "JetBrains Mono", monospace; font-size: 4.2vw; font-weight: 700; line-height: 1; }
+  .loss-bigname { font-size: 1.8vw; font-weight: 600; color: var(--fg-0); margin-top: 0.3em; }
+  .loss-active {
+    margin-top: 1.5em;
+    display: inline-block;
+    padding: 0.4em 1em;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--fg-1);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 1.1vw;
+  }
+
+  /* total-loss slide */
+  .total-loss-stage {
+    display: flex; flex-direction: column;
+    flex: 1; align-items: center; justify-content: center;
+    gap: 2em;
+  }
+  .total-loss-eq {
+    padding: 2em 3em;
+    background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06));
+    border: 1px solid rgba(124,196,255,0.25);
+    text-align: center;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity 700ms ease, transform 700ms ease;
+    transition-delay: 200ms;
+  }
+  .slide.active .total-loss-eq { opacity: 1; transform: translateY(0); }
+  .total-loss-grid {
+    display: flex; align-items: center; gap: 0.8em;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .total-loss-card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--tone, var(--accent));
+    border-radius: 12px;
+    padding: 1em 1.4em;
+    min-width: 12em;
+    text-align: center;
+    opacity: 0; transform: translateY(12px);
+    transition: opacity 600ms ease, transform 600ms ease;
+  }
+  .slide.active .total-loss-card { opacity: 1; transform: translateY(0); }
+  .slide.active .total-loss-card:nth-of-type(1) { transition-delay: 700ms; }
+  .slide.active .total-loss-card:nth-of-type(2) { transition-delay: 1100ms; }
+  .slide.active .total-loss-card:nth-of-type(3) { transition-delay: 1500ms; }
+  .total-loss-card .ix {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--tone);
+    font-size: 1.4vw; font-weight: 700;
+  }
+  .total-loss-card .role { color: var(--fg-0); font-size: 1.1vw; margin-top: 0.2em; }
+  .total-loss-card .when { color: var(--fg-2); font-size: 0.9vw; margin-top: 0.4em; font-family: "JetBrains Mono", monospace; }
+  .total-loss-plus {
+    color: var(--fg-2);
+    font-size: 2vw;
     opacity: 0;
-    transform: translateX(-10px);
+    transition: opacity 500ms ease;
+  }
+  .slide.active .total-loss-plus { opacity: 1; transition-delay: 1900ms; }
+
+  /* slide 8: architecture diagram */
+  .arch-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4vw;
+    flex: 1; min-height: 0;
+    align-items: center;
+  }
+  .arch-svg-col { display: flex; align-items: center; justify-content: center; }
+  .arch-svg { width: 100%; max-height: 70vh; height: 70vh; }
+  .arch-svg .arch-label { font-family: "Inter", sans-serif; font-size: 14px; }
+  .arch-svg .arch-sub { font-family: "Inter", sans-serif; font-size: 12px; }
+  .arch-svg .arch-bigtxt { font-family: "Inter", sans-serif; font-size: 16px; font-weight: 600; }
+  .arch-svg .arch-block, .arch-svg .arch-tx-block, .arch-svg .arch-inject {
+    opacity: 0;
+    transform-origin: 190px 50%;
+    transform: translateY(8px);
     transition: opacity 450ms ease, transform 450ms ease;
   }
-  .slide.active .enc-layer { opacity: 1; transform: translateX(0); }
-  .slide.active .enc-layer:nth-child(1) { transition-delay: 200ms; }
-  .slide.active .enc-layer:nth-child(2) { transition-delay: 320ms; }
-  .slide.active .enc-layer:nth-child(3) { transition-delay: 380ms; }
-  .slide.active .enc-layer:nth-child(4) { transition-delay: 460ms; }
-  .slide.active .enc-layer:nth-child(5) { transition-delay: 520ms; }
-  .slide.active .enc-layer:nth-child(6) { transition-delay: 580ms; }
-  .slide.active .enc-layer:nth-child(7) { transition-delay: 720ms; }
-  .enc-layer.enc-out, .enc-layer.enc-in {
-    background: linear-gradient(135deg, rgba(124,196,255,0.12), rgba(180,139,255,0.10));
-    border-color: rgba(124,196,255,0.35);
-    color: var(--fg-0);
-    display: flex; justify-content: space-between; align-items: center;
+  .slide.active .arch-svg .arch-block,
+  .slide.active .arch-svg .arch-tx-block,
+  .slide.active .arch-svg .arch-inject {
+    opacity: 1; transform: translateY(0);
   }
-  .enc-layer.enc-dot { color: var(--fg-2); border-style: dashed; padding: 0.3em; font-size: 0.8vw; }
-  .enc-tag {
-    font-size: 0.7vw; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--accent); padding: 0.15em 0.6em;
-    border: 1px solid rgba(124,196,255,0.3); border-radius: 999px;
+  .slide.active .arch-svg [data-i="0"] { transition-delay: 250ms; }
+  .slide.active .arch-svg [data-i="1"] { transition-delay: 450ms; }
+  .slide.active .arch-svg [data-i="2"] { transition-delay: 650ms; }
+  .slide.active .arch-svg [data-i="3"] { transition-delay: 850ms; }
+  .slide.active .arch-svg [data-i="4"] { transition-delay: 1050ms; }
+  .slide.active .arch-svg [data-i="5"] { transition-delay: 1300ms; }
+  .arch-svg .arch-arrow {
+    opacity: 0;
+    transition: opacity 350ms ease;
   }
-  .enc-vec { color: var(--fg-0); font-weight: 600; }
-  .enc-stats {
+  .slide.active .arch-svg .arch-arrow { opacity: 1; }
+  .slide.active .arch-svg .arch-arrow[data-i="0"] { transition-delay: 380ms; }
+  .slide.active .arch-svg .arch-arrow[data-i="1"] { transition-delay: 580ms; }
+  .slide.active .arch-svg .arch-arrow[data-i="2"] { transition-delay: 780ms; }
+  .slide.active .arch-svg .arch-arrow[data-i="3"] { transition-delay: 980ms; }
+
+  .arch-stats-col { display: flex; flex-direction: column; gap: 0.4em; }
+  .arch-stats { padding-left: 1.2em; }
+  .arch-stats li { font-size: 1.15vw; margin-bottom: 0.35em; }
+  .arch-stats strong { color: var(--fg-0); }
+
+  /* metrics slide */
+  .metrics-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5em 1.4em;
-    font-size: 0.95vw; color: var(--fg-1);
-    margin-top: 0.5em;
-    text-align: left;
-    opacity: 0;
-    transition: opacity 600ms ease;
-    transition-delay: 1000ms;
+    gap: 1.4em;
+    flex: 1; min-height: 0;
+    margin-top: 1em;
   }
-  .slide.active .enc-stats { opacity: 1; }
-  .enc-stats strong { color: var(--fg-0); font-weight: 700; }
+  .metric-card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--mtone, var(--accent));
+    border-radius: 14px;
+    padding: 1.2em 1.4em;
+    opacity: 0; transform: translateY(12px);
+    transition: opacity 500ms ease, transform 500ms ease;
+  }
+  .slide.active .metric-card { opacity: 1; transform: translateY(0); }
+  .slide.active .metric-card:nth-child(1) { transition-delay: 250ms; }
+  .slide.active .metric-card:nth-child(2) { transition-delay: 500ms; }
+  .slide.active .metric-card:nth-child(3) { transition-delay: 750ms; }
+  .slide.active .metric-card:nth-child(4) { transition-delay: 1000ms; }
+  .metric-tag {
+    display: inline-block;
+    color: var(--mtone);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.8vw; letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 0.2em 0.7em;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    opacity: 0.9;
+  }
+  .metric-name { font-size: 1.6vw; font-weight: 700; color: var(--fg-0); margin: 0.4em 0 0.4em; }
+  .metric-card p { font-size: 1vw; margin: 0.3em 0; }
 
   .setup-datasets { display: flex; flex-direction: column; gap: 0.9em; }
   .ds-card {
@@ -519,17 +595,6 @@
   .ds-example em { color: var(--fg-0); font-style: normal; }
   .ds-arrow { color: var(--fg-2); font-family: "JetBrains Mono", monospace; font-size: 0.8vw; }
 
-  .setup-metrics {
-    margin-top: 1em;
-    text-align: center;
-    font-size: 1vw;
-    color: var(--fg-1);
-    opacity: 0;
-    transition: opacity 600ms ease;
-    transition-delay: 1500ms;
-  }
-  .slide.active .setup-metrics { opacity: 1; }
-  .setup-metrics strong { color: var(--fg-0); }
 
   /* footer */
   .footer {
@@ -633,10 +698,10 @@
           <text x="300" y="380" class="traj-label" text-anchor="middle">denoising step</text>
 
           <!-- the curved trajectory the model actually learns -->
-          <path class="traj-curve"
+          <path id="s3Curve" class="traj-curve"
                 d="M 80 300 C 180 290, 220 200, 280 180 S 420 110, 540 90" />
 
-          <!-- waypoints -->
+          <!-- waypoints (positioned by JS so they lie exactly on the curve) -->
           <g class="traj-dot" style="animation-delay: 1500ms;">
             <circle cx="80" cy="300" r="7" fill="var(--accent)" />
             <text x="80" y="328" class="traj-label" text-anchor="middle">z₀ (noise)</text>
@@ -645,11 +710,9 @@
             <circle cx="540" cy="90" r="7" fill="var(--accent)" />
             <text x="540" y="78" class="traj-label" text-anchor="middle">z₁ (text)</text>
           </g>
-
-          <!-- small Euler steps along curve -->
-          <g class="traj-dot" style="animation-delay: 2100ms;"><circle cx="220" cy="225" r="4" fill="var(--accent-2)"/></g>
-          <g class="traj-dot" style="animation-delay: 2300ms;"><circle cx="320" cy="170" r="4" fill="var(--accent-2)"/></g>
-          <g class="traj-dot" style="animation-delay: 2500ms;"><circle cx="430" cy="120" r="4" fill="var(--accent-2)"/></g>
+          <g class="traj-dot" style="animation-delay: 2100ms;"><circle class="onpath" data-curve="s3Curve" data-frac="0.30" r="4" fill="var(--accent-2)"/></g>
+          <g class="traj-dot" style="animation-delay: 2300ms;"><circle class="onpath" data-curve="s3Curve" data-frac="0.55" r="4" fill="var(--accent-2)"/></g>
+          <g class="traj-dot" style="animation-delay: 2500ms;"><circle class="onpath" data-curve="s3Curve" data-frac="0.80" r="4" fill="var(--accent-2)"/></g>
         </svg>
         <p class="muted" style="text-align:center; font-size:0.95vw; margin-top:0.5em;">
           The path is straight in theory, but in embedding space the learned trajectory is curved.
@@ -832,122 +895,294 @@
   </section>
 
   <!-- ============================================================
-        SLIDE 7 — Three losses
+        SLIDE 7a — Loss: Flow-Matching
        ============================================================ -->
-  <section class="slide" data-title="Training objective">
-    <span class="eyebrow">Training</span>
-    <h2>Three losses, one model</h2>
+  <section class="slide" data-title="Loss · Flow Matching">
+    <span class="eyebrow">Training · 1 of 3</span>
+    <h2>Loss 1 — Flow Matching <span class="muted" style="font-size:0.55em;">(local velocity)</span></h2>
 
-    <div class="loss-grid">
-      <div class="card loss-card">
-        <span class="ix">L_FM</span>
-        <div class="name">Flow-Matching</div>
-        <p>For $d = 0$, match the ground-truth velocity at every interpolated point.</p>
-        <div class="eqn-mini">$\|s_\theta(z_t,t,0) - (z_1 - z_0)\|^2$</div>
-        <p class="muted">Pins the local behaviour to standard flow matching.</p>
+    <div class="loss-stage">
+      <div class="loss-stage-text">
+        <p>For a small step ($d \to 0$), the model has to match the ground-truth velocity at every interpolated point.</p>
+        <div class="eqn">$$\mathcal{L}_{\text{FM}} = \mathbb{E}\,\big\|\,s_\theta(z_t,\, t,\, 0) - (z_1 - z_0)\,\big\|^2$$</div>
+        <p class="muted">Pins the local behaviour to standard flow matching — without it the model has no target at $d = 0$.</p>
       </div>
-
-      <div class="card loss-card">
-        <span class="ix">L_SC</span>
-        <div class="name">Self-Consistency</div>
-        <p>For $d > 0$, predict the average of two smaller steps.</p>
-        <div class="eqn-mini">$\|s_\theta(z_t,t,2d) - s_{\text{target}}\|^2$</div>
-        <p class="muted">Bootstraps long shortcuts from short ones.</p>
-      </div>
-
-      <div class="card loss-card">
-        <span class="ix">L_round</span>
-        <div class="name">Rounding</div>
-        <p>Negative log-likelihood of true tokens under the learned embedding matrix.</p>
-        <div class="eqn-mini">$-\log p_\Phi(w_z \mid z_1)$</div>
-        <p class="muted">Stops embeddings from collapsing to a single point.</p>
+      <div class="loss-stage-card">
+        <div class="loss-bigtag" style="color: var(--accent);">L<sub>FM</sub></div>
+        <div class="loss-bigname">Flow Matching</div>
+        <div class="loss-active">d &nbsp;→&nbsp; 0</div>
       </div>
     </div>
+  </section>
 
-    <div class="card loss-total" style="margin-top: 1.6em; text-align: center;">
-      <p style="font-size: 1.4vw; margin:0; color: var(--fg-0);">
-        $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{FM}} \;+\; \lambda_{\text{SC}}\,\mathcal{L}_{\text{SC}} \;+\; \lambda_{\text{round}}\,\mathcal{L}_{\text{round}}$
+  <!-- ============================================================
+        SLIDE 7b — Loss: Self-Consistency
+       ============================================================ -->
+  <section class="slide" data-title="Loss · Self-consistency">
+    <span class="eyebrow">Training · 2 of 3</span>
+    <h2>Loss 2 — Self-Consistency <span class="muted" style="font-size:0.55em;">(shortcut bootstrap)</span></h2>
+
+    <div class="loss-stage">
+      <div class="loss-stage-text">
+        <p>For $d > 0$, the prediction at step size $2d$ must match the average of two predictions at size $d$:</p>
+        <div class="eqn eqn-scroll">$$s_{\text{target}} = \tfrac{1}{2}\big(\,s_\theta(z_t,\, t,\, d) + s_\theta(z_{t+d},\, t+d,\, d)\,\big)$$</div>
+        <div class="eqn">$$\mathcal{L}_{\text{SC}} = \mathbb{E}\,\big\|\,s_\theta(z_t,\, t,\, 2d) - s_{\text{target}}\,\big\|^2$$</div>
+        <p class="muted">Bootstraps long shortcuts from short ones — the recursion that lets one model handle every step count.</p>
+      </div>
+      <div class="loss-stage-card">
+        <div class="loss-bigtag" style="color: var(--accent-2);">L<sub>SC</sub></div>
+        <div class="loss-bigname">Self-Consistency</div>
+        <div class="loss-active">d &nbsp;&gt;&nbsp; 0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 7c — Loss: Rounding
+       ============================================================ -->
+  <section class="slide" data-title="Loss · Rounding">
+    <span class="eyebrow">Training · 3 of 3</span>
+    <h2>Loss 3 — Rounding <span class="muted" style="font-size:0.55em;">(anti-collapse)</span></h2>
+
+    <div class="loss-stage">
+      <div class="loss-stage-text">
+        <p>Without it, embeddings learn to collapse onto a single point. A simple NLL of the true tokens under a learned embedding matrix $\Phi$ keeps them apart:</p>
+        <div class="eqn">$$\mathcal{L}_{\text{round}} = -\,\mathbb{E}\,\log\,p_\Phi(w_z \mid z_1), \quad p_\Phi = \mathrm{softmax}(z_1 \Phi^\top)$$</div>
+        <p class="muted">Standard for embedding-space diffusion — used by Liu et al. 2024 for the same reason.</p>
+      </div>
+      <div class="loss-stage-card">
+        <div class="loss-bigtag" style="color: var(--accent-3);">L<sub>round</sub></div>
+        <div class="loss-bigname">Rounding</div>
+        <div class="loss-active">applied to z<sub>1</sub></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 7d — Total loss
+       ============================================================ -->
+  <section class="slide" data-title="Total loss">
+    <span class="eyebrow">Training · combined</span>
+    <h2>Total loss</h2>
+
+    <div class="total-loss-stage">
+      <div class="card total-loss-eq">
+        <p style="font-size: 1.6vw; margin:0; color: var(--fg-0);">
+          $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{FM}} \;+\; \lambda_{\text{SC}}\,\mathcal{L}_{\text{SC}} \;+\; \lambda_{\text{round}}\,\mathcal{L}_{\text{round}}$
+        </p>
+      </div>
+
+      <div class="total-loss-grid">
+        <div class="total-loss-card" style="--tone: var(--accent);">
+          <div class="ix">L<sub>FM</sub></div>
+          <div class="role">Flow Matching</div>
+          <div class="when">at d → 0</div>
+        </div>
+        <div class="total-loss-plus">+</div>
+        <div class="total-loss-card" style="--tone: var(--accent-2);">
+          <div class="ix">L<sub>SC</sub></div>
+          <div class="role">Self-Consistency</div>
+          <div class="when">at d &gt; 0</div>
+        </div>
+        <div class="total-loss-plus">+</div>
+        <div class="total-loss-card" style="--tone: var(--accent-3);">
+          <div class="ix">L<sub>round</sub></div>
+          <div class="role">Rounding</div>
+          <div class="when">on z₁</div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top: 1.5em; font-size: 1.05vw; text-align: center;">
+        Both weights $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$ in all experiments — no tuning.
       </p>
     </div>
   </section>
 
   <!-- ============================================================
-        SLIDE 8 — Setup (VISUAL)
+        SLIDE 8 — Architecture: standard transformer-block diagram
        ============================================================ -->
-  <section class="slide" data-title="Experimental setup" id="slide-setup">
-    <span class="eyebrow">Experimental setup</span>
-    <h2>BERT-base encoder, three paraphrase datasets</h2>
+  <section class="slide" data-title="Architecture" id="slide-arch">
+    <span class="eyebrow">Architecture</span>
+    <h2>Encoder-only transformer, BERT-base style</h2>
 
-    <div class="setup-grid">
-      <!-- LEFT: BERT-encoder visual -->
-      <div class="setup-encoder">
-        <div class="enc-stack">
-          <div class="enc-layer enc-out">
-            <span class="enc-tag">output</span>
-            <span class="enc-vec">z₁ ∈ ℝ⁷⁶⁸</span>
-          </div>
-          <div class="enc-layer">L12 — self-attention + FFN</div>
-          <div class="enc-layer">L11 — self-attention + FFN</div>
-          <div class="enc-layer enc-dot">⋮&nbsp;&nbsp;12 transformer layers&nbsp;&nbsp;⋮</div>
-          <div class="enc-layer">L02 — self-attention + FFN</div>
-          <div class="enc-layer">L01 — self-attention + FFN</div>
-          <div class="enc-layer enc-in">
-            <span class="enc-tag">input</span>
-            <span class="enc-vec">z_t = x ⊕ y_t</span>
-          </div>
+    <div class="arch-row">
+      <div class="arch-svg-col">
+        <svg class="arch-svg" viewBox="0 0 380 520" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="blockG" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#1a2236"/>
+              <stop offset="100%" stop-color="#111827"/>
+            </linearGradient>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(124,196,255,0.7)"/>
+            </marker>
+          </defs>
+
+          <!-- input -->
+          <rect x="60" y="450" width="260" height="46" rx="8"
+                fill="rgba(124,196,255,0.08)" stroke="rgba(124,196,255,0.4)" class="arch-block" data-i="0"/>
+          <text x="190" y="478" text-anchor="middle" class="arch-label" fill="#e5edff">input embedding · z_t = x ⊕ y_t</text>
+
+          <line x1="190" y1="450" x2="190" y2="430" stroke="rgba(124,196,255,0.5)" stroke-width="2" marker-end="url(#arr)" class="arch-arrow" data-i="0"/>
+
+          <!-- block 1 (bottom) -->
+          <g class="arch-tx-block" data-i="1">
+            <rect x="60" y="350" width="260" height="80" rx="10" fill="url(#blockG)" stroke="var(--rule)"/>
+            <rect x="78" y="362" width="100" height="26" rx="6" fill="rgba(180,139,255,0.12)" stroke="rgba(180,139,255,0.35)"/>
+            <text x="128" y="380" text-anchor="middle" class="arch-sub" fill="#b48bff">Multi-head attn</text>
+            <rect x="200" y="362" width="100" height="26" rx="6" fill="rgba(124,196,255,0.10)" stroke="rgba(124,196,255,0.35)"/>
+            <text x="250" y="380" text-anchor="middle" class="arch-sub" fill="#7cc4ff">Feed-forward</text>
+            <text x="190" y="412" text-anchor="middle" class="arch-label" fill="rgba(255,255,255,0.7)">+ residual + LayerNorm</text>
+          </g>
+
+          <line x1="190" y1="350" x2="190" y2="330" stroke="rgba(124,196,255,0.5)" stroke-width="2" marker-end="url(#arr)" class="arch-arrow" data-i="1"/>
+
+          <!-- ellipsis "12 layers" -->
+          <g class="arch-tx-block" data-i="2">
+            <rect x="60" y="225" width="260" height="100" rx="10" fill="url(#blockG)" stroke="var(--rule)" stroke-dasharray="6 4"/>
+            <text x="190" y="262" text-anchor="middle" class="arch-label" fill="rgba(255,255,255,0.6)">⋮</text>
+            <text x="190" y="285" text-anchor="middle" class="arch-bigtxt" fill="#e5edff">× 12 transformer blocks</text>
+            <text x="190" y="305" text-anchor="middle" class="arch-label" fill="rgba(255,255,255,0.6)">⋮</text>
+          </g>
+
+          <line x1="190" y1="225" x2="190" y2="205" stroke="rgba(124,196,255,0.5)" stroke-width="2" marker-end="url(#arr)" class="arch-arrow" data-i="2"/>
+
+          <!-- block 12 (top, shown explicitly to mirror block 1) -->
+          <g class="arch-tx-block" data-i="3">
+            <rect x="60" y="120" width="260" height="80" rx="10" fill="url(#blockG)" stroke="var(--rule)"/>
+            <rect x="78" y="132" width="100" height="26" rx="6" fill="rgba(180,139,255,0.12)" stroke="rgba(180,139,255,0.35)"/>
+            <text x="128" y="150" text-anchor="middle" class="arch-sub" fill="#b48bff">Multi-head attn</text>
+            <rect x="200" y="132" width="100" height="26" rx="6" fill="rgba(124,196,255,0.10)" stroke="rgba(124,196,255,0.35)"/>
+            <text x="250" y="150" text-anchor="middle" class="arch-sub" fill="#7cc4ff">Feed-forward</text>
+            <text x="190" y="182" text-anchor="middle" class="arch-label" fill="rgba(255,255,255,0.7)">+ residual + LayerNorm</text>
+          </g>
+
+          <line x1="190" y1="120" x2="190" y2="100" stroke="rgba(124,196,255,0.5)" stroke-width="2" marker-end="url(#arr)" class="arch-arrow" data-i="3"/>
+
+          <!-- output -->
+          <rect x="60" y="50" width="260" height="50" rx="8"
+                fill="rgba(108,255,184,0.10)" stroke="rgba(108,255,184,0.45)" class="arch-block" data-i="4"/>
+          <text x="190" y="78" text-anchor="middle" class="arch-label" fill="#e5edff">output · s_θ(z_t, t, d) ∈ ℝ⁷⁶⁸</text>
+
+          <!-- side: t and d injection -->
+          <g class="arch-inject" data-i="5">
+            <rect x="328" y="135" width="48" height="60" rx="8" fill="rgba(255,184,108,0.08)" stroke="rgba(255,184,108,0.4)"/>
+            <text x="352" y="160" text-anchor="middle" class="arch-label" fill="#ffb86c">t</text>
+            <text x="352" y="185" text-anchor="middle" class="arch-label" fill="#ffb86c">d</text>
+          </g>
+          <text x="352" y="208" text-anchor="middle" class="arch-sub" fill="rgba(255,255,255,0.55)">embedded</text>
+          <text x="352" y="222" text-anchor="middle" class="arch-sub" fill="rgba(255,255,255,0.55)">into every</text>
+          <text x="352" y="236" text-anchor="middle" class="arch-sub" fill="rgba(255,255,255,0.55)">block</text>
+        </svg>
+      </div>
+
+      <div class="arch-stats-col">
+        <h3 style="margin-bottom: 0.6em;">Configuration</h3>
+        <ul class="arch-stats">
+          <li><strong>~100M</strong> parameters · BERT-base style</li>
+          <li>Hidden dim <strong>768</strong> · <strong>12</strong> layers · <strong>12</strong> heads</li>
+          <li>FFN intermediate <strong>3072</strong></li>
+          <li>Max length <strong>128</strong> &nbsp;(<strong>256</strong> for ParaSCI)</li>
+          <li>Step size $d$ and time $t$ embedded and injected per layer</li>
+        </ul>
+
+        <h3 style="margin-top: 1.4em; margin-bottom: 0.5em;">Training</h3>
+        <ul class="arch-stats">
+          <li>AdamW · lr <strong>1e-4</strong> · linear decay</li>
+          <li>Batch size <strong>1024</strong> · up to <strong>60k</strong> steps</li>
+          <li>EMA <strong>0.99</strong> · dropout <strong>0.1</strong> · grad clip <strong>1.0</strong></li>
+          <li>Both loss weights $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 9 (was 8b) — Datasets
+       ============================================================ -->
+  <section class="slide" data-title="Datasets" id="slide-datasets">
+    <span class="eyebrow">Datasets</span>
+    <h2>Three paraphrase tasks of increasing length &amp; difficulty</h2>
+
+    <div class="setup-datasets" style="margin-top: 1em;">
+      <div class="ds-card ds-qqp">
+        <div class="ds-head">
+          <span class="ds-name">QQP</span>
+          <span class="ds-stat">144,715 train · 100 test</span>
         </div>
-        <div class="enc-stats">
-          <div><strong>~100M</strong> params</div>
-          <div>hidden <strong>768</strong></div>
-          <div>length <strong>128</strong> <span class="muted">(256 ParaSCI)</span></div>
-          <div>AdamW · lr <strong>1e-4</strong> · BS <strong>1024</strong></div>
-          <div>up to <strong>60k</strong> steps · EMA 0.99</div>
+        <div class="ds-domain">Quora question pairs · short, conversational</div>
+        <div class="ds-example">
+          <span class="ds-arrow">in →</span>&nbsp;<em>How can I improve my English speaking?</em><br/>
+          <span class="ds-arrow">out →</span>&nbsp;<em>What is the best way to get better at spoken English?</em>
         </div>
       </div>
 
-      <!-- RIGHT: dataset cards -->
-      <div class="setup-datasets">
-        <div class="ds-card ds-qqp">
-          <div class="ds-head">
-            <span class="ds-name">QQP</span>
-            <span class="ds-stat">144,715 train · 100 test</span>
-          </div>
-          <div class="ds-domain">Quora question pairs</div>
-          <div class="ds-example">
-            <span class="ds-arrow">in →</span>&nbsp;<em>How can I improve my English speaking?</em><br/>
-            <span class="ds-arrow">out →</span>&nbsp;<em>What is the best way to get better at spoken English?</em>
-          </div>
+      <div class="ds-card ds-paws">
+        <div class="ds-head">
+          <span class="ds-name">PAWS-Wiki</span>
+          <span class="ds-stat">21,829 train · 3,536 test</span>
         </div>
-
-        <div class="ds-card ds-paws">
-          <div class="ds-head">
-            <span class="ds-name">PAWS-Wiki</span>
-            <span class="ds-stat">21,829 train · 3,536 test</span>
-          </div>
-          <div class="ds-domain">Wikipedia sentences with structurally-perturbed paraphrases</div>
-          <div class="ds-example">
-            <span class="ds-arrow">in →</span>&nbsp;<em>The film was directed by Smith and produced by Jones.</em><br/>
-            <span class="ds-arrow">out →</span>&nbsp;<em>Jones produced the film, which was directed by Smith.</em>
-          </div>
+        <div class="ds-domain">Wikipedia sentences · structural / word-order paraphrases</div>
+        <div class="ds-example">
+          <span class="ds-arrow">in →</span>&nbsp;<em>The film was directed by Smith and produced by Jones.</em><br/>
+          <span class="ds-arrow">out →</span>&nbsp;<em>Jones produced the film, which was directed by Smith.</em>
         </div>
+      </div>
 
-        <div class="ds-card ds-parasci">
-          <div class="ds-head">
-            <span class="ds-name">ParaSCI</span>
-            <span class="ds-stat">338,717 train · 4,894 test</span>
-          </div>
-          <div class="ds-domain">Sentence paraphrases from scientific papers</div>
-          <div class="ds-example">
-            <span class="ds-arrow">in →</span>&nbsp;<em>We propose a novel attention mechanism for long sequences.</em><br/>
-            <span class="ds-arrow">out →</span>&nbsp;<em>This work introduces a new attention design suitable for long inputs.</em>
-          </div>
+      <div class="ds-card ds-parasci">
+        <div class="ds-head">
+          <span class="ds-name">ParaSCI</span>
+          <span class="ds-stat">338,717 train · 4,894 test</span>
+        </div>
+        <div class="ds-domain">Scientific paper sentences · longest, hardest domain</div>
+        <div class="ds-example">
+          <span class="ds-arrow">in →</span>&nbsp;<em>We propose a novel attention mechanism for long sequences.</em><br/>
+          <span class="ds-arrow">out →</span>&nbsp;<em>This work introduces a new attention design suitable for long inputs.</em>
         </div>
       </div>
     </div>
+  </section>
 
-    <p class="muted setup-metrics">
-      <strong>Metrics:</strong>&nbsp; BLEU · BERTScore · ROUGE-1/L · Themis (LLM-based: fluency, semantic similarity, overall)
-    </p>
+  <!-- ============================================================
+        SLIDE 10 (was 8c) — Metrics
+       ============================================================ -->
+  <section class="slide" data-title="Metrics">
+    <span class="eyebrow">Evaluation</span>
+    <h2>Four metrics, three lenses on quality</h2>
+
+    <div class="metrics-grid">
+      <div class="metric-card" style="--mtone: var(--accent);">
+        <div class="metric-tag">n-gram</div>
+        <div class="metric-name">BLEU</div>
+        <p>Standard MT/paraphrase metric. Counts overlapping 1- to 4-grams between candidate and reference.</p>
+        <p class="muted">Used in essentially every prior NAR-text paper; gives a hard, comparable number.</p>
+      </div>
+
+      <div class="metric-card" style="--mtone: var(--accent-2);">
+        <div class="metric-tag">embedding</div>
+        <div class="metric-name">BERTScore</div>
+        <p>Cosine similarity of contextual BERT embeddings between candidate and reference.</p>
+        <p class="muted">Sensitive to <em>meaning</em>, not just word identity — catches valid paraphrases that BLEU penalises.</p>
+      </div>
+
+      <div class="metric-card" style="--mtone: var(--accent-3);">
+        <div class="metric-tag">recall-based</div>
+        <div class="metric-name">ROUGE-1 / ROUGE-L</div>
+        <p>Reported in the appendix for completeness — overlap of unigrams and longest common subsequence.</p>
+        <p class="muted">Same direction as BLEU but emphasises recall; useful sanity check.</p>
+      </div>
+
+      <div class="metric-card" style="--mtone: var(--accent-4);">
+        <div class="metric-tag">LLM-based</div>
+        <div class="metric-name">Themis</div>
+        <p>Reference-free LLM evaluator (Hu et al., 2024). Scores three aspects of paraphrase quality:</p>
+        <ul style="margin-top: 0.4em; font-size: 1vw;">
+          <li><strong>Fluency</strong> — is it grammatical?</li>
+          <li><strong>Semantic similarity</strong> — does it preserve meaning?</li>
+          <li><strong>Overall quality</strong> — both, plus lexical/syntactic variation.</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <!-- ============================================================
@@ -1063,58 +1298,8 @@
         </div>
       </div>
       <div class="col">
-        <!-- stylized illustration of Fig 2 -->
-        <svg class="traj-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
-          <!-- axes -->
-          <line x1="70" y1="340" x2="570" y2="340" stroke="rgba(255,255,255,0.2)" />
-          <line x1="70" y1="40"  x2="70"  y2="340" stroke="rgba(255,255,255,0.2)" />
-          <text x="320" y="380" class="traj-label" text-anchor="middle">denoising steps (log scale)</text>
-          <text x="40" y="190" class="traj-label" transform="rotate(-90 40 190)" text-anchor="middle">BERTScore</text>
-
-          <!-- baseline curve: pink/rose, dashed for extra contrast -->
-          <path d="M 110 300 Q 220 270, 320 230 T 540 180"
-                fill="none" stroke="var(--danger)" stroke-width="3"
-                stroke-dasharray="10 6"
-                class="traj-curve" style="animation-delay: 600ms;"/>
-          <!-- baseline data points -->
-          <g class="traj-dot" style="animation-delay: 1800ms;">
-            <circle cx="110" cy="300" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="220" cy="278" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="320" cy="232" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="430" cy="200" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="540" cy="180" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-          </g>
-
-          <!-- shortcut curve: bright cyan -->
-          <path d="M 110 90 Q 220 88, 320 92 T 540 95"
-                fill="none" stroke="var(--accent)" stroke-width="3.5"
-                class="traj-curve" style="animation-delay: 900ms;"/>
-          <!-- shortcut data points -->
-          <g class="traj-dot" style="animation-delay: 2100ms;">
-            <circle cx="110" cy="90" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="220" cy="88" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="320" cy="92" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="430" cy="93" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-            <circle cx="540" cy="95" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-          </g>
-
-          <!-- legend, top-right -->
-          <g class="traj-dot" style="animation-delay: 2400ms;">
-            <rect x="380" y="48" width="180" height="58" rx="8" fill="rgba(17,24,39,0.7)" stroke="var(--rule)"/>
-            <line x1="394" y1="68" x2="418" y2="68" stroke="var(--accent)" stroke-width="3.5"/>
-            <circle cx="406" cy="68" r="5" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
-            <text x="426" y="72" class="traj-label" fill="var(--accent)">shortcut (ours)</text>
-            <line x1="394" y1="92" x2="418" y2="92" stroke="var(--danger)" stroke-width="3" stroke-dasharray="6 4"/>
-            <circle cx="406" cy="92" r="5" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
-            <text x="426" y="96" class="traj-label" fill="var(--danger)">flow-matching baseline</text>
-          </g>
-
-          <text x="110" y="320" class="traj-label" text-anchor="middle">1</text>
-          <text x="220" y="320" class="traj-label" text-anchor="middle">2</text>
-          <text x="320" y="320" class="traj-label" text-anchor="middle">8</text>
-          <text x="430" y="320" class="traj-label" text-anchor="middle">64</text>
-          <text x="540" y="320" class="traj-label" text-anchor="middle">256</text>
-        </svg>
+        <!-- NDS sweep plot, all coordinates computed in JS so points lie exactly on the polylines -->
+        <svg class="traj-svg" id="ndsPlot" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </div>
   </section>
@@ -1366,6 +1551,185 @@
     animate();
   }
 
+  // ---------- helper: place dots exactly on a curve, by data-frac ----------
+  function placeOnPathDots() {
+    document.querySelectorAll("circle.onpath").forEach((c) => {
+      const id = c.dataset.curve;
+      const frac = parseFloat(c.dataset.frac);
+      const path = document.getElementById(id);
+      if (!path) return;
+      try {
+        const len = path.getTotalLength();
+        if (!len) return;
+        const p = path.getPointAtLength(frac * len);
+        c.setAttribute("cx", p.x);
+        c.setAttribute("cy", p.y);
+      } catch (_) {}
+    });
+  }
+
+  // ---------- Slide 11: NDS sweep plot, drawn in JS ----------
+  function drawNDSPlot() {
+    const svg = document.getElementById("ndsPlot");
+    if (!svg) return;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    // viewBox is 0 0 600 400
+    const M = { l: 80, r: 30, t: 40, b: 60 };
+    const W = 600, H = 400;
+    const plotW = W - M.l - M.r;
+    const plotH = H - M.t - M.b;
+
+    // x: log-scale over [1, 256]
+    const xTicks = [1, 2, 4, 8, 64, 128, 256];
+    const xMin = Math.log2(1), xMax = Math.log2(256);
+    const xPx = (x) => M.l + ((Math.log2(x) - xMin) / (xMax - xMin)) * plotW;
+
+    // y: BERTScore [0.55, 0.85]
+    const yMin = 0.55, yMax = 0.85;
+    const yPx = (y) => M.t + (1 - (y - yMin) / (yMax - yMin)) * plotH;
+
+    // Approximate values from the paper (Fig 2). Adjust if you want to be more precise.
+    const shortcut = [
+      { x: 1,   y: 0.814 },
+      { x: 2,   y: 0.819 },
+      { x: 4,   y: 0.821 },
+      { x: 8,   y: 0.819 },
+      { x: 64,  y: 0.823 },
+      { x: 128, y: 0.825 },
+      { x: 256, y: 0.826 },
+    ];
+    const baseline = [
+      { x: 1,   y: 0.617 },
+      { x: 2,   y: 0.652 },
+      { x: 4,   y: 0.690 },
+      { x: 8,   y: 0.715 },
+      { x: 64,  y: 0.755 },
+      { x: 128, y: 0.770 },
+      { x: 256, y: 0.778 },
+    ];
+
+    const ns = "http://www.w3.org/2000/svg";
+    const mk = (tag, attrs, parent) => {
+      const el = document.createElementNS(ns, tag);
+      for (const k in attrs) el.setAttribute(k, attrs[k]);
+      (parent || svg).appendChild(el);
+      return el;
+    };
+
+    // gridlines + y ticks
+    const yTicks = [0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85];
+    yTicks.forEach((y) => {
+      mk("line", {
+        x1: M.l, x2: M.l + plotW,
+        y1: yPx(y), y2: yPx(y),
+        stroke: "rgba(255,255,255,0.06)", "stroke-width": 1,
+      });
+      const t = mk("text", {
+        x: M.l - 10, y: yPx(y) + 4,
+        class: "traj-label",
+        "text-anchor": "end",
+        fill: "rgba(255,255,255,0.55)",
+      });
+      t.textContent = y.toFixed(2);
+    });
+
+    // axes
+    mk("line", { x1: M.l, x2: M.l, y1: M.t, y2: M.t + plotH, stroke: "rgba(255,255,255,0.25)" });
+    mk("line", { x1: M.l, x2: M.l + plotW, y1: M.t + plotH, y2: M.t + plotH, stroke: "rgba(255,255,255,0.25)" });
+
+    // x-tick labels
+    xTicks.forEach((x) => {
+      const px = xPx(x);
+      mk("line", {
+        x1: px, x2: px,
+        y1: M.t + plotH, y2: M.t + plotH + 5,
+        stroke: "rgba(255,255,255,0.35)",
+      });
+      const t = mk("text", {
+        x: px, y: M.t + plotH + 22,
+        class: "traj-label",
+        "text-anchor": "middle",
+        fill: "rgba(255,255,255,0.55)",
+      });
+      t.textContent = x;
+    });
+
+    // axis titles
+    const xt = mk("text", { x: M.l + plotW / 2, y: H - 10, class: "traj-label", "text-anchor": "middle", fill: "rgba(255,255,255,0.55)" });
+    xt.textContent = "decoding steps (log scale)";
+    const yt = mk("text", {
+      x: 22, y: M.t + plotH / 2,
+      class: "traj-label",
+      "text-anchor": "middle",
+      fill: "rgba(255,255,255,0.55)",
+      transform: `rotate(-90 22 ${M.t + plotH / 2})`,
+    });
+    yt.textContent = "BERTScore";
+
+    // helper to draw polyline + dots
+    function drawSeries(data, color, opts) {
+      const points = data.map((d) => `${xPx(d.x)},${yPx(d.y)}`).join(" ");
+      const poly = mk("polyline", {
+        points,
+        fill: "none",
+        stroke: color,
+        "stroke-width": 3,
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      });
+      if (opts && opts.dashed) poly.setAttribute("stroke-dasharray", "8 6");
+
+      // animate stroke
+      const len = poly.getTotalLength ? poly.getTotalLength() : 800;
+      poly.setAttribute("stroke-dasharray", (opts && opts.dashed) ? `8 6` : `${len}`);
+      poly.setAttribute("stroke-dashoffset", len);
+      poly.style.transition = `stroke-dashoffset 1400ms cubic-bezier(0.22, 0.61, 0.36, 1) ${opts.delay || 0}ms`;
+      // restore the requested dash pattern after the draw-in
+      requestAnimationFrame(() => {
+        poly.setAttribute("stroke-dashoffset", 0);
+        if (opts && opts.dashed) {
+          // give it a moment then swap to dashed pattern
+          setTimeout(() => poly.setAttribute("stroke-dasharray", "8 6"), 1400 + (opts.delay || 0));
+        } else {
+          setTimeout(() => poly.setAttribute("stroke-dasharray", "none"), 1400 + (opts.delay || 0));
+        }
+      });
+
+      // points
+      data.forEach((d, i) => {
+        const c = mk("circle", {
+          cx: xPx(d.x), cy: yPx(d.y), r: 6,
+          fill: color, stroke: "#0a0e1a", "stroke-width": 2,
+          opacity: 0,
+        });
+        c.style.transition = `opacity 300ms ease ${(opts.delay || 0) + 1200 + i * 80}ms`;
+        requestAnimationFrame(() => c.setAttribute("opacity", 1));
+      });
+    }
+
+    drawSeries(baseline, "#ff6c8a", { dashed: true, delay: 300 });
+    drawSeries(shortcut, "#7cc4ff", { dashed: false, delay: 700 });
+
+    // legend, top-right inside the plot area, above the shortcut line
+    const lgX = M.l + plotW - 200;
+    const lgY = M.t - 28;
+    const lg = mk("g", { opacity: 0 });
+    lg.style.transition = "opacity 500ms ease 2200ms";
+    requestAnimationFrame(() => lg.setAttribute("opacity", 1));
+    mk("rect", { x: lgX, y: lgY, width: 200, height: 56, rx: 8, fill: "rgba(17,24,39,0.85)", stroke: "rgba(255,255,255,0.1)" }, lg);
+    // shortcut row
+    mk("line", { x1: lgX + 14, x2: lgX + 42, y1: lgY + 20, y2: lgY + 20, stroke: "#7cc4ff", "stroke-width": 3.5 }, lg);
+    mk("circle", { cx: lgX + 28, cy: lgY + 20, r: 5, fill: "#7cc4ff", stroke: "#0a0e1a", "stroke-width": 2 }, lg);
+    const t1 = mk("text", { x: lgX + 50, y: lgY + 24, class: "traj-label", fill: "#7cc4ff" }, lg);
+    t1.textContent = "shortcut (ours)";
+    // baseline row
+    mk("line", { x1: lgX + 14, x2: lgX + 42, y1: lgY + 42, y2: lgY + 42, stroke: "#ff6c8a", "stroke-width": 3, "stroke-dasharray": "6 4" }, lg);
+    mk("circle", { cx: lgX + 28, cy: lgY + 42, r: 5, fill: "#ff6c8a", stroke: "#0a0e1a", "stroke-width": 2 }, lg);
+    const t2 = mk("text", { x: lgX + 50, y: lgY + 46, class: "traj-label", fill: "#ff6c8a" }, lg);
+    t2.textContent = "FM baseline";
+  }
+
   // ---------- shared easing + animation helpers ----------
   const SVGNS = "http://www.w3.org/2000/svg";
   function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
@@ -1405,7 +1769,7 @@
     });
   }
 
-  // ---------- Slide 5: discrete d buttons, animate full shortcut chain ----------
+  // ---------- Slide 5: shortcut chain — auto-cycles through d values ----------
   const shortcutCurve = document.getElementById("shortcutCurve");
   const shortcutChords = document.getElementById("shortcutChords");
   const shortcutWaypoints = document.getElementById("shortcutWaypoints");
@@ -1413,10 +1777,21 @@
   const shortcutLabel = document.getElementById("shortcutLabel");
   const dButtons = document.querySelectorAll("#slide-shortcut .d-btn");
   const Z0 = { x: 80, y: 300 };
-  let s5Token = 0; // cancellation token
+
+  const S5_DS = [1, 0.5, 0.25, 0.125]; // cycle order
+  let s5RunId = 0;
+  let s5LoopAlive = false;
+  let s5UserPicked = false;
+  let s5UserD = 1;
+  let s5CycleIx = 0;
+
+  function fmtD(d) { return d === 1 ? "1" : "1/" + Math.round(1 / d); }
+
+  function setS5Active(d) {
+    dButtons.forEach((b) => b.classList.toggle("active", parseFloat(b.dataset.d) === d));
+  }
 
   function clearSlide5() {
-    s5Token++;
     if (!shortcutCurve) return;
     shortcutChords.innerHTML = "";
     shortcutWaypoints.innerHTML = "";
@@ -1426,34 +1801,30 @@
     shortcutLabel.style.opacity = 0;
   }
 
-  async function animateShortcutChain(d) {
-    if (!shortcutCurve) return;
-    const myToken = ++s5Token;
+  async function playShortcutOnce(d, runId) {
+    const cancelled = () => runId !== s5RunId;
+    if (!shortcutCurve || cancelled()) return;
+
     shortcutChords.innerHTML = "";
     shortcutWaypoints.innerHTML = "";
-    shortcutLabel.textContent = `step size d = ${d === 1 ? "1" : "1/" + Math.round(1 / d)}`;
+    shortcutLabel.textContent = `step size d = ${fmtD(d)}`;
     shortcutLabel.style.opacity = 1;
 
     const totalLen = shortcutCurve.getTotalLength();
     const n = Math.round(1 / d);
-
-    // pre-compute landing points along the curve
     const pts = [Z0];
     for (let i = 1; i <= n; i++) {
       const p = shortcutCurve.getPointAtLength((i / n) * totalLen);
       pts.push({ x: p.x, y: p.y });
     }
 
-    // place walker at z0, fade in
     shortcutWalker.setAttribute("cx", Z0.x);
     shortcutWalker.setAttribute("cy", Z0.y);
     shortcutWalker.style.opacity = 1;
 
-    // animate each segment
     const segDuration = Math.max(380, 1100 / n);
     for (let i = 0; i < n; i++) {
-      if (myToken !== s5Token) return;
-      // create a chord line that grows
+      if (cancelled()) return;
       const ln = document.createElementNS(SVGNS, "line");
       ln.setAttribute("x1", pts[i].x);
       ln.setAttribute("y1", pts[i].y);
@@ -1469,9 +1840,8 @@
         animLine(ln, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, segDuration),
         animDot(shortcutWalker, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, segDuration),
       ]);
-      if (myToken !== s5Token) return;
+      if (cancelled()) return;
 
-      // drop a waypoint dot (except at z1, which is already drawn)
       if (i < n - 1) {
         const dot = document.createElementNS(SVGNS, "circle");
         dot.setAttribute("cx", pts[i + 1].x);
@@ -1484,20 +1854,53 @@
       }
       await sleep(120);
     }
-    if (myToken !== s5Token) return;
+    if (cancelled()) return;
     shortcutWalker.style.opacity = 0;
+  }
+
+  async function s5Loop() {
+    if (s5LoopAlive) return;
+    s5LoopAlive = true;
+    const myRunId = ++s5RunId;
+    while (myRunId === s5RunId) {
+      const slide = document.getElementById("slide-shortcut");
+      if (!slide || !slide.classList.contains("active")) break;
+
+      // Pick the d to play this iteration
+      let d;
+      if (s5UserPicked) {
+        d = s5UserD;
+      } else {
+        d = S5_DS[s5CycleIx % S5_DS.length];
+        s5CycleIx++;
+      }
+      setS5Active(d);
+      clearSlide5();
+      await playShortcutOnce(d, myRunId);
+      if (myRunId !== s5RunId) break;
+      // pause between iterations
+      await sleep(s5UserPicked ? 600 : 1200);
+    }
+    s5LoopAlive = false;
+  }
+
+  function restartS5Loop() {
+    s5RunId++;
+    clearSlide5();
+    setTimeout(() => { if (!s5LoopAlive) s5Loop(); }, 60);
   }
 
   dButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      dButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      animateShortcutChain(parseFloat(btn.dataset.d));
+      s5UserPicked = true;
+      s5UserD = parseFloat(btn.dataset.d);
+      setS5Active(s5UserD);
+      restartS5Loop();
     });
   });
 
-  // ---------- Slide 6: looping self-consistency animation, variable d ----------
+  // ---------- Slide 6: self-consistency — auto-cycles through d values ----------
   const scCurve = document.getElementById("scCurve");
   const scSmallSteps = document.getElementById("scSmallSteps");
   const scShortcuts = document.getElementById("scShortcuts");
@@ -1507,9 +1910,16 @@
   const scPhase = document.getElementById("scPhase");
   const scBtns = document.querySelectorAll("#scBtns .d-btn");
 
-  let scRunId = 0;        // increments to invalidate in-flight animations
-  let scLoopAlive = false; // whether a loop is currently running
-  let scCurrentD = 0.5;
+  const SC_DS = [0.5, 0.25, 0.125];
+  let scRunId = 0;
+  let scLoopAlive = false;
+  let scUserPicked = false;
+  let scUserD = 0.5;
+  let scCycleIx = 0;
+
+  function setSCActive(d) {
+    scBtns.forEach((b) => b.classList.toggle("active", parseFloat(b.dataset.d) === d));
+  }
 
   function clearSlide6() {
     if (!scCurve) return;
@@ -1522,8 +1932,6 @@
     scWalker2.setAttribute("cx", 80); scWalker2.setAttribute("cy", 300);
     scPhase.style.opacity = 0;
   }
-
-  function fmtD(d) { return d === 1 ? "1" : "1/" + Math.round(1 / d); }
 
   async function playSCOnce(d, runId) {
     const cancelled = () => runId !== scRunId;
@@ -1576,7 +1984,7 @@
     scWalker.style.opacity = 0;
     await sleep(450);
 
-    // Phase 2: one big shortcut step (size n*d = 1)
+    // Phase 2: one big shortcut step
     if (cancelled()) return;
     scPhase.textContent = `≡ one shortcut step of size 1`;
     scPhase.setAttribute("fill", "var(--accent-3)");
@@ -1608,27 +2016,35 @@
     while (myRunId === scRunId) {
       const slide = document.getElementById("slide-sc");
       if (!slide || !slide.classList.contains("active")) break;
+
+      let d;
+      if (scUserPicked) {
+        d = scUserD;
+      } else {
+        d = SC_DS[scCycleIx % SC_DS.length];
+        scCycleIx++;
+      }
+      setSCActive(d);
       clearSlide6();
-      await playSCOnce(scCurrentD, myRunId);
+      await playSCOnce(d, myRunId);
       if (myRunId !== scRunId) break;
-      await sleep(400);
+      await sleep(scUserPicked ? 500 : 800);
     }
     scLoopAlive = false;
   }
 
   function restartSCLoop() {
-    scRunId++;            // invalidate in-flight animations
+    scRunId++;
     clearSlide6();
-    // tiny delay to let the in-flight loop notice the runId change and exit
     setTimeout(() => { if (!scLoopAlive) scLoop(); }, 60);
   }
 
   scBtns.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      scBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      scCurrentD = parseFloat(btn.dataset.d);
+      scUserPicked = true;
+      scUserD = parseFloat(btn.dataset.d);
+      setSCActive(scUserD);
       restartSCLoop();
     });
   });
@@ -1638,25 +2054,37 @@
   render = function () {
     origRender();
 
-    // slide 5 (shortcut intro): animate the active button's chain
+    // slide 5 (shortcut intro): start auto-cycling loop
     const s5 = document.getElementById("slide-shortcut");
     if (s5 && s5.classList.contains("active")) {
-      const active = s5.querySelector(".d-btn.active");
-      const d = active ? parseFloat(active.dataset.d) : 1;
-      // wait for slide transition + reveals to finish
-      setTimeout(() => animateShortcutChain(d), 1500);
+      setTimeout(() => { if (!s5LoopAlive) s5Loop(); }, 1500);
     } else {
+      // leaving slide — kill loop + reset interaction so re-entry auto-cycles again
+      s5RunId++;
       clearSlide5();
+      s5UserPicked = false;
+      s5CycleIx = 0;
     }
 
-    // slide 6 (self-consistency): start the loop
+    // slide 6 (self-consistency): start auto-cycling loop
     const sc = document.getElementById("slide-sc");
     if (sc && sc.classList.contains("active")) {
       setTimeout(() => { if (!scLoopAlive) scLoop(); }, 1500);
     } else {
-      // leaving slide 6 — kill the loop and clear
       scRunId++;
       clearSlide6();
+      scUserPicked = false;
+      scCycleIx = 0;
+    }
+
+    // position any "on-path" dots on slide 3 etc., now that the slide is laid out
+    placeOnPathDots();
+
+    // draw the NDS sweep plot once the slide becomes active
+    const sNDS = slides[idx];
+    if (sNDS && sNDS.dataset.title === "More steps don't help") {
+      // small delay so the SVG is laid out at its real size
+      setTimeout(drawNDSPlot, 250);
     }
   };
 
