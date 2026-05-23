@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>One-step NAR Text Generation with Shortcut Flow Matching</title>
+
+<!-- MathJax for equations -->
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"], ["\\[", "\\]"]] },
+    svg: { fontCache: "global" }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" defer></script>
+
+<style>
+  :root {
+    --bg-0: #0a0e1a;
+    --bg-1: #111827;
+    --bg-2: #1a2236;
+    --fg-0: #e5edff;
+    --fg-1: #a8b3cf;
+    --fg-2: #6c7793;
+    --accent: #7cc4ff;
+    --accent-2: #b48bff;
+    --accent-3: #ffb86c;
+    --accent-4: #6cffb8;
+    --danger: #ff6c8a;
+    --rule: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: var(--bg-0);
+    color: var(--fg-0);
+    font-family: "Inter", "Helvetica Neue", system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(900px 500px at 12% 0%, rgba(124,196,255,0.10), transparent 60%),
+      radial-gradient(800px 600px at 88% 100%, rgba(180,139,255,0.10), transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* deck */
+  .deck {
+    position: relative;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+  }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 6vh 8vw;
+    opacity: 0;
+    transform: translateX(60px) scale(0.985);
+    transition: opacity 480ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                transform 600ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform, opacity;
+  }
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    pointer-events: auto;
+    z-index: 2;
+  }
+  .slide.prev {
+    opacity: 0;
+    transform: translateX(-60px) scale(0.985);
+  }
+
+  /* typography */
+  h1, h2, h3 { margin: 0 0 0.4em; font-weight: 700; letter-spacing: -0.01em; }
+  h1 { font-size: 4.2vw; line-height: 1.1; }
+  h2 { font-size: 2.8vw; line-height: 1.15; }
+  h3 { font-size: 1.7vw; color: var(--accent); margin-bottom: 0.6em; }
+  p, li { font-size: 1.4vw; line-height: 1.55; color: var(--fg-1); }
+  ul { padding-left: 1.2em; }
+  li { margin-bottom: 0.45em; }
+  li::marker { color: var(--accent); }
+  strong { color: var(--fg-0); font-weight: 600; }
+  code, .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, monospace; }
+
+  .eyebrow {
+    display: inline-block;
+    font-size: 0.95vw; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); padding: 0.4em 0.9em;
+    border: 1px solid rgba(124,196,255,0.3);
+    border-radius: 999px;
+    background: rgba(124,196,255,0.06);
+    margin-bottom: 1.5em;
+  }
+  .accent { color: var(--accent); }
+  .accent-2 { color: var(--accent-2); }
+  .accent-3 { color: var(--accent-3); }
+  .accent-4 { color: var(--accent-4); }
+  .muted { color: var(--fg-2); }
+
+  /* layouts */
+  .row { display: flex; gap: 4vw; align-items: center; flex: 1; min-height: 0; }
+  .col { flex: 1; min-width: 0; }
+  .center { display: flex; align-items: center; justify-content: center; flex-direction: column; flex: 1; text-align: center; }
+
+  /* cards */
+  .card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    padding: 1.6em 1.8em;
+    backdrop-filter: blur(10px);
+  }
+  .card h3 { margin-top: 0; }
+
+  /* equation block */
+  .eqn {
+    background: rgba(124,196,255,0.05);
+    border-left: 3px solid var(--accent);
+    padding: 1em 1.4em;
+    border-radius: 8px;
+    font-size: 1.5vw;
+    overflow-x: auto;
+  }
+  /* For equations that may overflow horizontally — gives an obvious gradient hint
+     that there's more to the right and lets MathJax render at full width without clipping. */
+  .eqn-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    font-size: 1.25vw;
+  }
+  .eqn-scroll::-webkit-scrollbar { height: 6px; }
+  .eqn-scroll::-webkit-scrollbar-thumb { background: rgba(124,196,255,0.25); border-radius: 4px; }
+  .eqn-scroll mjx-container { white-space: nowrap; }
+
+  /* table */
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 1.15vw;
+  }
+  th, td { padding: 0.55em 0.9em; text-align: left; border-bottom: 1px solid var(--rule); }
+  th { color: var(--fg-2); font-weight: 500; font-size: 0.95vw; text-transform: uppercase; letter-spacing: 0.08em; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; font-family: "JetBrains Mono", monospace; }
+  tr.highlight td { background: rgba(124,196,255,0.08); color: var(--fg-0); }
+  tr.highlight td.num { color: var(--accent); font-weight: 600; }
+
+  /* nav */
+  .nav {
+    position: fixed; bottom: 1.6vh; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 1em;
+    background: rgba(17,24,39,0.7);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 0.5em 1em;
+    backdrop-filter: blur(10px);
+    z-index: 10;
+    font-size: 0.95vw;
+    color: var(--fg-1);
+  }
+  .nav button {
+    background: transparent; color: var(--fg-1);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 0.35em 0.8em;
+    cursor: pointer; transition: all 180ms ease;
+    font-size: 0.95vw;
+  }
+  .nav button:hover { background: rgba(124,196,255,0.1); border-color: var(--accent); color: var(--fg-0); }
+  .nav .counter { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: center; }
+  .nav .title { color: var(--fg-2); padding: 0 0.5em; max-width: 26ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* progress */
+  .progress {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%;
+    transition: width 500ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    z-index: 11;
+    box-shadow: 0 0 12px rgba(124,196,255,0.6);
+  }
+
+  /* slide-specific */
+  .title-slide {
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .title-slide h1 {
+    font-size: 5vw; line-height: 1.05;
+    background: linear-gradient(135deg, #ffffff 0%, #7cc4ff 50%, #b48bff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .authors {
+    margin-top: 1.5em;
+    font-size: 1.5vw;
+    color: var(--fg-1);
+  }
+  .authors .me { color: var(--fg-0); font-weight: 600; }
+  .affil {
+    margin-top: 0.5em;
+    font-size: 1.05vw;
+    color: var(--fg-2);
+  }
+  .venue {
+    margin-top: 2.5em;
+    display: flex; align-items: center; gap: 1.2em;
+    font-size: 1vw; color: var(--fg-2);
+  }
+  .venue-pill {
+    border: 1px solid rgba(255,184,108,0.4);
+    color: var(--accent-3);
+    background: rgba(255,184,108,0.06);
+    padding: 0.4em 1em;
+    border-radius: 999px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85vw;
+  }
+
+  /* big-number display */
+  .bignum {
+    font-size: 6vw;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(180deg, #fff, var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .bignum-label { color: var(--fg-2); font-size: 1.1vw; letter-spacing: 0.12em; text-transform: uppercase; }
+
+  /* takeaway list */
+  .takeaway li { padding-left: 0.4em; margin-bottom: 0.8em; font-size: 1.5vw; color: var(--fg-0); }
+  .takeaway li::marker { content: "→  "; color: var(--accent); font-weight: 700; }
+
+  /* SVG trajectory animation */
+  .traj-svg { width: 100%; height: 50vh; max-height: 60vh; }
+  .traj-curve { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0.8; stroke-dasharray: 2000; stroke-dashoffset: 2000; }
+  .slide.active .traj-curve { animation: drawpath 1800ms cubic-bezier(0.22, 0.61, 0.36, 1) 200ms forwards; }
+  .traj-shortcut { fill: none; stroke: var(--accent-3); stroke-width: 2.5; opacity: 0; stroke-dasharray: 8 6; }
+  .slide.active .traj-shortcut { animation: fadein 700ms ease 1700ms forwards; }
+  .traj-step-line { stroke: var(--accent-2); stroke-width: 1.6; opacity: 0; }
+  .slide.active .traj-step-line { animation: fadein 500ms ease 2400ms forwards; }
+  @keyframes drawpath { to { stroke-dashoffset: 0; } }
+  @keyframes fadein { to { opacity: 1; } }
+  .traj-dot { opacity: 0; }
+  .slide.active .traj-dot { animation: pop 600ms cubic-bezier(0.34,1.56,0.64,1) forwards; }
+  @keyframes pop { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+  .traj-label { font-size: 14px; fill: var(--fg-1); font-family: "JetBrains Mono", monospace; }
+
+  /* staggered bullet reveals */
+  .reveal li, .reveal > p, .reveal > .card, .reveal > .eqn {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 500ms ease, transform 500ms ease;
+  }
+  .slide.active .reveal li,
+  .slide.active .reveal > p,
+  .slide.active .reveal > .card,
+  .slide.active .reveal > .eqn {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .slide.active .reveal li:nth-child(1)  { transition-delay: 200ms; }
+  .slide.active .reveal li:nth-child(2)  { transition-delay: 450ms; }
+  .slide.active .reveal li:nth-child(3)  { transition-delay: 700ms; }
+  .slide.active .reveal li:nth-child(4)  { transition-delay: 950ms; }
+  .slide.active .reveal li:nth-child(5)  { transition-delay: 1200ms; }
+  .slide.active .reveal > p:nth-of-type(1)   { transition-delay: 200ms; }
+  .slide.active .reveal > p:nth-of-type(2)   { transition-delay: 700ms; }
+  .slide.active .reveal > .eqn               { transition-delay: 500ms; }
+  .slide.active .reveal > .card              { transition-delay: 1100ms; }
+
+  /* discrete d buttons (slide 5) */
+  .d-buttons {
+    display: flex; align-items: center; gap: 0.6em;
+    margin-top: 1.4em; flex-wrap: wrap;
+  }
+  .d-label { color: var(--fg-2); font-size: 1vw; margin-right: 0.4em; letter-spacing: 0.04em; }
+  .d-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--rule);
+    color: var(--fg-1);
+    padding: 0.5em 1.1em;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 1vw;
+    transition: all 200ms ease;
+  }
+  .d-btn:hover { color: var(--fg-0); border-color: var(--accent-3); }
+  .d-btn.active {
+    background: var(--accent-3); color: var(--bg-0);
+    border-color: var(--accent-3);
+    box-shadow: 0 0 14px rgba(255,184,108,0.45);
+    font-weight: 700;
+  }
+
+  /* interactive controls */
+  .slider-row {
+    display: flex; align-items: center; gap: 1em;
+    background: rgba(124,196,255,0.06);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 0.8em 1.2em;
+    margin-top: 1em;
+  }
+  .slider-row label { font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: 1.15vw; min-width: 4em; }
+  .slider-row input[type=range] {
+    flex: 1;
+    appearance: none; -webkit-appearance: none;
+    height: 4px; background: rgba(255,255,255,0.12); border-radius: 4px; outline: none;
+  }
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent-3);
+    cursor: grab;
+    border: 2px solid #0a0e1a;
+    box-shadow: 0 0 12px rgba(255,184,108,0.6);
+  }
+  .slider-row .val { font-family: "JetBrains Mono", monospace; color: var(--fg-0); font-size: 1.15vw; min-width: 4em; text-align: right; }
+
+  .play-btn {
+    display: inline-flex; align-items: center; gap: 0.5em;
+    background: rgba(124,196,255,0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 0.5em 1.1em;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 1vw;
+    font-family: "Inter", sans-serif;
+    transition: all 200ms ease;
+  }
+  .play-btn:hover { background: var(--accent); color: var(--bg-0); }
+  .play-btn .tri { font-size: 0.9em; }
+
+  /* particle bg for title */
+  .particles { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+  .particles circle { fill: var(--accent); opacity: 0.25; }
+
+  /* backup slide indicator */
+  .slide.backup::before {
+    content: "BACKUP";
+    position: absolute; top: 1.5vh; right: 50%;
+    transform: translateX(50%);
+    font-size: 0.75vw; letter-spacing: 0.2em;
+    color: var(--accent-3);
+    background: rgba(255,184,108,0.08);
+    border: 1px solid rgba(255,184,108,0.3);
+    padding: 0.25em 0.9em; border-radius: 999px;
+  }
+
+  /* bar chart */
+  .bar-row { display: grid; grid-template-columns: 12em 1fr 6em; align-items: center; gap: 1em; margin-bottom: 0.9em; }
+  .bar-label { color: var(--fg-1); font-size: 1.1vw; }
+  .bar-track { background: rgba(255,255,255,0.05); border-radius: 6px; height: 1.6em; overflow: hidden; position: relative; }
+  .bar-fill {
+    height: 100%; border-radius: 6px;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform 1200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .bar-fill.baseline { background: linear-gradient(90deg, #4a5575, #6c7793); }
+  .slide.active .bar-fill { transform: scaleX(var(--w, 0.5)); }
+  .bar-val { font-family: "JetBrains Mono", monospace; color: var(--fg-0); font-size: 1.05vw; text-align: right; }
+
+  /* keyboard hint */
+  .kbd-hint {
+    position: fixed; top: 1.5vh; right: 1.5vw;
+    color: var(--fg-2); font-size: 0.8vw; letter-spacing: 0.1em;
+    z-index: 10; opacity: 0.7;
+  }
+  .kbd { font-family: "JetBrains Mono", monospace; padding: 0.15em 0.5em; border: 1px solid var(--rule); border-radius: 4px; background: rgba(255,255,255,0.04); margin: 0 0.2em; }
+
+  /* loss-decomposition layout */
+  .loss-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4em; flex: 1; min-height: 0; }
+  .loss-card {
+    display: flex; flex-direction: column;
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+    transition: opacity 600ms ease, transform 600ms cubic-bezier(0.22, 0.61, 0.36, 1), border-color 400ms ease, box-shadow 400ms ease;
+  }
+  .slide.active .loss-card { opacity: 1; transform: translateY(0) scale(1); }
+  .slide.active .loss-card:nth-child(1) { transition-delay: 350ms; }
+  .slide.active .loss-card:nth-child(2) { transition-delay: 1100ms; }
+  .slide.active .loss-card:nth-child(3) { transition-delay: 1850ms; }
+  .loss-card.glow { border-color: var(--accent); box-shadow: 0 0 24px rgba(124,196,255,0.25); }
+  .loss-card .ix { color: var(--accent); font-family: "JetBrains Mono", monospace; font-size: 0.9vw; letter-spacing: 0.15em; }
+  .loss-card:nth-child(2) .ix { color: var(--accent-2); }
+  .loss-card:nth-child(3) .ix { color: var(--accent-3); }
+  .loss-card .name { font-size: 1.6vw; font-weight: 700; margin: 0.3em 0 0.6em; color: var(--fg-0); }
+  .loss-card .eqn-mini { background: rgba(124,196,255,0.05); border-radius: 8px; padding: 0.7em 1em; margin: 0.5em 0; font-size: 1.1vw; }
+  .loss-card p { font-size: 1.05vw; }
+  .loss-total {
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 700ms ease, transform 700ms ease;
+  }
+  .slide.active .loss-total { opacity: 1; transform: translateY(0); transition-delay: 2700ms; }
+
+  /* slide 8: setup visual */
+  .setup-grid {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 3vw;
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+  .setup-encoder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1em;
+  }
+  .enc-stack {
+    display: flex; flex-direction: column; gap: 6px;
+    width: 100%; max-width: 22vw;
+  }
+  .enc-layer {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 0.5em 0.9em;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.9vw;
+    color: var(--fg-1);
+    text-align: center;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 450ms ease, transform 450ms ease;
+  }
+  .slide.active .enc-layer { opacity: 1; transform: translateX(0); }
+  .slide.active .enc-layer:nth-child(1) { transition-delay: 200ms; }
+  .slide.active .enc-layer:nth-child(2) { transition-delay: 320ms; }
+  .slide.active .enc-layer:nth-child(3) { transition-delay: 380ms; }
+  .slide.active .enc-layer:nth-child(4) { transition-delay: 460ms; }
+  .slide.active .enc-layer:nth-child(5) { transition-delay: 520ms; }
+  .slide.active .enc-layer:nth-child(6) { transition-delay: 580ms; }
+  .slide.active .enc-layer:nth-child(7) { transition-delay: 720ms; }
+  .enc-layer.enc-out, .enc-layer.enc-in {
+    background: linear-gradient(135deg, rgba(124,196,255,0.12), rgba(180,139,255,0.10));
+    border-color: rgba(124,196,255,0.35);
+    color: var(--fg-0);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .enc-layer.enc-dot { color: var(--fg-2); border-style: dashed; padding: 0.3em; font-size: 0.8vw; }
+  .enc-tag {
+    font-size: 0.7vw; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); padding: 0.15em 0.6em;
+    border: 1px solid rgba(124,196,255,0.3); border-radius: 999px;
+  }
+  .enc-vec { color: var(--fg-0); font-weight: 600; }
+  .enc-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5em 1.4em;
+    font-size: 0.95vw; color: var(--fg-1);
+    margin-top: 0.5em;
+    text-align: left;
+    opacity: 0;
+    transition: opacity 600ms ease;
+    transition-delay: 1000ms;
+  }
+  .slide.active .enc-stats { opacity: 1; }
+  .enc-stats strong { color: var(--fg-0); font-weight: 700; }
+
+  .setup-datasets { display: flex; flex-direction: column; gap: 0.9em; }
+  .ds-card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 0.9em 1.2em;
+    border-left: 4px solid var(--accent);
+    opacity: 0; transform: translateX(20px);
+    transition: opacity 500ms ease, transform 500ms ease;
+  }
+  .slide.active .ds-card { opacity: 1; transform: translateX(0); }
+  .slide.active .ds-card:nth-child(1) { transition-delay: 600ms; }
+  .slide.active .ds-card:nth-child(2) { transition-delay: 900ms; }
+  .slide.active .ds-card:nth-child(3) { transition-delay: 1200ms; }
+  .ds-qqp { border-left-color: var(--accent); }
+  .ds-paws { border-left-color: var(--accent-2); }
+  .ds-parasci { border-left-color: var(--accent-3); }
+  .ds-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 1em; margin-bottom: 0.2em;
+  }
+  .ds-name {
+    font-size: 1.4vw; font-weight: 700;
+    color: var(--fg-0);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .ds-qqp .ds-name { color: var(--accent); }
+  .ds-paws .ds-name { color: var(--accent-2); }
+  .ds-parasci .ds-name { color: var(--accent-3); }
+  .ds-stat { color: var(--fg-2); font-size: 0.9vw; font-variant-numeric: tabular-nums; }
+  .ds-domain { color: var(--fg-1); font-size: 0.95vw; margin-bottom: 0.6em; }
+  .ds-example {
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    padding: 0.55em 0.9em;
+    font-size: 0.95vw;
+    color: var(--fg-1);
+    line-height: 1.55;
+  }
+  .ds-example em { color: var(--fg-0); font-style: normal; }
+  .ds-arrow { color: var(--fg-2); font-family: "JetBrains Mono", monospace; font-size: 0.8vw; }
+
+  .setup-metrics {
+    margin-top: 1em;
+    text-align: center;
+    font-size: 1vw;
+    color: var(--fg-1);
+    opacity: 0;
+    transition: opacity 600ms ease;
+    transition-delay: 1500ms;
+  }
+  .slide.active .setup-metrics { opacity: 1; }
+  .setup-metrics strong { color: var(--fg-0); }
+
+  /* footer */
+  .footer {
+    position: fixed; bottom: 1.6vh; right: 1.5vw;
+    color: var(--fg-2); font-size: 0.85vw; opacity: 0.65;
+    z-index: 9;
+  }
+
+  @media (max-width: 900px) {
+    .slide { padding: 5vh 6vw; }
+    h1 { font-size: 7vw; }
+    h2 { font-size: 5vw; }
+    p, li { font-size: 2.4vw; }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="kbd-hint">
+  <span class="kbd">←</span><span class="kbd">→</span> navigate
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- ============================================================
+        SLIDE 1 — Title
+       ============================================================ -->
+  <section class="slide title-slide" data-title="Title">
+    <svg class="particles" id="particles" preserveAspectRatio="none"></svg>
+    <span class="eyebrow">ACL 2026 · Main Conference</span>
+    <h1>One-step Non-autoregressive<br/>Text Generation with<br/><span class="accent">Shortcut Flow Matching</span></h1>
+    <div class="authors">
+      <span class="me">Jędrzej Warczyński</span><sup>1</sup>,
+      Ondřej Dušek<sup>2</sup>,
+      Mateusz Lango<sup>1,2</sup>
+    </div>
+    <div class="affil">
+      <sup>1</sup> Poznan University of Technology &nbsp;·&nbsp;
+      <sup>2</sup> Charles University, Prague
+    </div>
+    <div class="venue">
+      <span class="venue-pill">ACL 2026 · Main Track</span>
+      <span>github.com/jwarczynski/FMShortcut</span>
+    </div>
+    <p class="muted" style="margin-top: 2.5em; font-size: 0.85vw; max-width: 60ch;">
+      Co-funded by the European Union (ERC, NG-NLG, 101039303). Computing provided by PLGrid (ACK Cyfronet AGH) and LINDAT/CLARIAH-CZ.
+    </p>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 2 — Motivation
+       ============================================================ -->
+  <section class="slide" data-title="The bottleneck">
+    <span class="eyebrow">Motivation</span>
+    <h2>Generating text fast — without losing quality</h2>
+
+    <div class="row" style="margin-top: 2vh;">
+      <div class="col">
+        <ul class="reveal">
+          <li><strong>Autoregressive models</strong> generate one token at a time — quality is great, latency scales with sequence length.</li>
+          <li><strong>Non-autoregressive (NAR)</strong> models predict all tokens in parallel — but quality lags behind.</li>
+          <li>Recent <strong>diffusion-based NAR</strong> closed much of that gap, at the cost of <span class="accent-3">hundreds–thousands of denoising steps</span>.</li>
+          <li>That kills the very speedup parallelism was supposed to give us.</li>
+        </ul>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h3>The question</h3>
+          <p style="font-size:1.5vw; color: var(--fg-0);">
+            Can we build a non-autoregressive model that generates high-quality text in
+            <span class="accent" style="font-weight:700;">a single denoising step?</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 3 — Flow Matching primer
+       ============================================================ -->
+  <section class="slide" data-title="Flow matching">
+    <span class="eyebrow">Background</span>
+    <h2>Flow Matching <span class="muted" style="font-size:0.6em;">— a simpler alternative to diffusion</span></h2>
+
+    <div class="row">
+      <div class="col">
+        <p>Define a straight-line path from noise to the target embedding:</p>
+        <div class="eqn">$$z_t = (1 - t)\,z_0 + t\,z_1, \quad z_0 \sim \mathcal{N}(0, I), \; z_1 \sim p_{\text{data}}$$</div>
+        <p style="margin-top:1.2em;">Train a network $f_\theta$ to predict the <strong class="accent">velocity</strong> along that path:</p>
+        <div class="eqn">$$f_\theta(z_t, t) \approx z_1 - z_0$$</div>
+        <p style="margin-top:1.2em;">Generate by integrating $n$ small Euler steps from random noise.</p>
+      </div>
+      <div class="col">
+        <svg class="traj-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
+          <!-- axes -->
+          <line x1="60" y1="340" x2="560" y2="340" stroke="rgba(255,255,255,0.15)" />
+          <line x1="60" y1="60"  x2="60"  y2="340" stroke="rgba(255,255,255,0.15)" />
+          <text x="300" y="380" class="traj-label" text-anchor="middle">denoising step</text>
+
+          <!-- the curved trajectory the model actually learns -->
+          <path class="traj-curve"
+                d="M 80 300 C 180 290, 220 200, 280 180 S 420 110, 540 90" />
+
+          <!-- waypoints -->
+          <g class="traj-dot" style="animation-delay: 1500ms;">
+            <circle cx="80" cy="300" r="7" fill="var(--accent)" />
+            <text x="80" y="328" class="traj-label" text-anchor="middle">z₀ (noise)</text>
+          </g>
+          <g class="traj-dot" style="animation-delay: 1800ms;">
+            <circle cx="540" cy="90" r="7" fill="var(--accent)" />
+            <text x="540" y="78" class="traj-label" text-anchor="middle">z₁ (text)</text>
+          </g>
+
+          <!-- small Euler steps along curve -->
+          <g class="traj-dot" style="animation-delay: 2100ms;"><circle cx="220" cy="225" r="4" fill="var(--accent-2)"/></g>
+          <g class="traj-dot" style="animation-delay: 2300ms;"><circle cx="320" cy="170" r="4" fill="var(--accent-2)"/></g>
+          <g class="traj-dot" style="animation-delay: 2500ms;"><circle cx="430" cy="120" r="4" fill="var(--accent-2)"/></g>
+        </svg>
+        <p class="muted" style="text-align:center; font-size:0.95vw; margin-top:0.5em;">
+          The path is straight in theory, but in embedding space the learned trajectory is curved.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 4 — The 1-step problem
+       ============================================================ -->
+  <section class="slide" data-title="The 1-step problem">
+    <span class="eyebrow">The Problem</span>
+    <h2>One step → one big leap into the wrong place</h2>
+
+    <div class="row">
+      <div class="col">
+        <ul class="reveal">
+          <li>Flow matching <em>could</em> sample in one step:&nbsp; $z_1 \approx z_0 + f_\theta(z_0, 0)$</li>
+          <li>But $f_\theta$ only knows the <strong>local instantaneous velocity</strong> at $z_0$.</li>
+          <li>Because the real trajectory <span class="accent-3">curves</span>, the one-step prediction overshoots — landing far from any real text embedding.</li>
+          <li>This is why prior NAR diffusion uses <span class="danger" style="color:var(--danger);">2000 steps</span> to be competitive.</li>
+        </ul>
+        <div class="card" style="margin-top: 1.5em;">
+          <p style="margin:0; color: var(--fg-0); font-size: 1.3vw;">
+            We need a model that knows where the trajectory is <em>going</em>, not just where it's <em>pointing</em>.
+          </p>
+        </div>
+      </div>
+      <div class="col">
+        <svg class="traj-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
+          <line x1="60" y1="340" x2="560" y2="340" stroke="rgba(255,255,255,0.15)" />
+          <line x1="60" y1="60"  x2="60"  y2="340" stroke="rgba(255,255,255,0.15)" />
+
+          <!-- ground-truth curved trajectory -->
+          <path class="traj-curve"
+                d="M 80 300 C 180 290, 220 200, 280 180 S 420 110, 540 90" />
+
+          <!-- naive 1-step (tangent at z0): wrong endpoint -->
+          <line class="traj-step-line" x1="80" y1="300" x2="540" y2="220"
+                stroke="var(--danger)" stroke-dasharray="6 4" style="opacity:0; animation-delay: 2200ms;"/>
+          <g class="traj-dot" style="animation-delay: 2400ms;">
+            <circle cx="540" cy="220" r="7" fill="var(--danger)" />
+            <text x="540" y="245" class="traj-label" text-anchor="middle" fill="var(--danger)">1-step prediction</text>
+          </g>
+
+          <!-- z0 / z1 -->
+          <g class="traj-dot" style="animation-delay: 1500ms;">
+            <circle cx="80" cy="300" r="7" fill="var(--accent)" />
+            <text x="80" y="328" class="traj-label" text-anchor="middle">z₀</text>
+          </g>
+          <g class="traj-dot" style="animation-delay: 1700ms;">
+            <circle cx="540" cy="90" r="7" fill="var(--accent-4)" />
+            <text x="540" y="78" class="traj-label" text-anchor="middle">z₁ (target)</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 5 — Our idea: shortcuts (INTERACTIVE)
+       ============================================================ -->
+  <section class="slide" data-title="Our idea: shortcuts" id="slide-shortcut">
+    <span class="eyebrow">Our idea</span>
+    <h2>Teach the model to take <span class="accent-3">shortcuts</span></h2>
+
+    <div class="row">
+      <div class="col">
+        <div class="reveal">
+          <p>We extend the network with a <strong>step-size argument</strong> $d$:</p>
+          <div class="eqn">$$s_\theta(z_t,\; t,\; d)$$</div>
+        </div>
+        <ul class="reveal" style="margin-top: 1.2em;">
+          <li>$d \to 0$: behaves like standard flow matching — local velocity.</li>
+          <li>$d > 0$: predicts the <strong class="accent-3">average direction</strong> over a step of that size, accounting for the curve ahead.</li>
+          <li>Adapted from <em>Frans et al., ICLR 2025</em> (computer vision) — first time, to our knowledge, applied to text generation.</li>
+        </ul>
+        <div class="d-buttons">
+          <span class="d-label">try&nbsp;step&nbsp;size:</span>
+          <button class="d-btn active" data-d="1">d = 1</button>
+          <button class="d-btn" data-d="0.5">1/2</button>
+          <button class="d-btn" data-d="0.25">1/4</button>
+          <button class="d-btn" data-d="0.125">1/8</button>
+        </div>
+      </div>
+      <div class="col">
+        <svg class="traj-svg" id="shortcutSvg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
+          <line x1="60" y1="340" x2="560" y2="340" stroke="rgba(255,255,255,0.15)" />
+          <line x1="60" y1="60"  x2="60"  y2="340" stroke="rgba(255,255,255,0.15)" />
+
+          <!-- the curve = ground-truth trajectory -->
+          <path id="shortcutCurve" class="traj-curve"
+                d="M 80 300 C 180 290, 220 200, 280 180 S 420 110, 540 90" />
+
+          <!-- z0, fixed -->
+          <g class="traj-dot" style="animation-delay: 1500ms;">
+            <circle cx="80" cy="300" r="7" fill="var(--accent)" />
+            <text x="80" y="328" class="traj-label" text-anchor="middle">z₀</text>
+          </g>
+          <!-- z1, fixed -->
+          <g class="traj-dot" style="animation-delay: 1700ms;">
+            <circle cx="540" cy="90" r="7" fill="var(--accent-4)" />
+            <text x="540" y="78" class="traj-label" text-anchor="middle">z₁ (target)</text>
+          </g>
+
+          <!-- container the chords get drawn into -->
+          <g id="shortcutChords"></g>
+          <!-- waypoint dots get drawn here -->
+          <g id="shortcutWaypoints"></g>
+          <!-- moving walker dot -->
+          <circle id="shortcutWalker" cx="80" cy="300" r="8" fill="var(--accent-3)"
+                  style="opacity:0; filter: drop-shadow(0 0 8px rgba(255,184,108,0.7));" />
+
+          <text id="shortcutLabel" x="300" y="40" class="traj-label" fill="var(--accent-3)"
+                text-anchor="middle" style="font-weight:700; font-size:18px; opacity: 0;"></text>
+        </svg>
+        <p class="muted" style="text-align:center; font-size:0.95vw; margin-top:0.5em;">
+          Each segment is one shortcut step. They all land at the same z₁.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 6 — Self-consistency (ANIMATED, LOOPING, VARIABLE d)
+       ============================================================ -->
+  <section class="slide" data-title="Self-consistency" id="slide-sc">
+    <span class="eyebrow">Key Property</span>
+    <h2>Self-consistency: one step of $2d$ = two steps of $d$</h2>
+
+    <div class="row">
+      <div class="col">
+        <div class="reveal">
+          <p>The model is trained so that one step of size $2d$ matches two steps of size $d$:</p>
+          <div class="eqn eqn-scroll">$$s_\theta(z_t,\, t,\, 2d) \;=\; \tfrac{1}{2}\big(\,s_\theta(z_t,\, t,\, d)\;+\;s_\theta(z_{t+d},\, t+d,\, d)\,\big)$$</div>
+        </div>
+        <ul class="reveal" style="margin-top: 1.2em;">
+          <li>A <strong>recursion</strong> bootstraps shortcuts of any size from local velocity.</li>
+          <li>Lets one model serve <em>all</em> step counts — train once, decode at $1$, $2$, $4$, … steps.</li>
+        </ul>
+        <div class="d-buttons" id="scBtns" style="margin-top: 1em;">
+          <span class="d-label">small step d&nbsp;=</span>
+          <button class="d-btn active" data-d="0.5">1/2</button>
+          <button class="d-btn" data-d="0.25">1/4</button>
+          <button class="d-btn" data-d="0.125">1/8</button>
+        </div>
+      </div>
+      <div class="col">
+        <svg class="traj-svg" id="scSvg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
+          <line x1="60" y1="340" x2="560" y2="340" stroke="rgba(255,255,255,0.15)" />
+          <line x1="60" y1="60"  x2="60"  y2="340" stroke="rgba(255,255,255,0.15)" />
+
+          <path id="scCurve" class="traj-curve"
+                d="M 80 300 C 180 290, 220 200, 280 180 S 420 110, 540 90" />
+
+          <!-- chords + waypoints get drawn in here by JS -->
+          <g id="scSmallSteps"></g>
+          <g id="scShortcuts"></g>
+          <g id="scWaypoints"></g>
+
+          <!-- two walkers -->
+          <circle id="scWalker" cx="80" cy="300" r="8" fill="var(--accent-2)"
+                  style="opacity:0; filter: drop-shadow(0 0 8px rgba(180,139,255,0.7));" />
+          <circle id="scWalker2" cx="80" cy="300" r="8" fill="var(--accent-3)"
+                  style="opacity:0; filter: drop-shadow(0 0 8px rgba(255,184,108,0.7));" />
+
+          <!-- fixed endpoints -->
+          <circle cx="80" cy="300" r="7" fill="var(--accent)" />
+          <text x="60" y="305" class="traj-label" text-anchor="end">z_t</text>
+          <circle cx="540" cy="90" r="7" fill="var(--accent-4)" />
+          <text x="540" y="78" class="traj-label" text-anchor="middle">z_{t+1}</text>
+
+          <!-- floating phase / d label, top of svg -->
+          <text id="scPhase" x="300" y="40" class="traj-label"
+                text-anchor="middle" style="font-weight:700; font-size:18px; opacity:0;"></text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 7 — Three losses
+       ============================================================ -->
+  <section class="slide" data-title="Training objective">
+    <span class="eyebrow">Training</span>
+    <h2>Three losses, one model</h2>
+
+    <div class="loss-grid">
+      <div class="card loss-card">
+        <span class="ix">L_FM</span>
+        <div class="name">Flow-Matching</div>
+        <p>For $d = 0$, match the ground-truth velocity at every interpolated point.</p>
+        <div class="eqn-mini">$\|s_\theta(z_t,t,0) - (z_1 - z_0)\|^2$</div>
+        <p class="muted">Pins the local behaviour to standard flow matching.</p>
+      </div>
+
+      <div class="card loss-card">
+        <span class="ix">L_SC</span>
+        <div class="name">Self-Consistency</div>
+        <p>For $d > 0$, predict the average of two smaller steps.</p>
+        <div class="eqn-mini">$\|s_\theta(z_t,t,2d) - s_{\text{target}}\|^2$</div>
+        <p class="muted">Bootstraps long shortcuts from short ones.</p>
+      </div>
+
+      <div class="card loss-card">
+        <span class="ix">L_round</span>
+        <div class="name">Rounding</div>
+        <p>Negative log-likelihood of true tokens under the learned embedding matrix.</p>
+        <div class="eqn-mini">$-\log p_\Phi(w_z \mid z_1)$</div>
+        <p class="muted">Stops embeddings from collapsing to a single point.</p>
+      </div>
+    </div>
+
+    <div class="card loss-total" style="margin-top: 1.6em; text-align: center;">
+      <p style="font-size: 1.4vw; margin:0; color: var(--fg-0);">
+        $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{FM}} \;+\; \lambda_{\text{SC}}\,\mathcal{L}_{\text{SC}} \;+\; \lambda_{\text{round}}\,\mathcal{L}_{\text{round}}$
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 8 — Setup (VISUAL)
+       ============================================================ -->
+  <section class="slide" data-title="Experimental setup" id="slide-setup">
+    <span class="eyebrow">Experimental setup</span>
+    <h2>BERT-base encoder, three paraphrase datasets</h2>
+
+    <div class="setup-grid">
+      <!-- LEFT: BERT-encoder visual -->
+      <div class="setup-encoder">
+        <div class="enc-stack">
+          <div class="enc-layer enc-out">
+            <span class="enc-tag">output</span>
+            <span class="enc-vec">z₁ ∈ ℝ⁷⁶⁸</span>
+          </div>
+          <div class="enc-layer">L12 — self-attention + FFN</div>
+          <div class="enc-layer">L11 — self-attention + FFN</div>
+          <div class="enc-layer enc-dot">⋮&nbsp;&nbsp;12 transformer layers&nbsp;&nbsp;⋮</div>
+          <div class="enc-layer">L02 — self-attention + FFN</div>
+          <div class="enc-layer">L01 — self-attention + FFN</div>
+          <div class="enc-layer enc-in">
+            <span class="enc-tag">input</span>
+            <span class="enc-vec">z_t = x ⊕ y_t</span>
+          </div>
+        </div>
+        <div class="enc-stats">
+          <div><strong>~100M</strong> params</div>
+          <div>hidden <strong>768</strong></div>
+          <div>length <strong>128</strong> <span class="muted">(256 ParaSCI)</span></div>
+          <div>AdamW · lr <strong>1e-4</strong> · BS <strong>1024</strong></div>
+          <div>up to <strong>60k</strong> steps · EMA 0.99</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: dataset cards -->
+      <div class="setup-datasets">
+        <div class="ds-card ds-qqp">
+          <div class="ds-head">
+            <span class="ds-name">QQP</span>
+            <span class="ds-stat">144,715 train · 100 test</span>
+          </div>
+          <div class="ds-domain">Quora question pairs</div>
+          <div class="ds-example">
+            <span class="ds-arrow">in →</span>&nbsp;<em>How can I improve my English speaking?</em><br/>
+            <span class="ds-arrow">out →</span>&nbsp;<em>What is the best way to get better at spoken English?</em>
+          </div>
+        </div>
+
+        <div class="ds-card ds-paws">
+          <div class="ds-head">
+            <span class="ds-name">PAWS-Wiki</span>
+            <span class="ds-stat">21,829 train · 3,536 test</span>
+          </div>
+          <div class="ds-domain">Wikipedia sentences with structurally-perturbed paraphrases</div>
+          <div class="ds-example">
+            <span class="ds-arrow">in →</span>&nbsp;<em>The film was directed by Smith and produced by Jones.</em><br/>
+            <span class="ds-arrow">out →</span>&nbsp;<em>Jones produced the film, which was directed by Smith.</em>
+          </div>
+        </div>
+
+        <div class="ds-card ds-parasci">
+          <div class="ds-head">
+            <span class="ds-name">ParaSCI</span>
+            <span class="ds-stat">338,717 train · 4,894 test</span>
+          </div>
+          <div class="ds-domain">Sentence paraphrases from scientific papers</div>
+          <div class="ds-example">
+            <span class="ds-arrow">in →</span>&nbsp;<em>We propose a novel attention mechanism for long sequences.</em><br/>
+            <span class="ds-arrow">out →</span>&nbsp;<em>This work introduces a new attention design suitable for long inputs.</em>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="muted setup-metrics">
+      <strong>Metrics:</strong>&nbsp; BLEU · BERTScore · ROUGE-1/L · Themis (LLM-based: fluency, semantic similarity, overall)
+    </p>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 9 — Main results
+       ============================================================ -->
+  <section class="slide" data-title="Main results">
+    <span class="eyebrow">Main result</span>
+    <h2>One step of shortcut beats one step of flow matching — by a lot</h2>
+
+    <p class="muted" style="font-size: 1.05vw; margin-bottom: 1em;">BLEU score, single denoising step (NDS = 1).</p>
+
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.6em;">
+
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin-bottom:0.2em;">QQP</h3>
+      <div class="bar-row">
+        <div class="bar-label">Flow matching (baseline)</div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.290"></div></div>
+        <div class="bar-val">14.20</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.396"></div></div>
+        <div class="bar-val">19.40</div>
+      </div>
+
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 1em 0 0.2em;">PAWS-Wiki</h3>
+      <div class="bar-row">
+        <div class="bar-label">Flow matching (baseline)</div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.428"></div></div>
+        <div class="bar-val">20.97</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.872"></div></div>
+        <div class="bar-val">42.71</div>
+      </div>
+
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 1em 0 0.2em;">ParaSCI</h3>
+      <div class="bar-row">
+        <div class="bar-label">Flow matching (baseline)</div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.124"></div></div>
+        <div class="bar-val">6.05</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.276"></div></div>
+        <div class="bar-val">13.55</div>
+      </div>
+    </div>
+
+    <p style="margin-top: 1em; font-size: 1.1vw; color: var(--fg-0);">
+      BLEU <strong class="accent">more than doubles</strong> on PAWS-Wiki and ParaSCI — all gains statistically significant ($p < 0.001$).
+    </p>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 10 — Comparison vs literature
+       ============================================================ -->
+  <section class="slide" data-title="vs diffusion & AR">
+    <span class="eyebrow">In context</span>
+    <h2>Competitive with NAR diffusion at <span class="accent">1/2000th</span> the cost</h2>
+
+    <div class="row" style="align-items: stretch;">
+      <div class="col">
+        <table>
+          <thead>
+            <tr><th>Model</th><th class="num">Steps</th><th class="num">QQP</th><th class="num">PAWS</th><th class="num">ParaSCI</th></tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">NON-AUTOREGRESSIVE — FLOW MATCHING</td></tr>
+            <tr><td>Flow matching baseline</td><td class="num">1</td><td class="num">14.20</td><td class="num">20.97</td><td class="num">6.05</td></tr>
+            <tr class="highlight"><td><strong>Shortcut (ours)</strong></td><td class="num">1</td><td class="num">19.40</td><td class="num">42.71</td><td class="num">13.55</td></tr>
+            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">NON-AUTOREGRESSIVE — DIFFUSION</td></tr>
+            <tr><td>DiffuSeq</td><td class="num">2000</td><td class="num">31.49</td><td class="num">25.89</td><td class="num">—</td></tr>
+            <tr><td>SeqDiffuSeq</td><td class="num">2000</td><td class="num">26.67</td><td class="num">28.13</td><td class="num">—</td></tr>
+            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">AUTOREGRESSIVE</td></tr>
+            <tr><td>Transformer</td><td class="num">—</td><td class="num">29.10</td><td class="num">42.40</td><td class="num">27.10</td></tr>
+            <tr><td>T5</td><td class="num">—</td><td class="num">33.50</td><td class="num">61.05</td><td class="num">26.20</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col" style="max-width: 28vw;">
+        <div class="card">
+          <h3>Take-away</h3>
+          <ul>
+            <li>On PAWS-Wiki we <strong>match a Transformer baseline</strong> while doing 1 forward pass instead of decoding token by token.</li>
+            <li>On QQP, diffusion models still lead — but at <strong class="accent-3">2000×</strong> the inference cost.</li>
+            <li>The gap between NAR and AR narrows substantially, especially where paraphrase is structurally close to copy.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 11 — Multi-step analysis (BACKUP for 8-min talk)
+       ============================================================ -->
+  <section class="slide backup" data-title="More steps don't help">
+    <span class="eyebrow">Analysis</span>
+    <h2>Adding decoding steps barely moves shortcut quality</h2>
+
+    <div class="row">
+      <div class="col">
+        <ul>
+          <li>We swept the number of decoding steps (NDS) in $\{1, 2, 4, 8, 64, 128, 256\}$ for both the baseline and our shortcut model.</li>
+          <li>The <strong>baseline</strong> needs many steps and even then never reaches the shortcut's 1-step performance.</li>
+          <li>The <strong>shortcut</strong> peaks at NDS=256 with only marginal improvement over NDS=1 — confirming the 1-step prediction is already very close to the trajectory's endpoint.</li>
+        </ul>
+        <div class="card" style="margin-top:1.2em;">
+          <p style="margin:0; font-size:1.3vw; color:var(--fg-0);">
+            The model has effectively absorbed multi-step refinement <em>into</em> a single step.
+          </p>
+        </div>
+      </div>
+      <div class="col">
+        <!-- stylized illustration of Fig 2 -->
+        <svg class="traj-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
+          <!-- axes -->
+          <line x1="70" y1="340" x2="570" y2="340" stroke="rgba(255,255,255,0.2)" />
+          <line x1="70" y1="40"  x2="70"  y2="340" stroke="rgba(255,255,255,0.2)" />
+          <text x="320" y="380" class="traj-label" text-anchor="middle">denoising steps (log scale)</text>
+          <text x="40" y="190" class="traj-label" transform="rotate(-90 40 190)" text-anchor="middle">BERTScore</text>
+
+          <!-- baseline curve: pink/rose, dashed for extra contrast -->
+          <path d="M 110 300 Q 220 270, 320 230 T 540 180"
+                fill="none" stroke="var(--danger)" stroke-width="3"
+                stroke-dasharray="10 6"
+                class="traj-curve" style="animation-delay: 600ms;"/>
+          <!-- baseline data points -->
+          <g class="traj-dot" style="animation-delay: 1800ms;">
+            <circle cx="110" cy="300" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="220" cy="278" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="320" cy="232" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="430" cy="200" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="540" cy="180" r="6" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+          </g>
+
+          <!-- shortcut curve: bright cyan -->
+          <path d="M 110 90 Q 220 88, 320 92 T 540 95"
+                fill="none" stroke="var(--accent)" stroke-width="3.5"
+                class="traj-curve" style="animation-delay: 900ms;"/>
+          <!-- shortcut data points -->
+          <g class="traj-dot" style="animation-delay: 2100ms;">
+            <circle cx="110" cy="90" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="220" cy="88" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="320" cy="92" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="430" cy="93" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+            <circle cx="540" cy="95" r="6" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+          </g>
+
+          <!-- legend, top-right -->
+          <g class="traj-dot" style="animation-delay: 2400ms;">
+            <rect x="380" y="48" width="180" height="58" rx="8" fill="rgba(17,24,39,0.7)" stroke="var(--rule)"/>
+            <line x1="394" y1="68" x2="418" y2="68" stroke="var(--accent)" stroke-width="3.5"/>
+            <circle cx="406" cy="68" r="5" fill="var(--accent)" stroke="#0a0e1a" stroke-width="2"/>
+            <text x="426" y="72" class="traj-label" fill="var(--accent)">shortcut (ours)</text>
+            <line x1="394" y1="92" x2="418" y2="92" stroke="var(--danger)" stroke-width="3" stroke-dasharray="6 4"/>
+            <circle cx="406" cy="92" r="5" fill="var(--danger)" stroke="#0a0e1a" stroke-width="2"/>
+            <text x="426" y="96" class="traj-label" fill="var(--danger)">flow-matching baseline</text>
+          </g>
+
+          <text x="110" y="320" class="traj-label" text-anchor="middle">1</text>
+          <text x="220" y="320" class="traj-label" text-anchor="middle">2</text>
+          <text x="320" y="320" class="traj-label" text-anchor="middle">8</text>
+          <text x="430" y="320" class="traj-label" text-anchor="middle">64</text>
+          <text x="540" y="320" class="traj-label" text-anchor="middle">256</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 12 — Extensions / ablation (BACKUP for 8-min talk)
+       ============================================================ -->
+  <section class="slide backup" data-title="Extensions">
+    <span class="eyebrow">Ablations</span>
+    <h2>Which standard NAR tricks help shortcuts?</h2>
+
+    <p class="muted" style="font-size:1.05vw;">Combining the shortcut model with self-conditioning, classifier-free guidance, and three BERT-init strategies — QQP, NDS=1.</p>
+
+    <table style="margin-top: 1em;">
+      <thead>
+        <tr><th>Variant</th><th class="num">Train steps</th><th class="num">BLEU</th><th class="num">BERTScore</th></tr>
+      </thead>
+      <tbody>
+        <tr class="highlight"><td><strong>Shortcut model</strong></td><td class="num">21k</td><td class="num">19.4</td><td class="num">0.814</td></tr>
+        <tr><td>+ Self-conditioning</td><td class="num">15k</td><td class="num">19.3</td><td class="num">0.806</td></tr>
+        <tr><td>+ Classifier-free guidance</td><td class="num">23k</td><td class="num">19.4</td><td class="num">0.806</td></tr>
+        <tr><td>+ BERT initialization (full)</td><td class="num">10k</td><td class="num">19.5</td><td class="num">0.826</td></tr>
+        <tr><td>+ BERT embedding init</td><td class="num">46k</td><td class="num">18.6</td><td class="num">0.773</td></tr>
+        <tr><td>+ Frozen BERT embeddings</td><td class="num">11k</td><td class="num" style="color:var(--danger);">0.0</td><td class="num" style="color:var(--danger);">0.191</td></tr>
+      </tbody>
+    </table>
+
+    <div class="row" style="margin-top: 2em;">
+      <div class="card col">
+        <h3>What helps</h3>
+        <p>Full BERT initialization gives the best BERTScore and the fastest convergence (10k steps).</p>
+      </div>
+      <div class="card col">
+        <h3>What's neutral</h3>
+        <p>Self-conditioning and CFG don't improve 1-step quality, but self-conditioning speeds up training.</p>
+      </div>
+      <div class="card col">
+        <h3>What breaks</h3>
+        <p>Freezing pretrained embeddings collapses the model — consistent with prior diffusion findings.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 13 — Themis / LLM evaluation
+       ============================================================ -->
+  <section class="slide" data-title="LLM evaluation">
+    <span class="eyebrow">LLM-based evaluation</span>
+    <h2>Themis confirms the gain on every quality aspect</h2>
+
+    <div class="row">
+      <div class="col">
+        <p>Themis (Hu et al., 2024) is a reference-free evaluator. We score paraphrases on three aspects:</p>
+        <ul>
+          <li><strong>Fluency</strong> — is the paraphrase grammatical?</li>
+          <li><strong>Semantic similarity</strong> — does it preserve meaning?</li>
+          <li><strong>Overall quality</strong> — both, plus lexical/syntactic variation.</li>
+        </ul>
+        <p class="muted" style="font-size:1.05vw; margin-top:1em;">Single-step decoding for both models.</p>
+      </div>
+      <div class="col">
+        <table>
+          <thead>
+            <tr><th>Dataset</th><th>Model</th><th class="num">Flu.</th><th class="num">Sem.</th><th class="num">Over.</th></tr>
+          </thead>
+          <tbody>
+            <tr><td rowspan="2">QQP</td><td class="accent">Shortcut</td><td class="num">1.63</td><td class="num">1.67</td><td class="num">1.42</td></tr>
+            <tr><td class="muted">Baseline</td><td class="num">1.13</td><td class="num">1.13</td><td class="num">1.09</td></tr>
+            <tr><td rowspan="2">PAWS-Wiki</td><td class="accent">Shortcut</td><td class="num">2.01</td><td class="num">2.07</td><td class="num">2.02</td></tr>
+            <tr><td class="muted">Baseline</td><td class="num">1.05</td><td class="num">1.04</td><td class="num">1.03</td></tr>
+            <tr><td rowspan="2">ParaSCI</td><td class="accent">Shortcut</td><td class="num">1.70</td><td class="num">1.60</td><td class="num">1.60</td></tr>
+            <tr><td class="muted">Baseline</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr>
+          </tbody>
+        </table>
+        <p class="muted" style="font-size:0.95vw; margin-top:1em;">Higher is better. Shortcut wins on every cell.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+        SLIDE 14 — Takeaways
+       ============================================================ -->
+  <section class="slide" data-title="Takeaways">
+    <span class="eyebrow">Takeaways</span>
+    <h2>What we showed</h2>
+
+    <ul class="takeaway" style="margin-top: 1em;">
+      <li>Shortcut flow matching adapts cleanly from vision to text generation.</li>
+      <li>A <strong>single denoising step</strong> is enough — BLEU more than doubles on two of three datasets vs. flow-matching baseline.</li>
+      <li>One model serves all step counts. No retraining for different decoding budgets.</li>
+      <li>Standard NAR tricks (self-conditioning, CFG, partial BERT-init) help convergence speed, not 1-step quality.</li>
+      <li>Headline number: <strong class="accent-3">42.71 BLEU on PAWS-Wiki in one forward pass.</strong></li>
+    </ul>
+
+    <div class="row" style="margin-top: 2em;">
+      <div class="card col">
+        <h3>Limitations</h3>
+        <ul>
+          <li>Training is more expensive than vanilla flow matching (estimating multi-step targets).</li>
+          <li>Evaluated only on paraphrase tasks with short-to-medium sequences.</li>
+          <li>No theoretical guarantees on stability of very large shortcuts.</li>
+        </ul>
+      </div>
+      <div class="card col" style="background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06)); border-color: rgba(124,196,255,0.25);">
+        <h3 style="color: var(--accent-3);">Code &amp; paper</h3>
+        <p style="font-size: 1.15vw; color: var(--fg-0); margin-bottom: 0.6em;">
+          Full implementation, training configs, and checkpoints:
+        </p>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 1.1vw; color: var(--accent);">
+          github.com/jwarczynski/FMShortcut
+        </p>
+        <p class="muted" style="font-size: 0.95vw; margin-top: 0.8em;">
+          Contact: jedrzej.warczynski@student.put.edu.pl
+        </p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<nav class="nav">
+  <button id="prevBtn" aria-label="Previous slide">←</button>
+  <span class="counter"><span id="curIdx">1</span> / <span id="total">15</span></span>
+  <span class="title" id="slideTitle">Title</span>
+  <button id="nextBtn" aria-label="Next slide">→</button>
+</nav>
+
+<div class="footer">Shortcut Flow Matching · ACL 2026</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const total = slides.length;
+  document.getElementById("total").textContent = total;
+
+  const progress = document.getElementById("progress");
+  const curIdxEl = document.getElementById("curIdx");
+  const titleEl = document.getElementById("slideTitle");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+
+  let idx = 0;
+
+  function render() {
+    slides.forEach((s, i) => {
+      s.classList.remove("active", "prev");
+      if (i === idx) s.classList.add("active");
+      else if (i < idx) s.classList.add("prev");
+    });
+    curIdxEl.textContent = idx + 1;
+    titleEl.textContent = slides[idx].dataset.title || "";
+    progress.style.width = (((idx + 1) / total) * 100) + "%";
+    if (history.replaceState) history.replaceState(null, "", "#" + (idx + 1));
+  }
+
+  function go(delta) {
+    const next = Math.max(0, Math.min(total - 1, idx + delta));
+    if (next === idx) return;
+    idx = next;
+    render();
+  }
+
+  function jump(n) {
+    if (n < 0 || n >= total) return;
+    idx = n;
+    render();
+  }
+
+  // keyboard
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); go(1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(-1); }
+    else if (e.key === "Home") { e.preventDefault(); jump(0); }
+    else if (e.key === "End") { e.preventDefault(); jump(total - 1); }
+    else if (/^[0-9]$/.test(e.key)) {
+      const n = parseInt(e.key, 10);
+      if (n >= 1) jump(Math.min(n - 1, total - 1));
+    }
+  });
+
+  // buttons
+  prevBtn.addEventListener("click", () => go(-1));
+  nextBtn.addEventListener("click", () => go(1));
+
+  // click anywhere on the slide (not on nav / interactive controls) to advance
+  document.getElementById("deck").addEventListener("click", (e) => {
+    if (e.target.closest(".nav")) return;
+    if (e.target.closest("input, button, .slider-row, .play-btn, .d-btn, .d-buttons, a, .no-advance")) return;
+    go(1);
+  });
+
+  // prevent slider drag/keyboard from triggering deck navigation
+  ["mousedown", "touchstart", "click"].forEach((ev) => {
+    document.querySelectorAll(".slider-row, .play-btn").forEach((el) => {
+      el.addEventListener(ev, (e) => e.stopPropagation());
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON")) {
+      // let arrow keys work the slider, not the deck
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") e.stopPropagation();
+    }
+  }, true);
+
+  // touch swipe
+  let touchStartX = null;
+  document.addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener("touchend", (e) => {
+    if (touchStartX == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+    touchStartX = null;
+  });
+
+  // ---------- Title-slide particles ----------
+  const particles = document.getElementById("particles");
+  if (particles) {
+    const W = 100, H = 100; // viewBox units
+    particles.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const N = 36;
+    const dots = [];
+    for (let i = 0; i < N; i++) {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const r = 0.2 + Math.random() * 0.6;
+      const x = Math.random() * W;
+      const y = Math.random() * H;
+      c.setAttribute("cx", x);
+      c.setAttribute("cy", y);
+      c.setAttribute("r", r);
+      c.setAttribute("opacity", 0.15 + Math.random() * 0.35);
+      particles.appendChild(c);
+      dots.push({
+        el: c,
+        x, y,
+        vx: (Math.random() - 0.5) * 0.04,
+        vy: (Math.random() - 0.5) * 0.04,
+      });
+    }
+    function animate() {
+      for (const d of dots) {
+        d.x += d.vx; d.y += d.vy;
+        if (d.x < 0 || d.x > W) d.vx *= -1;
+        if (d.y < 0 || d.y > H) d.vy *= -1;
+        d.el.setAttribute("cx", d.x);
+        d.el.setAttribute("cy", d.y);
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+  }
+
+  // ---------- shared easing + animation helpers ----------
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function sleep(ms, store) {
+    return new Promise((resolve) => {
+      const id = setTimeout(resolve, ms);
+      if (store) store.push(id);
+    });
+  }
+  function animLine(line, fromX, fromY, toX, toY, duration) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      function step(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const e = easeInOut(t);
+        line.setAttribute("x2", fromX + (toX - fromX) * e);
+        line.setAttribute("y2", fromY + (toY - fromY) * e);
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      }
+      requestAnimationFrame(step);
+    });
+  }
+  function animDot(dot, fromX, fromY, toX, toY, duration) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      dot.style.opacity = 1;
+      function step(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const e = easeInOut(t);
+        dot.setAttribute("cx", fromX + (toX - fromX) * e);
+        dot.setAttribute("cy", fromY + (toY - fromY) * e);
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  // ---------- Slide 5: discrete d buttons, animate full shortcut chain ----------
+  const shortcutCurve = document.getElementById("shortcutCurve");
+  const shortcutChords = document.getElementById("shortcutChords");
+  const shortcutWaypoints = document.getElementById("shortcutWaypoints");
+  const shortcutWalker = document.getElementById("shortcutWalker");
+  const shortcutLabel = document.getElementById("shortcutLabel");
+  const dButtons = document.querySelectorAll("#slide-shortcut .d-btn");
+  const Z0 = { x: 80, y: 300 };
+  let s5Token = 0; // cancellation token
+
+  function clearSlide5() {
+    s5Token++;
+    if (!shortcutCurve) return;
+    shortcutChords.innerHTML = "";
+    shortcutWaypoints.innerHTML = "";
+    shortcutWalker.style.opacity = 0;
+    shortcutWalker.setAttribute("cx", Z0.x);
+    shortcutWalker.setAttribute("cy", Z0.y);
+    shortcutLabel.style.opacity = 0;
+  }
+
+  async function animateShortcutChain(d) {
+    if (!shortcutCurve) return;
+    const myToken = ++s5Token;
+    shortcutChords.innerHTML = "";
+    shortcutWaypoints.innerHTML = "";
+    shortcutLabel.textContent = `step size d = ${d === 1 ? "1" : "1/" + Math.round(1 / d)}`;
+    shortcutLabel.style.opacity = 1;
+
+    const totalLen = shortcutCurve.getTotalLength();
+    const n = Math.round(1 / d);
+
+    // pre-compute landing points along the curve
+    const pts = [Z0];
+    for (let i = 1; i <= n; i++) {
+      const p = shortcutCurve.getPointAtLength((i / n) * totalLen);
+      pts.push({ x: p.x, y: p.y });
+    }
+
+    // place walker at z0, fade in
+    shortcutWalker.setAttribute("cx", Z0.x);
+    shortcutWalker.setAttribute("cy", Z0.y);
+    shortcutWalker.style.opacity = 1;
+
+    // animate each segment
+    const segDuration = Math.max(380, 1100 / n);
+    for (let i = 0; i < n; i++) {
+      if (myToken !== s5Token) return;
+      // create a chord line that grows
+      const ln = document.createElementNS(SVGNS, "line");
+      ln.setAttribute("x1", pts[i].x);
+      ln.setAttribute("y1", pts[i].y);
+      ln.setAttribute("x2", pts[i].x);
+      ln.setAttribute("y2", pts[i].y);
+      ln.setAttribute("stroke", "var(--accent-3)");
+      ln.setAttribute("stroke-width", "3");
+      ln.setAttribute("stroke-dasharray", "8 6");
+      ln.setAttribute("stroke-linecap", "round");
+      shortcutChords.appendChild(ln);
+
+      await Promise.all([
+        animLine(ln, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, segDuration),
+        animDot(shortcutWalker, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, segDuration),
+      ]);
+      if (myToken !== s5Token) return;
+
+      // drop a waypoint dot (except at z1, which is already drawn)
+      if (i < n - 1) {
+        const dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("cx", pts[i + 1].x);
+        dot.setAttribute("cy", pts[i + 1].y);
+        dot.setAttribute("r", 5);
+        dot.setAttribute("fill", "var(--accent-3)");
+        dot.setAttribute("stroke", "#0a0e1a");
+        dot.setAttribute("stroke-width", 2);
+        shortcutWaypoints.appendChild(dot);
+      }
+      await sleep(120);
+    }
+    if (myToken !== s5Token) return;
+    shortcutWalker.style.opacity = 0;
+  }
+
+  dButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      animateShortcutChain(parseFloat(btn.dataset.d));
+    });
+  });
+
+  // ---------- Slide 6: looping self-consistency animation, variable d ----------
+  const scCurve = document.getElementById("scCurve");
+  const scSmallSteps = document.getElementById("scSmallSteps");
+  const scShortcuts = document.getElementById("scShortcuts");
+  const scWaypoints = document.getElementById("scWaypoints");
+  const scWalker = document.getElementById("scWalker");
+  const scWalker2 = document.getElementById("scWalker2");
+  const scPhase = document.getElementById("scPhase");
+  const scBtns = document.querySelectorAll("#scBtns .d-btn");
+
+  let scRunId = 0;        // increments to invalidate in-flight animations
+  let scLoopAlive = false; // whether a loop is currently running
+  let scCurrentD = 0.5;
+
+  function clearSlide6() {
+    if (!scCurve) return;
+    scSmallSteps.innerHTML = "";
+    scShortcuts.innerHTML = "";
+    scWaypoints.innerHTML = "";
+    scWalker.style.opacity = 0;
+    scWalker.setAttribute("cx", 80); scWalker.setAttribute("cy", 300);
+    scWalker2.style.opacity = 0;
+    scWalker2.setAttribute("cx", 80); scWalker2.setAttribute("cy", 300);
+    scPhase.style.opacity = 0;
+  }
+
+  function fmtD(d) { return d === 1 ? "1" : "1/" + Math.round(1 / d); }
+
+  async function playSCOnce(d, runId) {
+    const cancelled = () => runId !== scRunId;
+    if (!scCurve || cancelled()) return;
+    const totalLen = scCurve.getTotalLength();
+
+    const n = Math.round(1 / d);
+    const pts = [{ x: 80, y: 300 }];
+    for (let i = 1; i <= n; i++) {
+      const p = scCurve.getPointAtLength((i / n) * totalLen);
+      pts.push({ x: p.x, y: p.y });
+    }
+
+    // Phase 1: n small steps
+    scPhase.textContent = `${n} small steps of size d = ${fmtD(d)}`;
+    scPhase.setAttribute("fill", "var(--accent-2)");
+    scPhase.style.opacity = 1;
+
+    scWalker.style.opacity = 1;
+    scWalker.setAttribute("cx", 80);
+    scWalker.setAttribute("cy", 300);
+
+    const smallDur = Math.max(360, 900 / n);
+    for (let i = 0; i < n; i++) {
+      if (cancelled()) return;
+      const ln = document.createElementNS(SVGNS, "line");
+      ln.setAttribute("x1", pts[i].x); ln.setAttribute("y1", pts[i].y);
+      ln.setAttribute("x2", pts[i].x); ln.setAttribute("y2", pts[i].y);
+      ln.setAttribute("stroke", "var(--accent-2)");
+      ln.setAttribute("stroke-width", "2.8");
+      ln.setAttribute("stroke-linecap", "round");
+      scSmallSteps.appendChild(ln);
+
+      await Promise.all([
+        animLine(ln, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, smallDur),
+        animDot(scWalker, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, smallDur),
+      ]);
+      if (cancelled()) return;
+      if (i < n - 1) {
+        const dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("cx", pts[i + 1].x); dot.setAttribute("cy", pts[i + 1].y);
+        dot.setAttribute("r", 5);
+        dot.setAttribute("fill", "var(--accent-2)");
+        dot.setAttribute("stroke", "#0a0e1a"); dot.setAttribute("stroke-width", 2);
+        scWaypoints.appendChild(dot);
+      }
+      await sleep(80);
+    }
+    if (cancelled()) return;
+    scWalker.style.opacity = 0;
+    await sleep(450);
+
+    // Phase 2: one big shortcut step (size n*d = 1)
+    if (cancelled()) return;
+    scPhase.textContent = `≡ one shortcut step of size 1`;
+    scPhase.setAttribute("fill", "var(--accent-3)");
+
+    const shortcut = document.createElementNS(SVGNS, "line");
+    shortcut.setAttribute("x1", 80); shortcut.setAttribute("y1", 300);
+    shortcut.setAttribute("x2", 80); shortcut.setAttribute("y2", 300);
+    shortcut.setAttribute("stroke", "var(--accent-3)");
+    shortcut.setAttribute("stroke-width", "3.5");
+    shortcut.setAttribute("stroke-dasharray", "8 6");
+    shortcut.setAttribute("stroke-linecap", "round");
+    scShortcuts.appendChild(shortcut);
+
+    scWalker2.style.opacity = 1;
+    scWalker2.setAttribute("cx", 80); scWalker2.setAttribute("cy", 300);
+
+    await Promise.all([
+      animLine(shortcut, 80, 300, 540, 90, 900),
+      animDot(scWalker2, 80, 300, 540, 90, 900),
+    ]);
+    if (cancelled()) return;
+    await sleep(1100);
+  }
+
+  async function scLoop() {
+    if (scLoopAlive) return;
+    scLoopAlive = true;
+    const myRunId = ++scRunId;
+    while (myRunId === scRunId) {
+      const slide = document.getElementById("slide-sc");
+      if (!slide || !slide.classList.contains("active")) break;
+      clearSlide6();
+      await playSCOnce(scCurrentD, myRunId);
+      if (myRunId !== scRunId) break;
+      await sleep(400);
+    }
+    scLoopAlive = false;
+  }
+
+  function restartSCLoop() {
+    scRunId++;            // invalidate in-flight animations
+    clearSlide6();
+    // tiny delay to let the in-flight loop notice the runId change and exit
+    setTimeout(() => { if (!scLoopAlive) scLoop(); }, 60);
+  }
+
+  scBtns.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      scBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      scCurrentD = parseFloat(btn.dataset.d);
+      restartSCLoop();
+    });
+  });
+
+  // hook into slide transitions
+  const origRender = render;
+  render = function () {
+    origRender();
+
+    // slide 5 (shortcut intro): animate the active button's chain
+    const s5 = document.getElementById("slide-shortcut");
+    if (s5 && s5.classList.contains("active")) {
+      const active = s5.querySelector(".d-btn.active");
+      const d = active ? parseFloat(active.dataset.d) : 1;
+      // wait for slide transition + reveals to finish
+      setTimeout(() => animateShortcutChain(d), 1500);
+    } else {
+      clearSlide5();
+    }
+
+    // slide 6 (self-consistency): start the loop
+    const sc = document.getElementById("slide-sc");
+    if (sc && sc.classList.contains("active")) {
+      setTimeout(() => { if (!scLoopAlive) scLoop(); }, 1500);
+    } else {
+      // leaving slide 6 — kill the loop and clear
+      scRunId++;
+      clearSlide6();
+    }
+  };
+
+  // initial: jump to hash if present
+  const m = (location.hash || "").match(/#(\d+)/);
+  if (m) idx = Math.max(0, Math.min(total - 1, parseInt(m[1], 10) - 1));
+  render();
+})();
+</script>
+
+</body>
+</html>
