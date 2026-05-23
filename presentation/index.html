@@ -352,17 +352,6 @@
   .particles { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
   .particles circle { fill: var(--accent); opacity: 0.25; }
 
-  /* backup slide indicator */
-  .slide.backup::before {
-    content: "BACKUP";
-    position: absolute; top: 1.5vh; right: 50%;
-    transform: translateX(50%);
-    font-size: 0.75vw; letter-spacing: 0.2em;
-    color: var(--accent-3);
-    background: rgba(255,184,108,0.08);
-    border: 1px solid rgba(255,184,108,0.3);
-    padding: 0.25em 0.9em; border-radius: 999px;
-  }
 
   /* bar chart */
   .bar-row { display: grid; grid-template-columns: 12em 1fr 6em; align-items: center; gap: 1em; margin-bottom: 0.9em; }
@@ -1280,7 +1269,7 @@
   <!-- ============================================================
         SLIDE 11 — Multi-step analysis (BACKUP for 8-min talk)
        ============================================================ -->
-  <section class="slide backup" data-title="More steps don't help">
+  <section class="slide" data-title="More steps don't help">
     <span class="eyebrow">Analysis</span>
     <h2>Adding decoding steps barely moves shortcut quality</h2>
 
@@ -1307,7 +1296,7 @@
   <!-- ============================================================
         SLIDE 12 — Extensions / ablation (BACKUP for 8-min talk)
        ============================================================ -->
-  <section class="slide backup" data-title="Extensions">
+  <section class="slide" data-title="Extensions">
     <span class="eyebrow">Ablations</span>
     <h2>Which standard NAR tricks help shortcuts?</h2>
 
@@ -1657,7 +1646,7 @@
 
     // axis titles
     const xt = mk("text", { x: M.l + plotW / 2, y: H - 10, class: "traj-label", "text-anchor": "middle", fill: "rgba(255,255,255,0.55)" });
-    xt.textContent = "decoding steps (log scale)";
+    xt.textContent = "decoding steps";
     const yt = mk("text", {
       x: 22, y: M.t + plotH / 2,
       class: "traj-label",
@@ -1711,9 +1700,10 @@
     drawSeries(baseline, "#ff6c8a", { dashed: true, delay: 300 });
     drawSeries(shortcut, "#7cc4ff", { dashed: false, delay: 700 });
 
-    // legend, top-right inside the plot area, above the shortcut line
-    const lgX = M.l + plotW - 200;
-    const lgY = M.t - 28;
+    // legend, bottom-right inside the plot area
+    const lgW = 200, lgH = 56;
+    const lgX = M.l + plotW - lgW - 12;
+    const lgY = M.t + plotH - lgH - 12;
     const lg = mk("g", { opacity: 0 });
     lg.style.transition = "opacity 500ms ease 2200ms";
     requestAnimationFrame(() => lg.setAttribute("opacity", 1));
