@@ -484,8 +484,13 @@
   .ablation-cards .card p { font-size: 0.95vw; line-height: 1.45; margin: 0; }
 
   /* slide 8: condensed right-column section styles */
-  .setup-mini-section { display: flex; flex-direction: column; gap: 0.4em; }
-  .setup-mini-h { font-size: 1.05vw; color: var(--accent); margin: 0 0 0.3em; letter-spacing: 0.06em; }
+  .setup-mini-section { display: flex; flex-direction: column; gap: 0.5em; }
+  .setup-mini-h {
+    font-size: 0.95vw; color: var(--accent);
+    margin: 0 0 0.2em;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    font-weight: 600;
+  }
   .setup-mini-p { font-size: 1.05vw; color: var(--fg-1); line-height: 1.55; margin: 0; }
   .setup-mini-p strong { color: var(--fg-0); }
   .ds-mini {
@@ -493,7 +498,7 @@
     border: 1px solid var(--rule);
     border-left: 3px solid var(--accent);
     border-radius: 8px;
-    padding: 0.5em 0.9em;
+    padding: 0.7em 1em;
     opacity: 0; transform: translateX(12px);
     transition: opacity 400ms ease, transform 400ms ease;
   }
@@ -573,7 +578,7 @@
   .slide.active .arch-svg .arch-arrow[data-i="2"] { transition-delay: 780ms; }
   .slide.active .arch-svg .arch-arrow[data-i="3"] { transition-delay: 980ms; }
 
-  .arch-stats-col { display: flex; flex-direction: column; gap: 1em; justify-content: center; min-width: 0; }
+  .arch-stats-col { display: flex; flex-direction: column; gap: 1.6em; justify-content: center; min-width: 0; }
   .arch-stats { padding-left: 1.2em; }
   .arch-stats li { font-size: 1.15vw; margin-bottom: 0.35em; }
   .arch-stats strong { color: var(--fg-0); }
