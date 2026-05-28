@@ -463,6 +463,69 @@
   }
   .slide.active .total-loss-plus { opacity: 1; transition-delay: 1900ms; }
 
+  /* slide 8 (condensed): arch + datasets + metrics in one slide */
+  .setup-condensed {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 3vw;
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+    margin-top: 0.6em;
+  }
+  .setup-arch { display: flex; align-items: center; justify-content: center; }
+  .setup-arch .arch-svg { width: 100%; max-height: 70vh; height: 70vh; }
+  .setup-right { display: flex; flex-direction: column; gap: 1.1em; justify-content: center; }
+  .setup-mini-section { display: flex; flex-direction: column; gap: 0.4em; }
+  .setup-mini-h { font-size: 1.05vw; color: var(--accent); margin: 0 0 0.3em; letter-spacing: 0.06em; }
+  .setup-mini-p { font-size: 1.05vw; color: var(--fg-1); line-height: 1.55; margin: 0; }
+  .setup-mini-p strong { color: var(--fg-0); }
+  .ds-mini {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.5em 0.9em;
+    opacity: 0; transform: translateX(12px);
+    transition: opacity 400ms ease, transform 400ms ease;
+  }
+  .slide.active .ds-mini { opacity: 1; transform: translateX(0); }
+  .slide.active .ds-mini:nth-of-type(1) { transition-delay: 350ms; }
+  .slide.active .ds-mini:nth-of-type(2) { transition-delay: 500ms; }
+  .slide.active .ds-mini:nth-of-type(3) { transition-delay: 650ms; }
+  .ds-mini.ds-qqp { border-left-color: var(--accent); }
+  .ds-mini.ds-paws { border-left-color: var(--accent-2); }
+  .ds-mini.ds-parasci { border-left-color: var(--accent-3); }
+  .ds-mini-head { display: flex; align-items: baseline; gap: 1em; }
+  .ds-mini-name {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700; font-size: 1.1vw;
+    color: var(--fg-0);
+    min-width: 7em;
+  }
+  .ds-mini.ds-qqp .ds-mini-name { color: var(--accent); }
+  .ds-mini.ds-paws .ds-mini-name { color: var(--accent-2); }
+  .ds-mini.ds-parasci .ds-mini-name { color: var(--accent-3); }
+  .ds-mini-stat { color: var(--fg-1); font-size: 0.95vw; }
+  .setup-metrics-row { display: flex; gap: 0.5em; flex-wrap: wrap; }
+  .metric-pill {
+    display: inline-block;
+    padding: 0.4em 1em;
+    border: 1px solid var(--mtone);
+    color: var(--mtone);
+    border-radius: 999px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.95vw;
+    background: rgba(255,255,255,0.02);
+    opacity: 0;
+    transition: opacity 350ms ease;
+  }
+  .slide.active .metric-pill { opacity: 1; }
+  .slide.active .metric-pill:nth-of-type(1) { transition-delay: 800ms; }
+  .slide.active .metric-pill:nth-of-type(2) { transition-delay: 900ms; }
+  .slide.active .metric-pill:nth-of-type(3) { transition-delay: 1000ms; }
+  .slide.active .metric-pill:nth-of-type(4) { transition-delay: 1100ms; }
+
   /* slide 8: architecture diagram */
   .arch-row {
     display: grid; grid-template-columns: 1fr 1fr;
@@ -646,10 +709,10 @@
     <div class="row" style="margin-top: 2vh;">
       <div class="col">
         <ul class="reveal">
-          <li><strong>Autoregressive models</strong> generate one token at a time — quality is great, latency scales with sequence length.</li>
+          <li><strong>Autoregressive models</strong> generate one token at a time — quality is great, but latency scales with sequence length.</li>
           <li><strong>Non-autoregressive (NAR)</strong> models predict all tokens in parallel — but quality lags behind.</li>
           <li>Recent <strong>diffusion-based NAR</strong> closed much of that gap, at the cost of <span class="accent-3">hundreds–thousands of denoising steps</span>.</li>
-          <li>That kills the very speedup parallelism was supposed to give us.</li>
+          <li>That cancels out the speedup NAR parallelism was supposed to give us.</li>
         </ul>
       </div>
       <div class="col">
@@ -704,7 +767,7 @@
           <g class="traj-dot" style="animation-delay: 2500ms;"><circle class="onpath" data-curve="s3Curve" data-frac="0.80" r="4" fill="var(--accent-2)"/></g>
         </svg>
         <p class="muted" style="text-align:center; font-size:0.95vw; margin-top:0.5em;">
-          The path is straight in theory, but in embedding space the learned trajectory is curved.
+          The inference trajectory is curved — the model averages over many conditional paths.
         </p>
       </div>
     </div>
@@ -723,11 +786,11 @@
           <li>Flow matching <em>could</em> sample in one step:&nbsp; $z_1 \approx z_0 + f_\theta(z_0, 0)$</li>
           <li>But $f_\theta$ only knows the <strong>local instantaneous velocity</strong> at $z_0$.</li>
           <li>Because the real trajectory <span class="accent-3">curves</span>, the one-step prediction overshoots — landing far from any real text embedding.</li>
-          <li>This is why prior NAR diffusion uses <span class="danger" style="color:var(--danger);">2000 steps</span> to be competitive.</li>
+          <li>This is why prior NAR continuous-diffusion approaches use, e.g., <span class="danger" style="color:var(--danger);">2000 steps</span> to be competitive.</li>
         </ul>
         <div class="card" style="margin-top: 1.5em;">
           <p style="margin:0; color: var(--fg-0); font-size: 1.3vw;">
-            We need a model that knows where the trajectory is <em>going</em>, not just where it's <em>pointing</em>.
+            We need a model that knows where the trajectory is <em>going</em>, not just where it's <em>pointing at the current moment</em>.
           </p>
         </div>
       </div>
@@ -884,118 +947,59 @@
   </section>
 
   <!-- ============================================================
-        SLIDE 7a — Loss: Flow-Matching
+        SLIDE 7 — Training (single consolidated slide)
        ============================================================ -->
-  <section class="slide" data-title="Loss · Flow Matching">
-    <span class="eyebrow">Training · 1 of 3</span>
-    <h2>Loss 1 — Flow Matching <span class="muted" style="font-size:0.55em;">(local velocity)</span></h2>
+  <section class="slide" data-title="Training objective">
+    <span class="eyebrow">Training</span>
+    <h2>Three losses, one model</h2>
 
-    <div class="loss-stage">
-      <div class="loss-stage-text">
-        <p>For a small step ($d \to 0$), the model has to match the ground-truth velocity at every interpolated point.</p>
-        <div class="eqn">$$\mathcal{L}_{\text{FM}} = \mathbb{E}\,\big\|\,s_\theta(z_t,\, t,\, 0) - (z_1 - z_0)\,\big\|^2$$</div>
-        <p class="muted">Pins the local behaviour to standard flow matching — without it the model has no target at $d = 0$.</p>
-      </div>
-      <div class="loss-stage-card">
-        <div class="loss-bigtag" style="color: var(--accent);">L<sub>FM</sub></div>
-        <div class="loss-bigname">Flow Matching</div>
-        <div class="loss-active">d &nbsp;→&nbsp; 0</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 7b — Loss: Self-Consistency
-       ============================================================ -->
-  <section class="slide" data-title="Loss · Self-consistency">
-    <span class="eyebrow">Training · 2 of 3</span>
-    <h2>Loss 2 — Self-Consistency <span class="muted" style="font-size:0.55em;">(shortcut bootstrap)</span></h2>
-
-    <div class="loss-stage">
-      <div class="loss-stage-text">
-        <p>For $d > 0$, the prediction at step size $2d$ must match the average of two predictions at size $d$:</p>
-        <div class="eqn eqn-scroll">$$s_{\text{target}} = \tfrac{1}{2}\big(\,s_\theta(z_t,\, t,\, d) + s_\theta(z_{t+d},\, t+d,\, d)\,\big)$$</div>
-        <div class="eqn">$$\mathcal{L}_{\text{SC}} = \mathbb{E}\,\big\|\,s_\theta(z_t,\, t,\, 2d) - s_{\text{target}}\,\big\|^2$$</div>
-        <p class="muted">Bootstraps long shortcuts from short ones — the recursion that lets one model handle every step count.</p>
-      </div>
-      <div class="loss-stage-card">
-        <div class="loss-bigtag" style="color: var(--accent-2);">L<sub>SC</sub></div>
-        <div class="loss-bigname">Self-Consistency</div>
-        <div class="loss-active">d &nbsp;&gt;&nbsp; 0</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 7c — Loss: Rounding
-       ============================================================ -->
-  <section class="slide" data-title="Loss · Rounding">
-    <span class="eyebrow">Training · 3 of 3</span>
-    <h2>Loss 3 — Rounding <span class="muted" style="font-size:0.55em;">(anti-collapse)</span></h2>
-
-    <div class="loss-stage">
-      <div class="loss-stage-text">
-        <p>Without it, embeddings learn to collapse onto a single point. A simple NLL of the true tokens under a learned embedding matrix $\Phi$ keeps them apart:</p>
-        <div class="eqn">$$\mathcal{L}_{\text{round}} = -\,\mathbb{E}\,\log\,p_\Phi(w_z \mid z_1), \quad p_\Phi = \mathrm{softmax}(z_1 \Phi^\top)$$</div>
-        <p class="muted">Standard for embedding-space diffusion — used by Liu et al. 2024 for the same reason.</p>
-      </div>
-      <div class="loss-stage-card">
-        <div class="loss-bigtag" style="color: var(--accent-3);">L<sub>round</sub></div>
-        <div class="loss-bigname">Rounding</div>
-        <div class="loss-active">applied to z<sub>1</sub></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 7d — Total loss
-       ============================================================ -->
-  <section class="slide" data-title="Total loss">
-    <span class="eyebrow">Training · combined</span>
-    <h2>Total loss</h2>
-
-    <div class="total-loss-stage">
-      <div class="card total-loss-eq">
+    <div class="total-loss-stage" style="justify-content: flex-start; gap: 1.4em; margin-top: 0.8em;">
+      <div class="card total-loss-eq" style="padding: 1.4em 2.2em;">
         <p style="font-size: 1.6vw; margin:0; color: var(--fg-0);">
           $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{FM}} \;+\; \lambda_{\text{SC}}\,\mathcal{L}_{\text{SC}} \;+\; \lambda_{\text{round}}\,\mathcal{L}_{\text{round}}$
         </p>
       </div>
 
       <div class="total-loss-grid">
-        <div class="total-loss-card" style="--tone: var(--accent);">
+        <div class="total-loss-card" style="--tone: var(--accent); min-width: 14em;">
           <div class="ix">L<sub>FM</sub></div>
           <div class="role">Flow Matching</div>
           <div class="when">at d → 0</div>
+          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">Match ground-truth velocity $z_1 - z_0$.</p>
         </div>
         <div class="total-loss-plus">+</div>
-        <div class="total-loss-card" style="--tone: var(--accent-2);">
+        <div class="total-loss-card" style="--tone: var(--accent-2); min-width: 14em;">
           <div class="ix">L<sub>SC</sub></div>
           <div class="role">Self-Consistency</div>
           <div class="when">at d &gt; 0</div>
+          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">Big step ≡ average of two small steps.</p>
         </div>
         <div class="total-loss-plus">+</div>
-        <div class="total-loss-card" style="--tone: var(--accent-3);">
+        <div class="total-loss-card" style="--tone: var(--accent-3); min-width: 14em;">
           <div class="ix">L<sub>round</sub></div>
           <div class="role">Rounding</div>
           <div class="when">on z₁</div>
+          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">NLL of true tokens — prevents embedding collapse.</p>
         </div>
       </div>
 
-      <p class="muted" style="margin-top: 1.5em; font-size: 1.05vw; text-align: center;">
-        Both weights $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$ in all experiments — no tuning.
+      <p class="muted" style="margin-top: 1.2em; font-size: 1.05vw; text-align: center;">
+        $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$ in all experiments — no tuning.
       </p>
     </div>
   </section>
 
   <!-- ============================================================
-        SLIDE 8 — Architecture: standard transformer-block diagram
+        SLIDE 8 — Setup (architecture + datasets + metrics, condensed)
        ============================================================ -->
-  <section class="slide" data-title="Architecture" id="slide-arch">
-    <span class="eyebrow">Architecture</span>
-    <h2>Encoder-only transformer, BERT-base style</h2>
+  <section class="slide" data-title="Experimental setup" id="slide-arch">
+    <span class="eyebrow">Experimental setup</span>
+    <h2>BERT-base encoder · 3 paraphrase datasets · 4 metrics</h2>
 
-    <div class="arch-row">
-      <div class="arch-svg-col">
+    <div class="setup-condensed">
+
+      <!-- LEFT: small architecture diagram -->
+      <div class="setup-arch">
         <svg class="arch-svg" viewBox="0 0 380 520" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="blockG" x1="0" x2="0" y1="0" y2="1">
@@ -1065,112 +1069,44 @@
         </svg>
       </div>
 
-      <div class="arch-stats-col">
-        <h3 style="margin-bottom: 0.6em;">Configuration</h3>
-        <ul class="arch-stats">
-          <li><strong>~100M</strong> parameters · BERT-base style</li>
-          <li>Hidden dim <strong>768</strong> · <strong>12</strong> layers · <strong>12</strong> heads</li>
-          <li>FFN intermediate <strong>3072</strong></li>
-          <li>Max length <strong>128</strong> &nbsp;(<strong>256</strong> for ParaSCI)</li>
-          <li>Step size $d$ and time $t$ embedded and injected per layer</li>
-        </ul>
-
-        <h3 style="margin-top: 1.4em; margin-bottom: 0.5em;">Training</h3>
-        <ul class="arch-stats">
-          <li>AdamW · lr <strong>1e-4</strong> · linear decay</li>
-          <li>Batch size <strong>1024</strong> · up to <strong>60k</strong> steps</li>
-          <li>EMA <strong>0.99</strong> · dropout <strong>0.1</strong> · grad clip <strong>1.0</strong></li>
-          <li>Both loss weights $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$</li>
-        </ul>
       </div>
-    </div>
-  </section>
 
-  <!-- ============================================================
-        SLIDE 9 (was 8b) — Datasets
-       ============================================================ -->
-  <section class="slide" data-title="Datasets" id="slide-datasets">
-    <span class="eyebrow">Datasets</span>
-    <h2>Three paraphrase tasks of increasing length &amp; difficulty</h2>
+      <!-- RIGHT: condensed datasets + metrics + arch stats -->
+      <div class="setup-right">
 
-    <div class="setup-datasets" style="margin-top: 1em;">
-      <div class="ds-card ds-qqp">
-        <div class="ds-head">
-          <span class="ds-name">QQP</span>
-          <span class="ds-stat">144,715 train · 100 test</span>
+        <div class="setup-mini-section">
+          <h3 class="setup-mini-h">Datasets <span class="muted" style="font-weight:400; font-size:0.7em;">(paraphrase generation)</span></h3>
+          <div class="ds-mini ds-qqp">
+            <div class="ds-mini-head"><span class="ds-mini-name">QQP</span><span class="ds-mini-stat">~145k train · Quora questions</span></div>
+          </div>
+          <div class="ds-mini ds-paws">
+            <div class="ds-mini-head"><span class="ds-mini-name">PAWS-Wiki</span><span class="ds-mini-stat">~22k train · Wikipedia, structural rewrites</span></div>
+          </div>
+          <div class="ds-mini ds-parasci">
+            <div class="ds-mini-head"><span class="ds-mini-name">ParaSCI</span><span class="ds-mini-stat">~339k train · scientific sentences</span></div>
+          </div>
         </div>
-        <div class="ds-domain">Quora question pairs · short, conversational</div>
-        <div class="ds-example">
-          <span class="ds-arrow">in →</span>&nbsp;<em>How can I improve my English speaking?</em><br/>
-          <span class="ds-arrow">out →</span>&nbsp;<em>What is the best way to get better at spoken English?</em>
+
+        <div class="setup-mini-section">
+          <h3 class="setup-mini-h">Metrics</h3>
+          <div class="setup-metrics-row">
+            <span class="metric-pill" style="--mtone: var(--accent);">BLEU</span>
+            <span class="metric-pill" style="--mtone: var(--accent-2);">BERTScore</span>
+            <span class="metric-pill" style="--mtone: var(--accent-3);">ROUGE-1/L</span>
+            <span class="metric-pill" style="--mtone: var(--accent-4);">Themis (LLM-based)</span>
+          </div>
         </div>
-      </div>
 
-      <div class="ds-card ds-paws">
-        <div class="ds-head">
-          <span class="ds-name">PAWS-Wiki</span>
-          <span class="ds-stat">21,829 train · 3,536 test</span>
+        <div class="setup-mini-section">
+          <h3 class="setup-mini-h">Architecture &amp; training</h3>
+          <p class="setup-mini-p">
+            BERT-base style encoder · <strong>~100M</strong> params · hidden <strong>768</strong> · <strong>12</strong> layers ·
+            $d$ and $t$ embedded and injected per layer. AdamW lr <strong>1e-4</strong>, batch <strong>1024</strong>, up to <strong>60k</strong> steps.
+          </p>
         </div>
-        <div class="ds-domain">Wikipedia sentences · structural / word-order paraphrases</div>
-        <div class="ds-example">
-          <span class="ds-arrow">in →</span>&nbsp;<em>The film was directed by Smith and produced by Jones.</em><br/>
-          <span class="ds-arrow">out →</span>&nbsp;<em>Jones produced the film, which was directed by Smith.</em>
-        </div>
+
       </div>
 
-      <div class="ds-card ds-parasci">
-        <div class="ds-head">
-          <span class="ds-name">ParaSCI</span>
-          <span class="ds-stat">338,717 train · 4,894 test</span>
-        </div>
-        <div class="ds-domain">Scientific paper sentences · longest, hardest domain</div>
-        <div class="ds-example">
-          <span class="ds-arrow">in →</span>&nbsp;<em>We propose a novel attention mechanism for long sequences.</em><br/>
-          <span class="ds-arrow">out →</span>&nbsp;<em>This work introduces a new attention design suitable for long inputs.</em>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 10 (was 8c) — Metrics
-       ============================================================ -->
-  <section class="slide" data-title="Metrics">
-    <span class="eyebrow">Evaluation</span>
-    <h2>Four metrics, three lenses on quality</h2>
-
-    <div class="metrics-grid">
-      <div class="metric-card" style="--mtone: var(--accent);">
-        <div class="metric-tag">n-gram</div>
-        <div class="metric-name">BLEU</div>
-        <p>Standard MT/paraphrase metric. Counts overlapping 1- to 4-grams between candidate and reference.</p>
-        <p class="muted">Used in essentially every prior NAR-text paper; gives a hard, comparable number.</p>
-      </div>
-
-      <div class="metric-card" style="--mtone: var(--accent-2);">
-        <div class="metric-tag">embedding</div>
-        <div class="metric-name">BERTScore</div>
-        <p>Cosine similarity of contextual BERT embeddings between candidate and reference.</p>
-        <p class="muted">Sensitive to <em>meaning</em>, not just word identity — catches valid paraphrases that BLEU penalises.</p>
-      </div>
-
-      <div class="metric-card" style="--mtone: var(--accent-3);">
-        <div class="metric-tag">recall-based</div>
-        <div class="metric-name">ROUGE-1 / ROUGE-L</div>
-        <p>Reported in the appendix for completeness — overlap of unigrams and longest common subsequence.</p>
-        <p class="muted">Same direction as BLEU but emphasises recall; useful sanity check.</p>
-      </div>
-
-      <div class="metric-card" style="--mtone: var(--accent-4);">
-        <div class="metric-tag">LLM-based</div>
-        <div class="metric-name">Themis</div>
-        <p>Reference-free LLM evaluator (Hu et al., 2024). Scores three aspects of paraphrase quality:</p>
-        <ul style="margin-top: 0.4em; font-size: 1vw;">
-          <li><strong>Fluency</strong> — is it grammatical?</li>
-          <li><strong>Semantic similarity</strong> — does it preserve meaning?</li>
-          <li><strong>Overall quality</strong> — both, plus lexical/syntactic variation.</li>
-        </ul>
-      </div>
     </div>
   </section>
 
@@ -1225,45 +1161,6 @@
     <p style="margin-top: 1em; font-size: 1.1vw; color: var(--fg-0);">
       BLEU <strong class="accent">more than doubles</strong> on PAWS-Wiki and ParaSCI — all gains statistically significant ($p < 0.001$).
     </p>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 10 — Comparison vs literature
-       ============================================================ -->
-  <section class="slide" data-title="vs diffusion & AR">
-    <span class="eyebrow">In context</span>
-    <h2>Competitive with NAR diffusion at <span class="accent">1/2000th</span> the cost</h2>
-
-    <div class="row" style="align-items: stretch;">
-      <div class="col">
-        <table>
-          <thead>
-            <tr><th>Model</th><th class="num">Steps</th><th class="num">QQP</th><th class="num">PAWS</th><th class="num">ParaSCI</th></tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">NON-AUTOREGRESSIVE — FLOW MATCHING</td></tr>
-            <tr><td>Flow matching baseline</td><td class="num">1</td><td class="num">14.20</td><td class="num">20.97</td><td class="num">6.05</td></tr>
-            <tr class="highlight"><td><strong>Shortcut (ours)</strong></td><td class="num">1</td><td class="num">19.40</td><td class="num">42.71</td><td class="num">13.55</td></tr>
-            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">NON-AUTOREGRESSIVE — DIFFUSION</td></tr>
-            <tr><td>DiffuSeq</td><td class="num">2000</td><td class="num">31.49</td><td class="num">25.89</td><td class="num">—</td></tr>
-            <tr><td>SeqDiffuSeq</td><td class="num">2000</td><td class="num">26.67</td><td class="num">28.13</td><td class="num">—</td></tr>
-            <tr><td colspan="5" style="color:var(--fg-2); font-size:0.9vw; padding-top:0.8em;">AUTOREGRESSIVE</td></tr>
-            <tr><td>Transformer</td><td class="num">—</td><td class="num">29.10</td><td class="num">42.40</td><td class="num">27.10</td></tr>
-            <tr><td>T5</td><td class="num">—</td><td class="num">33.50</td><td class="num">61.05</td><td class="num">26.20</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="col" style="max-width: 28vw;">
-        <div class="card">
-          <h3>Take-away</h3>
-          <ul>
-            <li>On PAWS-Wiki we <strong>match a Transformer baseline</strong> while doing 1 forward pass instead of decoding token by token.</li>
-            <li>On QQP, diffusion models still lead — but at <strong class="accent-3">2000×</strong> the inference cost.</li>
-            <li>The gap between NAR and AR narrows substantially, especially where paraphrase is structurally close to copy.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
   </section>
 
   <!-- ============================================================
@@ -1327,43 +1224,7 @@
       </div>
       <div class="card col">
         <h3>What breaks</h3>
-        <p>Freezing pretrained embeddings collapses the model — consistent with prior diffusion findings.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 13 — Themis / LLM evaluation
-       ============================================================ -->
-  <section class="slide" data-title="LLM evaluation">
-    <span class="eyebrow">LLM-based evaluation</span>
-    <h2>Themis confirms the gain on every quality aspect</h2>
-
-    <div class="row">
-      <div class="col">
-        <p>Themis (Hu et al., 2024) is a reference-free evaluator. We score paraphrases on three aspects:</p>
-        <ul>
-          <li><strong>Fluency</strong> — is the paraphrase grammatical?</li>
-          <li><strong>Semantic similarity</strong> — does it preserve meaning?</li>
-          <li><strong>Overall quality</strong> — both, plus lexical/syntactic variation.</li>
-        </ul>
-        <p class="muted" style="font-size:1.05vw; margin-top:1em;">Single-step decoding for both models.</p>
-      </div>
-      <div class="col">
-        <table>
-          <thead>
-            <tr><th>Dataset</th><th>Model</th><th class="num">Flu.</th><th class="num">Sem.</th><th class="num">Over.</th></tr>
-          </thead>
-          <tbody>
-            <tr><td rowspan="2">QQP</td><td class="accent">Shortcut</td><td class="num">1.63</td><td class="num">1.67</td><td class="num">1.42</td></tr>
-            <tr><td class="muted">Baseline</td><td class="num">1.13</td><td class="num">1.13</td><td class="num">1.09</td></tr>
-            <tr><td rowspan="2">PAWS-Wiki</td><td class="accent">Shortcut</td><td class="num">2.01</td><td class="num">2.07</td><td class="num">2.02</td></tr>
-            <tr><td class="muted">Baseline</td><td class="num">1.05</td><td class="num">1.04</td><td class="num">1.03</td></tr>
-            <tr><td rowspan="2">ParaSCI</td><td class="accent">Shortcut</td><td class="num">1.70</td><td class="num">1.60</td><td class="num">1.60</td></tr>
-            <tr><td class="muted">Baseline</td><td class="num">1.00</td><td class="num">1.00</td><td class="num">1.00</td></tr>
-          </tbody>
-        </table>
-        <p class="muted" style="font-size:0.95vw; margin-top:1em;">Higher is better. Shortcut wins on every cell.</p>
+        <p>Freezing pretrained embeddings collapses the model — consistent with prior findings for diffusion models.</p>
       </div>
     </div>
   </section>
@@ -1377,31 +1238,16 @@
 
     <ul class="takeaway" style="margin-top: 1em;">
       <li>Shortcut flow matching adapts cleanly from vision to text generation.</li>
-      <li>A <strong>single denoising step</strong> is enough — BLEU more than doubles on two of three datasets vs. flow-matching baseline.</li>
+      <li>In <strong>one denoising step</strong>, BLEU more than doubles on two of three datasets vs. the flow-matching baseline at the same step count.</li>
       <li>One model serves all step counts. No retraining for different decoding budgets.</li>
       <li>Standard NAR tricks (self-conditioning, CFG, partial BERT-init) help convergence speed, not 1-step quality.</li>
-      <li>Headline number: <strong class="accent-3">42.71 BLEU on PAWS-Wiki in one forward pass.</strong></li>
     </ul>
 
-    <div class="row" style="margin-top: 2em;">
-      <div class="card col">
-        <h3>Limitations</h3>
-        <ul>
-          <li>Training is more expensive than vanilla flow matching (estimating multi-step targets).</li>
-          <li>Evaluated only on paraphrase tasks with short-to-medium sequences.</li>
-          <li>No theoretical guarantees on stability of very large shortcuts.</li>
-        </ul>
-      </div>
-      <div class="card col" style="background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06)); border-color: rgba(124,196,255,0.25);">
-        <h3 style="color: var(--accent-3);">Code &amp; paper</h3>
-        <p style="font-size: 1.15vw; color: var(--fg-0); margin-bottom: 0.6em;">
-          Full implementation, training configs, and checkpoints:
-        </p>
-        <p style="font-family: 'JetBrains Mono', monospace; font-size: 1.1vw; color: var(--accent);">
+    <div class="row" style="margin-top: 2em; justify-content: center;">
+      <div class="card col" style="max-width: 50vw; background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06)); border-color: rgba(124,196,255,0.25); text-align: center;">
+        <h3 style="color: var(--accent-3); margin-bottom: 0.4em;">Code &amp; paper</h3>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 1.3vw; color: var(--accent); margin: 0;">
           github.com/jwarczynski/FMShortcut
-        </p>
-        <p class="muted" style="font-size: 0.95vw; margin-top: 0.8em;">
-          Contact: jedrzej.warczynski@student.put.edu.pl
         </p>
       </div>
     </div>
@@ -1768,7 +1614,7 @@
   const dButtons = document.querySelectorAll("#slide-shortcut .d-btn");
   const Z0 = { x: 80, y: 300 };
 
-  const S5_DS = [1, 0.5, 0.25, 0.125]; // cycle order
+  const S5_DS = [0.125, 0.25, 0.5, 1]; // cycle order: smallest → largest
   let s5RunId = 0;
   let s5LoopAlive = false;
   let s5UserPicked = false;
