@@ -483,24 +483,7 @@
   .ablation-cards .card h3 { margin-bottom: 0.4em; font-size: 1.15vw; }
   .ablation-cards .card p { font-size: 0.95vw; line-height: 1.45; margin: 0; }
 
-  /* slide 8 (condensed): arch + datasets + metrics in one slide */
-  .setup-condensed {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4vw;
-    flex: 1;
-    min-height: 0;
-    align-items: center;
-    margin-top: 0.6em;
-  }
-  .setup-arch { display: flex; align-items: center; justify-content: center; }
-  /* SVG inherits the older sizing rule from .arch-svg below */
-  .setup-right {
-    display: flex; flex-direction: column;
-    gap: 0.9em;
-    justify-content: center;
-    min-width: 0;
-  }
+  /* slide 8: condensed right-column section styles */
   .setup-mini-section { display: flex; flex-direction: column; gap: 0.4em; }
   .setup-mini-h { font-size: 1.05vw; color: var(--accent); margin: 0 0 0.3em; letter-spacing: 0.06em; }
   .setup-mini-p { font-size: 1.05vw; color: var(--fg-1); line-height: 1.55; margin: 0; }
@@ -590,7 +573,7 @@
   .slide.active .arch-svg .arch-arrow[data-i="2"] { transition-delay: 780ms; }
   .slide.active .arch-svg .arch-arrow[data-i="3"] { transition-delay: 980ms; }
 
-  .arch-stats-col { display: flex; flex-direction: column; gap: 0.4em; }
+  .arch-stats-col { display: flex; flex-direction: column; gap: 1em; justify-content: center; min-width: 0; }
   .arch-stats { padding-left: 1.2em; }
   .arch-stats li { font-size: 1.15vw; margin-bottom: 0.35em; }
   .arch-stats strong { color: var(--fg-0); }
@@ -1021,10 +1004,10 @@
     <span class="eyebrow">Experimental setup</span>
     <h2>BERT-base encoder · 3 paraphrase datasets · 4 metrics</h2>
 
-    <div class="setup-condensed">
+    <div class="arch-row">
 
       <!-- LEFT: small architecture diagram -->
-      <div class="setup-arch">
+      <div class="arch-svg-col">
         <svg class="arch-svg" viewBox="0 0 380 520" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="blockG" x1="0" x2="0" y1="0" y2="1">
@@ -1097,7 +1080,7 @@
       </div>
 
       <!-- RIGHT: condensed datasets + metrics + arch stats -->
-      <div class="setup-right">
+      <div class="arch-stats-col">
 
         <div class="setup-mini-section">
           <h3 class="setup-mini-h">Datasets <span class="muted" style="font-weight:400; font-size:0.7em;">(paraphrase generation)</span></h3>
