@@ -544,10 +544,22 @@
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 4vw;
     flex: 1; min-height: 0;
-    align-items: center;
+    align-items: stretch;
+    overflow: hidden;
   }
-  .arch-svg-col { display: flex; align-items: center; justify-content: center; }
-  .arch-svg { width: 100%; max-height: 70vh; height: 70vh; }
+  .arch-svg-col {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 0; min-height: 0;
+    overflow: hidden;
+  }
+  /* Size to container, preserve aspect — never overflows row height */
+  .arch-svg {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+  }
   .arch-svg .arch-label { font-family: "Inter", sans-serif; font-size: 14px; }
   .arch-svg .arch-sub { font-family: "Inter", sans-serif; font-size: 12px; }
   .arch-svg .arch-bigtxt { font-family: "Inter", sans-serif; font-size: 16px; font-weight: 600; }
