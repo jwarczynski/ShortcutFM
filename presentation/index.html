@@ -463,19 +463,53 @@
   }
   .slide.active .total-loss-plus { opacity: 1; transition-delay: 1900ms; }
 
+  /* extensions / ablation slide layout */
+  .ablation-stack {
+    display: flex; flex-direction: column;
+    gap: 1.4em;
+    flex: 1;
+    min-height: 0;
+    margin-top: 0.8em;
+  }
+  .ablation-stack table { font-size: 1vw; }
+  .ablation-stack table th, .ablation-stack table td { padding: 0.4em 0.8em; }
+  .ablation-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.2em;
+    align-items: stretch;
+  }
+  .ablation-cards .card { padding: 1em 1.2em; }
+  .ablation-cards .card h3 { margin-bottom: 0.4em; font-size: 1.15vw; }
+  .ablation-cards .card p { font-size: 0.95vw; line-height: 1.45; margin: 0; }
+
   /* slide 8 (condensed): arch + datasets + metrics in one slide */
   .setup-condensed {
     display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
+    grid-template-columns: 0.7fr 1.3fr;
     gap: 3vw;
     flex: 1;
     min-height: 0;
+    overflow: hidden;
     align-items: stretch;
     margin-top: 0.6em;
   }
-  .setup-arch { display: flex; align-items: center; justify-content: center; }
-  .setup-arch .arch-svg { width: 100%; max-height: 70vh; height: 70vh; }
-  .setup-right { display: flex; flex-direction: column; gap: 1.1em; justify-content: center; }
+  .setup-arch {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 0; min-height: 0; overflow: hidden;
+  }
+  .setup-arch .arch-svg {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+  }
+  .setup-right {
+    display: flex; flex-direction: column;
+    gap: 0.9em;
+    justify-content: center;
+    min-width: 0; min-height: 0; overflow: hidden;
+  }
   .setup-mini-section { display: flex; flex-direction: column; gap: 0.4em; }
   .setup-mini-h { font-size: 1.05vw; color: var(--accent); margin: 0 0 0.3em; letter-spacing: 0.06em; }
   .setup-mini-p { font-size: 1.05vw; color: var(--fg-1); line-height: 1.55; margin: 0; }
@@ -533,8 +567,8 @@
     flex: 1; min-height: 0;
     align-items: center;
   }
-  .arch-svg-col { display: flex; align-items: center; justify-content: center; }
-  .arch-svg { width: 100%; max-height: 70vh; height: 70vh; }
+  .arch-svg-col { display: flex; align-items: center; justify-content: center; min-width: 0; }
+  .arch-svg { width: 100%; max-height: 70vh; }
   .arch-svg .arch-label { font-family: "Inter", sans-serif; font-size: 14px; }
   .arch-svg .arch-sub { font-family: "Inter", sans-serif; font-size: 12px; }
   .arch-svg .arch-bigtxt { font-family: "Inter", sans-serif; font-size: 16px; font-weight: 600; }
@@ -1199,32 +1233,34 @@
 
     <p class="muted" style="font-size:1.05vw;">Combining the shortcut model with self-conditioning, classifier-free guidance, and three BERT-init strategies — QQP, NDS=1.</p>
 
-    <table style="margin-top: 1em;">
-      <thead>
-        <tr><th>Variant</th><th class="num">Train steps</th><th class="num">BLEU</th><th class="num">BERTScore</th></tr>
-      </thead>
-      <tbody>
-        <tr class="highlight"><td><strong>Shortcut model</strong></td><td class="num">21k</td><td class="num">19.4</td><td class="num">0.814</td></tr>
-        <tr><td>+ Self-conditioning</td><td class="num">15k</td><td class="num">19.3</td><td class="num">0.806</td></tr>
-        <tr><td>+ Classifier-free guidance</td><td class="num">23k</td><td class="num">19.4</td><td class="num">0.806</td></tr>
-        <tr><td>+ BERT initialization (full)</td><td class="num">10k</td><td class="num">19.5</td><td class="num">0.826</td></tr>
-        <tr><td>+ BERT embedding init</td><td class="num">46k</td><td class="num">18.6</td><td class="num">0.773</td></tr>
-        <tr><td>+ Frozen BERT embeddings</td><td class="num">11k</td><td class="num" style="color:var(--danger);">0.0</td><td class="num" style="color:var(--danger);">0.191</td></tr>
-      </tbody>
-    </table>
+    <div class="ablation-stack">
+      <table>
+        <thead>
+          <tr><th>Variant</th><th class="num">Train steps</th><th class="num">BLEU</th><th class="num">BERTScore</th></tr>
+        </thead>
+        <tbody>
+          <tr class="highlight"><td><strong>Shortcut model</strong></td><td class="num">21k</td><td class="num">19.4</td><td class="num">0.814</td></tr>
+          <tr><td>+ Self-conditioning</td><td class="num">15k</td><td class="num">19.3</td><td class="num">0.806</td></tr>
+          <tr><td>+ Classifier-free guidance</td><td class="num">23k</td><td class="num">19.4</td><td class="num">0.806</td></tr>
+          <tr><td>+ BERT initialization (full)</td><td class="num">10k</td><td class="num">19.5</td><td class="num">0.826</td></tr>
+          <tr><td>+ BERT embedding init</td><td class="num">46k</td><td class="num">18.6</td><td class="num">0.773</td></tr>
+          <tr><td>+ Frozen BERT embeddings</td><td class="num">11k</td><td class="num" style="color:var(--danger);">0.0</td><td class="num" style="color:var(--danger);">0.191</td></tr>
+        </tbody>
+      </table>
 
-    <div class="row" style="margin-top: 2em;">
-      <div class="card col">
-        <h3>What helps</h3>
-        <p>Full BERT initialization gives the best BERTScore and the fastest convergence (10k steps).</p>
-      </div>
-      <div class="card col">
-        <h3>What's neutral</h3>
-        <p>Self-conditioning and CFG don't improve 1-step quality, but self-conditioning speeds up training.</p>
-      </div>
-      <div class="card col">
-        <h3>What breaks</h3>
-        <p>Freezing pretrained embeddings collapses the model — consistent with prior findings for diffusion models.</p>
+      <div class="ablation-cards">
+        <div class="card">
+          <h3>What helps</h3>
+          <p>Full BERT initialization gives the best BERTScore and the fastest convergence (10k steps).</p>
+        </div>
+        <div class="card">
+          <h3>What's neutral</h3>
+          <p>Self-conditioning and CFG don't improve 1-step quality, but self-conditioning speeds up training.</p>
+        </div>
+        <div class="card">
+          <h3>What breaks</h3>
+          <p>Freezing pretrained embeddings collapses the model — consistent with prior findings for diffusion models.</p>
+        </div>
       </div>
     </div>
   </section>
