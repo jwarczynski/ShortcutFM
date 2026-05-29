@@ -241,6 +241,10 @@
   }
   .bignum-label { color: var(--fg-2); font-size: 1.1vw; letter-spacing: 0.12em; text-transform: uppercase; }
 
+  /* punchy bullet list — bigger, tighter, used on motivation slide */
+  .punchy li { font-size: 1.5vw; line-height: 1.45; margin-bottom: 0.7em; color: var(--fg-0); }
+  .punchy li strong { color: var(--accent); font-weight: 700; }
+
   /* takeaway list */
   .takeaway li { padding-left: 0.4em; margin-bottom: 0.8em; font-size: 1.5vw; color: var(--fg-0); }
   .takeaway li::marker { content: "→  "; color: var(--accent); font-weight: 700; }
@@ -365,6 +369,8 @@
     transition: transform 1200ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   .bar-fill.baseline { background: linear-gradient(90deg, #4a5575, #6c7793); }
+  .bar-fill.ar { background: repeating-linear-gradient(135deg, rgba(255,184,108,0.25) 0 8px, rgba(255,184,108,0.45) 8px 16px); }
+  .ar-label { color: var(--accent-3); font-style: italic; }
   .slide.active .bar-fill { transform: scaleX(var(--w, 0.5)); }
   .bar-val { font-family: "JetBrains Mono", monospace; color: var(--fg-0); font-size: 1.05vw; text-align: right; }
 
@@ -726,11 +732,10 @@
 
     <div class="row" style="margin-top: 2vh;">
       <div class="col">
-        <ul class="reveal">
-          <li><strong>Autoregressive models</strong> generate one token at a time — quality is great, but latency scales with sequence length.</li>
-          <li><strong>Non-autoregressive (NAR)</strong> models predict all tokens in parallel — but quality lags behind.</li>
-          <li>Recent <strong>diffusion-based NAR</strong> closed much of that gap, at the cost of <span class="accent-3">hundreds–thousands of denoising steps</span>.</li>
-          <li>That cancels out the speedup NAR parallelism was supposed to give us.</li>
+        <ul class="reveal punchy">
+          <li><strong>Autoregressive models:</strong> one token at a time — great quality, high latency.</li>
+          <li><strong>Non-autoregressive (NAR):</strong> all tokens in parallel — quality penalty.</li>
+          <li><strong>Diffusion-based NAR:</strong> better quality, but 100s–1000s of denoising steps → high latency.</li>
         </ul>
       </div>
       <div class="col">
@@ -756,9 +761,9 @@
       <div class="col">
         <p>Define a straight-line path from noise to the target embedding:</p>
         <div class="eqn">$$z_t = (1 - t)\,z_0 + t\,z_1, \quad z_0 \sim \mathcal{N}(0, I), \; z_1 \sim p_{\text{data}}$$</div>
-        <p style="margin-top:1.2em;">Train a network $f_\theta$ to predict the <strong class="accent">velocity</strong> along that path:</p>
-        <div class="eqn">$$f_\theta(z_t, t) \approx z_1 - z_0$$</div>
-        <p style="margin-top:1.2em;">Generate by integrating $n$ small Euler steps from random noise.</p>
+        <p style="margin-top:1em;">Train $f_\theta$ to match the ground-truth <strong class="accent">velocity</strong> at every interpolated point — this is the <strong>flow-matching loss</strong>:</p>
+        <div class="eqn">$$\mathcal{L}_{\text{FM}} = \mathbb{E}\,\big\|\,f_\theta(z_t, t) - (z_1 - z_0)\,\big\|^2$$</div>
+        <p style="margin-top:1em;">Generate by integrating $n$ small Euler steps from random noise.</p>
       </div>
       <div class="col">
         <svg class="traj-svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
@@ -917,15 +922,15 @@
     <div class="row">
       <div class="col">
         <div class="reveal">
-          <p>The model is trained so that one step of size $2d$ matches two steps of size $d$:</p>
-          <div class="eqn eqn-scroll">$$s_\theta(z_t,\, t,\, 2d) \;=\; \tfrac{1}{2}\big(\,s_\theta(z_t,\, t,\, d)\;+\;s_\theta(z_{t+d},\, t+d,\, d)\,\big)$$</div>
+          <p>Train the model so that one step of size $2d$ matches two steps of size $d$ — the <strong>self-consistency loss</strong>:</p>
+          <div class="eqn eqn-scroll">$$\mathcal{L}_{\text{SC}} = \big\|\,s_\theta(z_t,t,2d)\;-\;\tfrac{1}{2}\big(s_\theta(z_t,t,d)+s_\theta(z_{t+d},t+d,d)\big)\,\big\|^2$$</div>
         </div>
         <ul class="reveal" style="margin-top: 1.2em;">
           <li>A <strong>recursion</strong> bootstraps shortcuts of any size from local velocity.</li>
           <li>Lets one model serve <em>all</em> step counts — train once, decode at $1$, $2$, $4$, … steps.</li>
         </ul>
         <div class="d-buttons" id="scBtns" style="margin-top: 1em;">
-          <span class="d-label">small step d&nbsp;=</span>
+          <span class="d-label">step size d&nbsp;=</span>
           <button class="d-btn active" data-d="0.5">1/2</button>
           <button class="d-btn" data-d="0.25">1/4</button>
           <button class="d-btn" data-d="0.125">1/8</button>
@@ -950,60 +955,15 @@
           <circle id="scWalker2" cx="80" cy="300" r="8" fill="var(--accent-3)"
                   style="opacity:0; filter: drop-shadow(0 0 8px rgba(255,184,108,0.7));" />
 
-          <!-- fixed endpoints -->
+          <!-- fixed endpoint dot for z_t (start) — z_{t+2d} dot is drawn dynamically by JS -->
           <circle cx="80" cy="300" r="7" fill="var(--accent)" />
           <text x="60" y="305" class="traj-label" text-anchor="end">z_t</text>
-          <circle cx="540" cy="90" r="7" fill="var(--accent-4)" />
-          <text x="540" y="78" class="traj-label" text-anchor="middle">z_{t+1}</text>
 
           <!-- floating phase / d label, top of svg -->
           <text id="scPhase" x="300" y="40" class="traj-label"
                 text-anchor="middle" style="font-weight:700; font-size:18px; opacity:0;"></text>
         </svg>
       </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 7 — Training (single consolidated slide)
-       ============================================================ -->
-  <section class="slide" data-title="Training objective">
-    <span class="eyebrow">Training</span>
-    <h2>Three losses, one model</h2>
-
-    <div class="total-loss-stage" style="justify-content: flex-start; gap: 1.4em; margin-top: 0.8em;">
-      <div class="card total-loss-eq" style="padding: 1.4em 2.2em;">
-        <p style="font-size: 1.6vw; margin:0; color: var(--fg-0);">
-          $\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{FM}} \;+\; \lambda_{\text{SC}}\,\mathcal{L}_{\text{SC}} \;+\; \lambda_{\text{round}}\,\mathcal{L}_{\text{round}}$
-        </p>
-      </div>
-
-      <div class="total-loss-grid">
-        <div class="total-loss-card" style="--tone: var(--accent); min-width: 14em;">
-          <div class="ix">L<sub>FM</sub></div>
-          <div class="role">Flow Matching</div>
-          <div class="when">at d → 0</div>
-          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">Match ground-truth velocity $z_1 - z_0$.</p>
-        </div>
-        <div class="total-loss-plus">+</div>
-        <div class="total-loss-card" style="--tone: var(--accent-2); min-width: 14em;">
-          <div class="ix">L<sub>SC</sub></div>
-          <div class="role">Self-Consistency</div>
-          <div class="when">at d &gt; 0</div>
-          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">Big step ≡ average of two small steps.</p>
-        </div>
-        <div class="total-loss-plus">+</div>
-        <div class="total-loss-card" style="--tone: var(--accent-3); min-width: 14em;">
-          <div class="ix">L<sub>round</sub></div>
-          <div class="role">Rounding</div>
-          <div class="when">on z₁</div>
-          <p style="margin-top: 0.6em; font-size: 0.85vw; color: var(--fg-1);">NLL of true tokens — prevents embedding collapse.</p>
-        </div>
-      </div>
-
-      <p class="muted" style="margin-top: 1.2em; font-size: 1.05vw; text-align: center;">
-        $\lambda_{\text{SC}} = \lambda_{\text{round}} = 1$ in all experiments — no tuning.
-      </p>
     </div>
   </section>
 
@@ -1133,118 +1093,82 @@
     <span class="eyebrow">Main result</span>
     <h2>One step of shortcut beats one step of flow matching — by a lot</h2>
 
-    <p class="muted" style="font-size: 1.05vw; margin-bottom: 1em;">BLEU score, single denoising step (NDS = 1).</p>
+    <p class="muted" style="font-size: 1.05vw; margin-bottom: 0.8em;">
+      BLEU. Both NAR rows use a single denoising step. AR rows shown as upper-baseline reference (decode token-by-token).
+    </p>
 
-    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.6em;">
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.4em;">
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin-bottom:0.2em;">QQP</h3>
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin-bottom:0.1em;">QQP</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.290"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.218"></div></div>
         <div class="bar-val">14.20</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.396"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.298"></div></div>
         <div class="bar-val">19.40</div>
       </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.448"></div></div>
+        <div class="bar-val">29.10</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.515"></div></div>
+        <div class="bar-val">33.50</div>
+      </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 1em 0 0.2em;">PAWS-Wiki</h3>
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.7em 0 0.1em;">PAWS-Wiki</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.428"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.323"></div></div>
         <div class="bar-val">20.97</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.872"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.657"></div></div>
         <div class="bar-val">42.71</div>
       </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.652"></div></div>
+        <div class="bar-val">42.40</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.939"></div></div>
+        <div class="bar-val">61.05</div>
+      </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 1em 0 0.2em;">ParaSCI</h3>
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.7em 0 0.1em;">ParaSCI</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.124"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.093"></div></div>
         <div class="bar-val">6.05</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.276"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.208"></div></div>
         <div class="bar-val">13.55</div>
       </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.417"></div></div>
+        <div class="bar-val">27.10</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.403"></div></div>
+        <div class="bar-val">26.20</div>
+      </div>
     </div>
 
-    <p style="margin-top: 1em; font-size: 1.1vw; color: var(--fg-0);">
-      BLEU <strong class="accent">more than doubles</strong> on PAWS-Wiki and ParaSCI — all gains statistically significant ($p < 0.001$).
+    <p style="margin-top: 0.6em; font-size: 1vw; color: var(--fg-0);">
+      BLEU <strong class="accent">more than doubles</strong> over the FM baseline on PAWS-Wiki and ParaSCI ($p &lt; 0.001$). On PAWS we even <strong class="accent-3">match the Transformer AR baseline</strong> in one forward pass.
     </p>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 11 — Multi-step analysis (BACKUP for 8-min talk)
-       ============================================================ -->
-  <section class="slide" data-title="More steps don't help">
-    <span class="eyebrow">Analysis</span>
-    <h2>Adding decoding steps barely moves shortcut quality</h2>
-
-    <div class="row">
-      <div class="col">
-        <ul>
-          <li>We swept the number of decoding steps (NDS) in $\{1, 2, 4, 8, 64, 128, 256\}$ for both the baseline and our shortcut model.</li>
-          <li>The <strong>baseline</strong> needs many steps and even then never reaches the shortcut's 1-step performance.</li>
-          <li>The <strong>shortcut</strong> peaks at NDS=256 with only marginal improvement over NDS=1 — confirming the 1-step prediction is already very close to the trajectory's endpoint.</li>
-        </ul>
-        <div class="card" style="margin-top:1.2em;">
-          <p style="margin:0; font-size:1.3vw; color:var(--fg-0);">
-            The model has effectively absorbed multi-step refinement <em>into</em> a single step.
-          </p>
-        </div>
-      </div>
-      <div class="col">
-        <!-- NDS sweep plot, all coordinates computed in JS so points lie exactly on the polylines -->
-        <svg class="traj-svg" id="ndsPlot" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet"></svg>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-        SLIDE 12 — Extensions / ablation (BACKUP for 8-min talk)
-       ============================================================ -->
-  <section class="slide" data-title="Extensions">
-    <span class="eyebrow">Ablations</span>
-    <h2>Which standard NAR tricks help shortcuts?</h2>
-
-    <p class="muted" style="font-size:1.05vw;">Combining the shortcut model with self-conditioning, classifier-free guidance, and three BERT-init strategies — QQP, NDS=1.</p>
-
-    <div class="ablation-stack">
-      <table>
-        <thead>
-          <tr><th>Variant</th><th class="num">Train steps</th><th class="num">BLEU</th><th class="num">BERTScore</th></tr>
-        </thead>
-        <tbody>
-          <tr class="highlight"><td><strong>Shortcut model</strong></td><td class="num">21k</td><td class="num">19.4</td><td class="num">0.814</td></tr>
-          <tr><td>+ Self-conditioning</td><td class="num">15k</td><td class="num">19.3</td><td class="num">0.806</td></tr>
-          <tr><td>+ Classifier-free guidance</td><td class="num">23k</td><td class="num">19.4</td><td class="num">0.806</td></tr>
-          <tr><td>+ BERT initialization (full)</td><td class="num">10k</td><td class="num">19.5</td><td class="num">0.826</td></tr>
-          <tr><td>+ BERT embedding init</td><td class="num">46k</td><td class="num">18.6</td><td class="num">0.773</td></tr>
-          <tr><td>+ Frozen BERT embeddings</td><td class="num">11k</td><td class="num" style="color:var(--danger);">0.0</td><td class="num" style="color:var(--danger);">0.191</td></tr>
-        </tbody>
-      </table>
-
-      <div class="ablation-cards">
-        <div class="card">
-          <h3>What helps</h3>
-          <p>Full BERT initialization gives the best BERTScore and the fastest convergence (10k steps).</p>
-        </div>
-        <div class="card">
-          <h3>What's neutral</h3>
-          <p>Self-conditioning and CFG don't improve 1-step quality, but self-conditioning speeds up training.</p>
-        </div>
-        <div class="card">
-          <h3>What breaks</h3>
-          <p>Freezing pretrained embeddings collapses the model — consistent with prior findings for diffusion models.</p>
-        </div>
-      </div>
-    </div>
   </section>
 
   <!-- ============================================================
@@ -1257,8 +1181,8 @@
     <ul class="takeaway" style="margin-top: 1em;">
       <li>Shortcut flow matching adapts cleanly from vision to text generation.</li>
       <li>In <strong>one denoising step</strong>, BLEU more than doubles on two of three datasets vs. the flow-matching baseline at the same step count.</li>
+      <li>On PAWS-Wiki we even match a Transformer AR baseline in a single forward pass.</li>
       <li>One model serves all step counts. No retraining for different decoding budgets.</li>
-      <li>Standard NAR tricks (self-conditioning, CFG, partial BERT-init) help convergence speed, not 1-step quality.</li>
     </ul>
 
     <div class="row" style="margin-top: 2em; justify-content: center;">
@@ -1792,60 +1716,94 @@
     if (!scCurve || cancelled()) return;
     const totalLen = scCurve.getTotalLength();
 
-    const n = Math.round(1 / d);
-    const pts = [{ x: 80, y: 300 }];
-    for (let i = 1; i <= n; i++) {
-      const p = scCurve.getPointAtLength((i / n) * totalLen);
-      pts.push({ x: p.x, y: p.y });
-    }
+    // Exactly two small steps of size d, landing at z_{t+2d}.
+    // Map curve fraction so 2d hits the endpoint when d = 1/2 (full curve),
+    // smaller d hits an intermediate point on the curve.
+    // We use: midFrac = d, endFrac = 2d  (so total fraction along curve = 2d).
+    const z_t   = { x: 80, y: 300 };
+    const midP  = scCurve.getPointAtLength(d * totalLen);
+    const endP  = scCurve.getPointAtLength(2 * d * totalLen);
+    const z_mid = { x: midP.x, y: midP.y };
+    const z_end = { x: endP.x, y: endP.y };
 
-    // Phase 1: n small steps
-    scPhase.textContent = `${n} small steps of size d = ${fmtD(d)}`;
+    // Phase 1: two small steps of size d
+    scPhase.textContent = `two steps of size d = ${fmtD(d)}`;
     scPhase.setAttribute("fill", "var(--accent-2)");
     scPhase.style.opacity = 1;
 
     scWalker.style.opacity = 1;
-    scWalker.setAttribute("cx", 80);
-    scWalker.setAttribute("cy", 300);
+    scWalker.setAttribute("cx", z_t.x);
+    scWalker.setAttribute("cy", z_t.y);
 
-    const smallDur = Math.max(360, 900 / n);
-    for (let i = 0; i < n; i++) {
-      if (cancelled()) return;
-      const ln = document.createElementNS(SVGNS, "line");
-      ln.setAttribute("x1", pts[i].x); ln.setAttribute("y1", pts[i].y);
-      ln.setAttribute("x2", pts[i].x); ln.setAttribute("y2", pts[i].y);
-      ln.setAttribute("stroke", "var(--accent-2)");
-      ln.setAttribute("stroke-width", "2.8");
-      ln.setAttribute("stroke-linecap", "round");
-      scSmallSteps.appendChild(ln);
+    const smallDur = 700;
 
-      await Promise.all([
-        animLine(ln, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, smallDur),
-        animDot(scWalker, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, smallDur),
-      ]);
-      if (cancelled()) return;
-      if (i < n - 1) {
-        const dot = document.createElementNS(SVGNS, "circle");
-        dot.setAttribute("cx", pts[i + 1].x); dot.setAttribute("cy", pts[i + 1].y);
-        dot.setAttribute("r", 5);
-        dot.setAttribute("fill", "var(--accent-2)");
-        dot.setAttribute("stroke", "#0a0e1a"); dot.setAttribute("stroke-width", 2);
-        scWaypoints.appendChild(dot);
-      }
-      await sleep(80);
-    }
+    // step 1
+    const ln1 = document.createElementNS(SVGNS, "line");
+    ln1.setAttribute("x1", z_t.x); ln1.setAttribute("y1", z_t.y);
+    ln1.setAttribute("x2", z_t.x); ln1.setAttribute("y2", z_t.y);
+    ln1.setAttribute("stroke", "var(--accent-2)");
+    ln1.setAttribute("stroke-width", "2.8");
+    ln1.setAttribute("stroke-linecap", "round");
+    scSmallSteps.appendChild(ln1);
+    await Promise.all([
+      animLine(ln1, z_t.x, z_t.y, z_mid.x, z_mid.y, smallDur),
+      animDot(scWalker, z_t.x, z_t.y, z_mid.x, z_mid.y, smallDur),
+    ]);
     if (cancelled()) return;
+
+    // mid waypoint
+    const midDot = document.createElementNS(SVGNS, "circle");
+    midDot.setAttribute("cx", z_mid.x); midDot.setAttribute("cy", z_mid.y);
+    midDot.setAttribute("r", 5);
+    midDot.setAttribute("fill", "var(--accent-2)");
+    midDot.setAttribute("stroke", "#0a0e1a"); midDot.setAttribute("stroke-width", 2);
+    scWaypoints.appendChild(midDot);
+    const midLbl = document.createElementNS(SVGNS, "text");
+    midLbl.setAttribute("x", z_mid.x + 10); midLbl.setAttribute("y", z_mid.y - 6);
+    midLbl.setAttribute("class", "traj-label");
+    midLbl.textContent = "z_{t+d}";
+    scWaypoints.appendChild(midLbl);
+    await sleep(140);
+
+    // step 2
+    if (cancelled()) return;
+    const ln2 = document.createElementNS(SVGNS, "line");
+    ln2.setAttribute("x1", z_mid.x); ln2.setAttribute("y1", z_mid.y);
+    ln2.setAttribute("x2", z_mid.x); ln2.setAttribute("y2", z_mid.y);
+    ln2.setAttribute("stroke", "var(--accent-2)");
+    ln2.setAttribute("stroke-width", "2.8");
+    ln2.setAttribute("stroke-linecap", "round");
+    scSmallSteps.appendChild(ln2);
+    await Promise.all([
+      animLine(ln2, z_mid.x, z_mid.y, z_end.x, z_end.y, smallDur),
+      animDot(scWalker, z_mid.x, z_mid.y, z_end.x, z_end.y, smallDur),
+    ]);
+    if (cancelled()) return;
+
+    // endpoint dot + label z_{t+2d}
+    const endDot = document.createElementNS(SVGNS, "circle");
+    endDot.setAttribute("cx", z_end.x); endDot.setAttribute("cy", z_end.y);
+    endDot.setAttribute("r", 7);
+    endDot.setAttribute("fill", "var(--accent-4)");
+    scWaypoints.appendChild(endDot);
+    const endLbl = document.createElementNS(SVGNS, "text");
+    endLbl.setAttribute("x", z_end.x); endLbl.setAttribute("y", z_end.y - 14);
+    endLbl.setAttribute("class", "traj-label");
+    endLbl.setAttribute("text-anchor", "middle");
+    endLbl.textContent = "z_{t+2d}";
+    scWaypoints.appendChild(endLbl);
+
     scWalker.style.opacity = 0;
-    await sleep(450);
-
-    // Phase 2: one big shortcut step
+    await sleep(550);
     if (cancelled()) return;
-    scPhase.textContent = `≡ one shortcut step of size 1`;
+
+    // Phase 2: one shortcut step of size 2d to the same endpoint
+    scPhase.textContent = `≡ one step of size 2d = ${fmtD(2 * d)}`;
     scPhase.setAttribute("fill", "var(--accent-3)");
 
     const shortcut = document.createElementNS(SVGNS, "line");
-    shortcut.setAttribute("x1", 80); shortcut.setAttribute("y1", 300);
-    shortcut.setAttribute("x2", 80); shortcut.setAttribute("y2", 300);
+    shortcut.setAttribute("x1", z_t.x); shortcut.setAttribute("y1", z_t.y);
+    shortcut.setAttribute("x2", z_t.x); shortcut.setAttribute("y2", z_t.y);
     shortcut.setAttribute("stroke", "var(--accent-3)");
     shortcut.setAttribute("stroke-width", "3.5");
     shortcut.setAttribute("stroke-dasharray", "8 6");
@@ -1853,11 +1811,11 @@
     scShortcuts.appendChild(shortcut);
 
     scWalker2.style.opacity = 1;
-    scWalker2.setAttribute("cx", 80); scWalker2.setAttribute("cy", 300);
+    scWalker2.setAttribute("cx", z_t.x); scWalker2.setAttribute("cy", z_t.y);
 
     await Promise.all([
-      animLine(shortcut, 80, 300, 540, 90, 900),
-      animDot(scWalker2, 80, 300, 540, 90, 900),
+      animLine(shortcut, z_t.x, z_t.y, z_end.x, z_end.y, 900),
+      animDot(scWalker2, z_t.x, z_t.y, z_end.x, z_end.y, 900),
     ]);
     if (cancelled()) return;
     await sleep(1100);
