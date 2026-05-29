@@ -20,7 +20,7 @@ with open(src, encoding="utf-8") as f: html = f.read()
 with open(mjs, encoding="utf-8") as f: js = f.read()
 needle = '<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" defer></script>'
 if needle not in html: raise SystemExit("MathJax tag not found in index.html")
-js_safe = js.replace("</script>", "<\\/script>")
+js_safe = js.replace("</script>", r"<\/script>")
 out = html.replace(needle, f"<script>{js_safe}</script>", 1)
 with open(dst, "w", encoding="utf-8") as f: f.write(out)
 import os; print(f"wrote {dst}: {os.path.getsize(dst):,} bytes")
