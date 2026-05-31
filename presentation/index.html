@@ -358,9 +358,9 @@
 
 
   /* bar chart */
-  .bar-row { display: grid; grid-template-columns: 12em 1fr 6em; align-items: center; gap: 1em; margin-bottom: 0.9em; }
-  .bar-label { color: var(--fg-1); font-size: 1.1vw; }
-  .bar-track { background: rgba(255,255,255,0.05); border-radius: 6px; height: 1.6em; overflow: hidden; position: relative; }
+  .bar-row { display: grid; grid-template-columns: 12em 1fr 5em; align-items: center; gap: 1em; margin-bottom: 0.35em; }
+  .bar-label { color: var(--fg-1); font-size: 1vw; }
+  .bar-track { background: rgba(255,255,255,0.05); border-radius: 5px; height: 1.25em; overflow: hidden; position: relative; }
   .bar-fill {
     height: 100%; border-radius: 6px;
     background: linear-gradient(90deg, var(--accent-2), var(--accent));
@@ -372,7 +372,7 @@
   .bar-fill.ar { background: repeating-linear-gradient(135deg, rgba(255,184,108,0.25) 0 8px, rgba(255,184,108,0.45) 8px 16px); }
   .ar-label { color: var(--accent-3); font-style: italic; }
   .slide.active .bar-fill { transform: scaleX(var(--w, 0.5)); }
-  .bar-val { font-family: "JetBrains Mono", monospace; color: var(--fg-0); font-size: 1.05vw; text-align: right; }
+  .bar-val { font-family: "JetBrains Mono", monospace; color: var(--fg-0); font-size: 0.95vw; text-align: right; }
 
   /* keyboard hint */
   .kbd-hint {
@@ -1097,9 +1097,9 @@
       BLEU. Both NAR rows use a single denoising step. AR rows shown as upper-baseline reference (decode token-by-token).
     </p>
 
-    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.4em;">
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.2em;">
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin-bottom:0.1em;">QQP</h3>
+      <h3 style="color: var(--fg-2); font-size:1vw; margin-bottom:0.1em;">QQP</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
         <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.218"></div></div>
@@ -1121,7 +1121,7 @@
         <div class="bar-val">33.50</div>
       </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.7em 0 0.1em;">PAWS-Wiki</h3>
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.4em 0 0.1em;">PAWS-Wiki</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
         <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.323"></div></div>
@@ -1143,7 +1143,7 @@
         <div class="bar-val">61.05</div>
       </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.7em 0 0.1em;">ParaSCI</h3>
+      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.4em 0 0.1em;">ParaSCI</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
         <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.093"></div></div>
