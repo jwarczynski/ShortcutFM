@@ -1094,7 +1094,7 @@
     <h2>One step of shortcut beats one step of flow matching — by a lot</h2>
 
     <p class="muted" style="font-size: 1.05vw; margin-bottom: 0.8em;">
-      BLEU. Both NAR rows use a single denoising step. AR rows shown as upper-baseline reference (decode token-by-token).
+      BLEU. NAR rows use a single denoising step. The Transformer AR row is an upper-baseline reference (decode token-by-token).
     </p>
 
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap: 0.2em;">
@@ -1102,67 +1102,52 @@
       <h3 style="color: var(--fg-2); font-size:1vw; margin-bottom:0.1em;">QQP</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.218"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.314"></div></div>
         <div class="bar-val">14.20</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.298"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.429"></div></div>
         <div class="bar-val">19.40</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.448"></div></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.643"></div></div>
         <div class="bar-val">29.10</div>
       </div>
-      <div class="bar-row">
-        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.515"></div></div>
-        <div class="bar-val">33.50</div>
-      </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.4em 0 0.1em;">PAWS-Wiki</h3>
+      <h3 style="color: var(--fg-2); font-size:1vw; margin: 0.4em 0 0.1em;">PAWS-Wiki</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.323"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.464"></div></div>
         <div class="bar-val">20.97</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.657"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.944"></div></div>
         <div class="bar-val">42.71</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.652"></div></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.937"></div></div>
         <div class="bar-val">42.40</div>
       </div>
-      <div class="bar-row">
-        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.939"></div></div>
-        <div class="bar-val">61.05</div>
-      </div>
 
-      <h3 style="color: var(--fg-2); font-size:1.1vw; margin: 0.4em 0 0.1em;">ParaSCI</h3>
+      <h3 style="color: var(--fg-2); font-size:1vw; margin: 0.4em 0 0.1em;">ParaSCI</h3>
       <div class="bar-row">
         <div class="bar-label">Flow matching (baseline)</div>
-        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.093"></div></div>
+        <div class="bar-track"><div class="bar-fill baseline" style="--w: 0.134"></div></div>
         <div class="bar-val">6.05</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="accent">Shortcut (ours)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="--w: 0.208"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--w: 0.300"></div></div>
         <div class="bar-val">13.55</div>
       </div>
       <div class="bar-row">
         <div class="bar-label"><span class="ar-label">Transformer (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.417"></div></div>
+        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.599"></div></div>
         <div class="bar-val">27.10</div>
-      </div>
-      <div class="bar-row">
-        <div class="bar-label"><span class="ar-label">T5 (AR)</span></div>
-        <div class="bar-track"><div class="bar-fill ar" style="--w: 0.403"></div></div>
-        <div class="bar-val">26.20</div>
       </div>
     </div>
 
@@ -1186,9 +1171,12 @@
     </ul>
 
     <div class="row" style="margin-top: 2em; justify-content: center;">
-      <div class="card col" style="max-width: 50vw; background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06)); border-color: rgba(124,196,255,0.25); text-align: center;">
-        <h3 style="color: var(--accent-3); margin-bottom: 0.4em;">Code &amp; paper</h3>
-        <p style="font-family: 'JetBrains Mono', monospace; font-size: 1.3vw; color: var(--accent); margin: 0;">
+      <div class="card col" style="max-width: 60vw; background: linear-gradient(135deg, rgba(124,196,255,0.08), rgba(255,184,108,0.06)); border-color: rgba(124,196,255,0.25); text-align: center;">
+        <h3 style="color: var(--accent-3); margin-bottom: 0.4em;">More in the paper</h3>
+        <p style="font-size: 1.1vw; color: var(--fg-1); margin: 0 0 0.8em;">
+          Multi-step decoding sweeps · self-conditioning &amp; classifier-free guidance · BERT-init strategies · LLM-based (Themis) evaluation
+        </p>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 1.2vw; color: var(--accent); margin: 0;">
           github.com/jwarczynski/FMShortcut
         </p>
       </div>

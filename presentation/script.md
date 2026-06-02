@@ -101,13 +101,13 @@ We report BLEU and BERTScore, ROUGE, and an LLM-based metric, Themis.
 
 ---
 
-## Slide 8 — Main results  ·  ~48 s
+## Slide 8 — Main results  ·  ~42 s
 
-Here are the BLEU results. The two NAR rows — flow-matching baseline and our shortcut model — both decode in **a single step**. The two AR rows are autoregressive upper baselines that decode token by token, shown for context.
+Here are the BLEU results. The two NAR rows — flow-matching baseline and our shortcut model — both decode in **a single step**. The Transformer AR row is an autoregressive upper baseline that decodes token by token, shown for context.
 
 On QQP we go from 14 to 19 — a clear improvement.
 
-On PAWS-Wiki, BLEU **more than doubles**, from 21 to almost 43 — and that actually matches the standard Transformer AR baseline at 42, with one forward pass instead of one per token.
+On PAWS-Wiki, BLEU **more than doubles**, from 21 to almost 43 — and that actually matches the Transformer AR baseline at 42, with one forward pass instead of one per token.
 
 On ParaSCI, BLEU more than doubles again — six to 13.
 
@@ -117,7 +117,7 @@ All gains over the flow-matching baseline are statistically significant at p les
 
 ---
 
-## Slide 9 — Takeaways  ·  ~20 s
+## Slide 9 — Takeaways  ·  ~28 s
 
 To wrap up: shortcut flow matching adapts cleanly from vision to text.
 
@@ -125,11 +125,13 @@ In one denoising step, BLEU more than doubles versus the flow-matching baseline 
 
 And one model handles all step counts — no retraining for different decoding budgets.
 
+The paper has more — multi-step decoding sweeps, combinations with self-conditioning and classifier-free guidance, BERT-init strategies, and LLM-based evaluation.
+
 Code and paper at the link. Thanks!
 
 ---
 
-## Estimated total: 4 min 53 s
+## Estimated total: 4 min 55 s
 
 | Slide | Time |
 |---|---|
@@ -140,9 +142,9 @@ Code and paper at the link. Thanks!
 | 5 — Our idea | 0:38 |
 | 6 — Self-consistency | 0:42 |
 | 7 — Setup | 0:28 |
-| 8 — Main results | 0:48 |
-| 9 — Takeaways | 0:20 |
-| **Total** | **4:53** |
+| 8 — Main results | 0:42 |
+| 9 — Takeaways | 0:28 |
+| **Total** | **4:55** |
 
 ## Delivery tips
 
