@@ -3,6 +3,24 @@
 Aim: ~5:00, ~720 words at ~150 wpm. **Bold** = vocal emphasis.
 Read it out loud — equations on the slide are visual, the spoken words are paraphrases.
 
+## Pronunciation cheat-sheet
+
+| On the slide | Say it as | Notes |
+|---|---|---|
+| **QQP** | "Q-Q-P" (cue-cue-pee) | Just spell the three letters. Stands for *Quora Question Pairs*. |
+| **PAWS-Wiki** | "PAWS Wiki" (rhymes with "claws wiki") | One syllable, like the word *paws*. |
+| **ParaSCI** | "Para-sigh" (PA-ruh-sye) | "Para" + the letter pronunciation of *sci* like in *psy*chology — **not** "ski" or "see". |
+| **BERT** | "burt" | Like the Sesame Street character. |
+| **BLEU** | "blue" | Just the colour. |
+| **BERTScore** | "burt score" | Two words. |
+| **ROUGE** | "rouzh" | Like the makeup. |
+| **Themis** | "THEH-miss" | First syllable rhymes with *bed*; stress on the first syllable. |
+| **Frans** | "fronss" | Dutch researcher, the *a* is short. |
+| **Ondřej** | "ON-dr-zhey" | Czech: short *on*, then *dr-zhey*. |
+| **Dušek** | "DOO-sheck" | Czech: long *oo*, *sh* like in *shoe*. |
+| **Mateusz Lango** | "ma-TE-oosh LAHN-go" | Polish first name; *Lango* is straightforward. |
+| **Warczyński** | "var-CHIN-skee" | Polish: *var* + *chin* + *skee*; the *cz* is *ch*. |
+
 ---
 
 ## Slide 1 — Title  ·  ~15 s
@@ -81,11 +99,11 @@ The clever part is that this is a recursion — small shortcuts bootstrap into l
 
 ## Slide 7 — Experimental setup  ·  ~28 s
 
-The architecture is a BERT-base style transformer encoder — about a hundred million parameters — with the step size and time embedded and injected into every block.
+The architecture is a BERT-base [*"burt"*] style transformer encoder — about a hundred million parameters — with the step size and time embedded and injected into every block.
 
-We evaluate on three paraphrase datasets: QQP, which is short Quora questions; PAWS-Wiki, which is Wikipedia sentences with structural rewrites; and ParaSCI, scientific paper sentences.
+We evaluate on three paraphrase datasets: **Q-Q-P**, which is short Quora questions; **PAWS-Wiki** [*"paws wiki"*], which is Wikipedia sentences with structural rewrites; and **ParaSCI** [*"para-sigh"*], scientific paper sentences.
 
-We report BLEU and BERTScore, plus ROUGE and an LLM-based metric called Themis.
+We report BLEU [*"blue"*] and BERTScore [*"burt score"*], plus ROUGE [*"rouzh"*] and an LLM-based metric called Themis [*"THEH-miss"*].
 
 ---
 
