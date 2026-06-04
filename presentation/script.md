@@ -1,163 +1,146 @@
 # 5-minute talk script — One-step NAR Text Generation with Shortcut Flow Matching
 
-Aim: ~5:00, ~720 words at ~150 wpm. **Bold** = vocal emphasis.
-Read it out loud — equations on the slide are visual, the spoken words are paraphrases.
+Aim: ~4:50, ~580 words at ~120 wpm. **Bold** = vocal emphasis.
+Slim version — earlier 8-min recording cut down by trimming subtleties and dataset descriptions.
 
 ## Pronunciation cheat-sheet
 
 | On the slide | Say it as | Notes |
 |---|---|---|
-| **QQP** | "Q-Q-P" (cue-cue-pee) | Just spell the three letters. Stands for *Quora Question Pairs*. |
-| **PAWS-Wiki** | "PAWS Wiki" (rhymes with "claws wiki") | One syllable, like the word *paws*. |
-| **ParaSCI** | "Para-sigh" (PA-ruh-sye) | "Para" + the letter pronunciation of *sci* like in *psy*chology — **not** "ski" or "see". |
-| **BERT** | "burt" | Like the Sesame Street character. |
-| **BLEU** | "blue" | Just the colour. |
-| **BERTScore** | "burt score" | Two words. |
-| **ROUGE** | "rouzh" | Like the makeup. |
-| **Themis** | "THEH-miss" | First syllable rhymes with *bed*; stress on the first syllable. |
-| **Frans** | "fronss" | Dutch researcher, the *a* is short. |
-| **Ondřej** | "ON-dr-zhey" | Czech: short *on*, then *dr-zhey*. |
-| **Dušek** | "DOO-sheck" | Czech: long *oo*, *sh* like in *shoe*. |
-| **Mateusz Lango** | "ma-TE-oosh LAHN-go" | Polish first name; *Lango* is straightforward. |
-| **Warczyński** | "var-CHIN-skee" | Polish: *var* + *chin* + *skee*; the *cz* is *ch*. |
+| **QQP** | "Q-Q-P" | Spell the three letters. |
+| **PAWS-Wiki** | "paws wiki" | One syllable, like an animal's *paws*. |
+| **ParaSCI** | "PA-ruh-sye" | *sci* like in *psy*chology — **not** "ski". |
+| **BERT** | "burt" | |
+| **BLEU** | "blue" | |
+| **BERTScore** | "burt score" | |
 
 ---
 
-## Slide 1 — Title  ·  ~15 s
+## Slide 1 — Title  ·  ~10 s
 
-Hi everyone, I'm Jędrzej Warczyński. This is joint work with Ondřej Dušek and Mateusz Lango. Our paper is about **one-step non-autoregressive text generation** with **shortcut flow matching**.
-
----
-
-## Slide 2 — The bottleneck  ·  ~30 s
-
-Let me set up the problem.
-
-Autoregressive models give great quality, but they're slow — they decode one token at a time, so latency scales with the output length.
-
-Non-autoregressive models predict all tokens in parallel. That's fast, but quality drops.
-
-Recent diffusion-based non-autoregressive methods recover most of that quality — but only by running hundreds or thousands of denoising steps. So the latency is back.
-
-Our question is simple: can we generate high-quality text in **a single denoising step**?
+Hi, I'm Jędrzej. Our paper is on **one-step non-autoregressive text generation** with **shortcut flow matching**.
 
 ---
 
-## Slide 3 — Flow matching  ·  ~40 s
+## Slide 2 — The bottleneck  ·  ~22 s
 
-Our starting point is flow matching.
+The problem in one breath:
 
-The idea is: in embedding space, draw a straight-line path from random noise on one end to the target text on the other. We then train a network to predict the **velocity** along that path — basically, "in which direction should I move at this point in time."
+Autoregressive models — great quality, but high latency, because they decode one token at a time.
 
-That's the **flow-matching loss**, shown on the slide.
+Non-autoregressive — fast, but quality drops.
 
-At inference time, we sample noise and integrate a few small Euler steps along the learned trajectory.
+Diffusion-based non-autoregressive — better quality, but a hundred to a thousand denoising steps, so latency comes back.
 
-There's an important subtlety, though: the *training* path is a straight line for a fixed pair of noise and target. But at inference, the model has to handle *any* noise input — and so the trajectory it actually follows curves, because it averages over many possible target paths.
-
----
-
-## Slide 4 — The 1-step problem  ·  ~32 s
-
-In principle, you could decode in one step — start from noise, take one big jump along the predicted velocity, and you're done. The problem is that the velocity model only knows the **local** direction. And because the real trajectory curves, that one-step jump overshoots and lands far from any real text embedding.
-
-That's why prior continuous-diffusion methods for text use, say, two thousand denoising steps to stay competitive.
-
-What we actually need is a model that knows where the trajectory is **going overall** — not just where it's pointing at the current moment.
+Our question: can we generate quality text in **one denoising step**?
 
 ---
 
-## Slide 5 — Our idea: shortcuts  ·  ~38 s
+## Slide 3 — Flow matching  ·  ~28 s
 
-So here's our idea: extend the network with an extra input — the **step size**, which we call $d$.
+Quick background on flow matching.
 
-When $d$ goes to zero, the model behaves like standard flow matching — predicting the local velocity.
+In embedding space, draw a straight line from random noise to the target text. Train a network to predict the **velocity** along that path — the local direction of motion. That's the flow-matching loss.
 
-When $d$ is larger, the model predicts the *average direction* across a longer step — accounting for the curve ahead. We call that prediction a **shortcut**.
-
-You can see it in the animation: with a very small step size, the model takes many tiny chords along the curve; with a large step size, it takes one big diagonal jump. Either way, both end at the same target embedding.
-
-We adapt this idea from Frans and colleagues at ICLR 2025, who proposed it for image generation.
+At inference, we sample noise and integrate a few small Euler steps along the trajectory.
 
 ---
 
-## Slide 6 — Self-consistency  ·  ~42 s
+## Slide 4 — The 1-step problem  ·  ~25 s
 
-The natural question is: how do we *train* the model to produce useful shortcuts?
+In principle, you could decode in one step — start from noise, take one big jump along the predicted velocity, and you're done.
 
-The trick is **self-consistency**.
+The problem is that the velocity model only knows the **local** direction. The real trajectory curves, so a single big jump overshoots and lands far from any real text embedding.
 
-The idea: one step of size $2d$ should land in the same place as two consecutive steps of size $d$.
-
-You can see it in the animation. The two violet arrows are two small steps. The orange dashed arrow is one shortcut step that's twice as big — and it ends at exactly the same point.
-
-We just turn that into a squared loss — that's the **self-consistency loss** on the slide.
-
-The clever part is that this is a recursion — small shortcuts bootstrap into larger ones. Which means **one trained model handles every step count**: train once, decode at one step, two steps, four steps — whatever your latency budget allows.
+We need a model that knows where the trajectory is **going overall** — not just where it's pointing right now.
 
 ---
 
-## Slide 7 — Experimental setup  ·  ~28 s
+## Slide 5 — Our idea: shortcuts  ·  ~32 s
 
-The architecture is a BERT-base [*"burt"*] style transformer encoder — about a hundred million parameters — with the step size and time embedded and injected into every block.
+Our idea: extend the network with an extra input — the **step size**, which we call $d$.
 
-We evaluate on three paraphrase datasets: **Q-Q-P**, which is short Quora questions; **PAWS-Wiki** [*"paws wiki"*], which is Wikipedia sentences with structural rewrites; and **ParaSCI** [*"para-sigh"*], scientific paper sentences.
+When $d$ is near zero, the model behaves like standard flow matching.
 
-We report BLEU [*"blue"*] and BERTScore [*"burt score"*], plus ROUGE [*"rouzh"*] and an LLM-based metric called Themis [*"THEH-miss"*].
+When $d$ is large, the model predicts the *average direction* across a longer step — accounting for the curve. We call that a **shortcut**.
 
----
-
-## Slide 8 — Main results  ·  ~42 s
-
-Here are the main BLEU results.
-
-The two non-autoregressive rows — the flow-matching baseline and our shortcut model — both decode in **a single step**. The Transformer row is an autoregressive upper baseline that decodes token by token, shown for context.
-
-On QQP we go from 14 to 19 — a clear improvement.
-
-On PAWS-Wiki, BLEU **more than doubles**, from 21 to almost 43 — which actually **matches the Transformer baseline at 42**. We're getting that quality in **one forward pass**, instead of one per token.
-
-On ParaSCI, BLEU more than doubles again — from 6 to almost 14.
-
-All these gains over the flow-matching baseline are statistically significant.
+In the animation: small step size means many tiny chords; large step size means one big diagonal jump. Either way, both end at the target embedding.
 
 ---
 
-## Slide 9 — Takeaways  ·  ~28 s
+## Slide 6 — Self-consistency  ·  ~32 s
 
-To wrap up.
+How do we *train* the model to produce useful shortcuts? With **self-consistency**.
 
-Shortcut flow matching transfers cleanly from vision to text generation.
+The idea: one step of size $2d$ should land in the same place as two consecutive steps of size $d$. The animation shows it: two violet arrows — one orange shortcut — same endpoint.
 
-In a single denoising step, BLEU more than doubles compared to the flow-matching baseline at the same step count — and on PAWS-Wiki, we even match a Transformer baseline in one forward pass.
+We just turn that into a squared loss.
 
-And the same model serves any step count, so we don't have to retrain for different latency budgets.
-
-There's more in the paper — multi-step decoding sweeps, combinations with self-conditioning and classifier-free guidance, BERT-initialisation strategies, and an LLM-based evaluation.
-
-Code and paper at the link. Thanks!
+The clever part: this is a recursion. **One trained model handles every step count** — train once, decode at one step, two steps, four — whatever your latency budget allows.
 
 ---
 
-## Per-slide timing
+## Slide 7 — Experimental setup  ·  ~14 s
+
+A BERT-base style transformer encoder, around a hundred million parameters, with step size and time injected per layer.
+
+We evaluate on three paraphrase datasets: **Q-Q-P**, **PAWS-Wiki**, and **ParaSCI** [*"para-sye"*].
+
+---
+
+## Slide 8 — Main results  ·  ~32 s
+
+Main BLEU results.
+
+The two non-autoregressive rows decode in **a single step**. The Transformer row is an autoregressive baseline that decodes token by token, shown for context.
+
+Headline: on **PAWS-Wiki**, BLEU **more than doubles** — from 21 to almost 43 — and **matches the Transformer baseline at 42**, with one forward pass instead of one per token.
+
+QQP and ParaSCI also show clear, statistically significant improvements over the flow-matching baseline.
+
+---
+
+## Slide 9 — Takeaways  ·  ~25 s
+
+To wrap up: shortcut flow matching transfers cleanly from vision to text. In a single denoising step, BLEU more than doubles versus the flow-matching baseline. On PAWS-Wiki we even match a Transformer in one forward pass. And one trained model serves any step count.
+
+The paper has more — multi-step decoding sweeps, self-conditioning, classifier-free guidance, BERT-init, and an LLM-based evaluation.
+
+Code at the link. Thanks!
+
+---
+
+## Per-slide timing — target ~4:00, with safety margin
 
 | Slide | Time |
 |---|---|
-| 1 — Title | 0:15 |
-| 2 — The bottleneck | 0:30 |
-| 3 — Flow matching | 0:40 |
-| 4 — The 1-step problem | 0:32 |
-| 5 — Our idea: shortcuts | 0:38 |
-| 6 — Self-consistency | 0:42 |
-| 7 — Experimental setup | 0:28 |
-| 8 — Main results | 0:42 |
-| 9 — Takeaways | 0:28 |
-| **Total** | **4:55** |
+| 1 — Title | 0:10 |
+| 2 — The bottleneck | 0:22 |
+| 3 — Flow matching | 0:28 |
+| 4 — The 1-step problem | 0:25 |
+| 5 — Our idea | 0:32 |
+| 6 — Self-consistency | 0:32 |
+| 7 — Setup | 0:14 |
+| 8 — Main results | 0:32 |
+| 9 — Takeaways | 0:25 |
+| **Total** | **3:40** |
+
+Aim for ~4:00 spoken with natural pauses → fits 5:00 limit comfortably.
+If you still come in around 5:30 after recording, ×1.1 speed-up is fine and inaudible.
+
+## What was cut from the longer version
+
+- Coauthor names on slide 1 (slide already lists them).
+- "Inference trajectory averages over many conditional paths" on slide 3 — interesting but a footnote.
+- "2000 steps" callout on slide 4 — visual already conveys it.
+- Frans 2025 citation on slide 5 — credited on slide.
+- "Squared loss between the 2d prediction and average of two d predictions" mathematical detail on slide 6 — equation is on screen.
+- Dataset descriptions on slide 7 — names only, audience reads.
+- Per-dataset numbers on slide 8 (QQP 14→19, ParaSCI 6→14) — the chart shows them; spoken word focuses on the headline.
 
 ## Delivery tips
 
-- Slides 5 and 6 have looping animations. Speak at a normal pace — by the time you finish each slide's text the animation will have shown one or two full cycles.
-- The strongest punchline of the methods half is on slide 6: **"one trained model handles every step count."** Slow down there.
-- The strongest punchline of the results half is on slide 8: **"matches the Transformer baseline in one forward pass."** Half-second pause before "one forward pass."
-- If you're running long, you can drop the "statistically significant" line on slide 8 — it's on the screen.
-- Aim to finish around 4:45–4:55 so you don't have to rush the takeaway.
+- Speak a little slower than feels natural. Going faster to fit 5 minutes makes you sound rushed; cuts already give you the budget.
+- Pause briefly after **"in one forward pass"** (slide 8) — biggest punchline of the talk.
+- Don't read the formulas out loud — the audience reads them while you describe what they mean.
+- If you finish at 4:30, that's fine. Better than running over.
