@@ -184,8 +184,53 @@ class ShortcutTokenModelConfig(BaseModelConfig):
     model_config = ConfigDict(extra="forbid")
 
 
+class MaskedDiffusionModelConfig(BaseModelConfig):
+    """Configuration for masked (absorbing-state) discrete diffusion architecture"""
+
+    type: Literal["masked_diffusion"] = "masked_diffusion"
+    use_pretrained_weights: bool = Field(
+        default=False,
+        description="Whether to use pretrained weights (True) or random initialization (False)",
+    )
+    logits_mode: int = Field(default=1, description="Mode for logits computation")
+    predict_t: bool = Field(default=False, description="Whether to predict timestep")
+    projection_activation: Literal["gelu", "relu", "silu", "tanh"] = Field(
+        default="gelu", description="Activation function for projection layers"
+    )
+    mask_token_id: int = Field(default=103, description="ID of the [MASK] token used for corruption")
+    ce_importance_weighting: Literal["one_over_t", "none"] = Field(
+        default="one_over_t",
+        description="Importance weighting of the masked cross-entropy loss (MDLM/LLaDA uses 1/t)",
+    )
+    consistency_loss_space: Literal["l2_embedding", "kl"] = Field(
+        default="l2_embedding",
+        description="Space in which the shortcut consistency loss is computed:"
+        " L2 between expected embeddings or KL between token distributions",
+    )
+    unmask_strategy: Literal["random", "confidence"] = Field(
+        default="random",
+        description="How to choose which masked positions to unmask when composing"
+        " two shortcut steps and during inference",
+    )
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("sc_rate")
+    @classmethod
+    def _validate_no_self_conditioning(cls, v: float) -> float:
+        if v != 0.0:
+            raise ValueError("Self-conditioning (sc_rate > 0) is not supported for masked_diffusion")
+        return v
+
+
 # Define the model config union with discriminator
-ModelConfig = TransformerModelConfig | StackedModelConfig | FFNModelConfig | DiTModelConfig | ShortcutTokenModelConfig
+ModelConfig = (
+    TransformerModelConfig
+    | StackedModelConfig
+    | FFNModelConfig
+    | DiTModelConfig
+    | ShortcutTokenModelConfig
+    | MaskedDiffusionModelConfig
+)
 
 
 class BaseSchedulerConfig(BaseModel):

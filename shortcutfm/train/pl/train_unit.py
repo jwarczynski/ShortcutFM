@@ -14,7 +14,7 @@ from transformers import PreTrainedTokenizer
 import wandb
 from shortcutfm.batch import EncoderBatch
 from shortcutfm.config import SchedulerConfig
-from shortcutfm.criteria import CompositeCriterion
+from shortcutfm.criteria import CompositeCriterion, Criterion
 from shortcutfm.decoding.prediction_strategies import PredictionStrategy
 from shortcutfm.decoding.text_processing import process_batch_predictions
 from shortcutfm.evaluation import compute_bleu_from_batch
@@ -24,7 +24,7 @@ from shortcutfm.train.optim import SchedulerFactory
 class TrainModule(pl.LightningModule):
     def __init__(
         self,
-        criterion: CompositeCriterion,
+        criterion: CompositeCriterion | Criterion,
         optimizer_config: SchedulerConfig,
         tokenizer: PreTrainedTokenizer | None = None,
         prediction_strategy: PredictionStrategy | None = None,

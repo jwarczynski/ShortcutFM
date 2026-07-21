@@ -164,6 +164,73 @@ class ShortcutFMBatch(FlowMatchingBatch):
         )
 
 
+@dataclass
+class MaskedDiffusionBatch(EncoderBatch):
+    """Batch for masked discrete diffusion. `x_t` holds corrupted token ids (Long),
+    `mask_indicator` marks positions replaced with the mask token at time `t`."""
+
+    x_t: Tensor
+    mask_indicator: Tensor
+    t: Tensor
+
+    def to(self, device: torch.device | str) -> "MaskedDiffusionBatch":
+        return MaskedDiffusionBatch(
+            seqs=self.seqs.to(device),
+            padding_mask=self.padding_mask.to(device),
+            input_ids_mask=self.input_ids_mask.to(device),
+            x_t=self.x_t.to(device),
+            mask_indicator=self.mask_indicator.to(device),
+            t=self.t.to(device),
+            global_step=self.global_step,
+        )
+
+    def split(self, index: int) -> tuple["MaskedDiffusionBatch", "MaskedDiffusionBatch"]:
+        return (
+            MaskedDiffusionBatch(
+                seqs=self.seqs[:index],
+                padding_mask=self.padding_mask[:index],
+                input_ids_mask=self.input_ids_mask[:index],
+                x_t=self.x_t[:index],
+                mask_indicator=self.mask_indicator[:index],
+                t=self.t[:index],
+                global_step=self.global_step,
+            ),
+            MaskedDiffusionBatch(
+                seqs=self.seqs[index:],
+                padding_mask=self.padding_mask[index:],
+                input_ids_mask=self.input_ids_mask[index:],
+                x_t=self.x_t[index:],
+                mask_indicator=self.mask_indicator[index:],
+                t=self.t[index:],
+                global_step=self.global_step,
+            ),
+        )
+
+
+@dataclass
+class MaskedShortcutBatch(MaskedDiffusionBatch):
+    shortcut_size: Tensor
+
+    def to(self, device: torch.device | str) -> "MaskedShortcutBatch":
+        return MaskedShortcutBatch(
+            seqs=self.seqs.to(device),
+            padding_mask=self.padding_mask.to(device),
+            input_ids_mask=self.input_ids_mask.to(device),
+            x_t=self.x_t.to(device),
+            mask_indicator=self.mask_indicator.to(device),
+            t=self.t.to(device),
+            shortcut_size=self.shortcut_size.to(device),
+            global_step=self.global_step,
+        )
+
+    def split(self, index: int) -> tuple["MaskedShortcutBatch", "MaskedShortcutBatch"]:
+        md1, md2 = super().split(index)
+        return (
+            MaskedShortcutBatch(**md1.__dict__, shortcut_size=self.shortcut_size[:index]),
+            MaskedShortcutBatch(**md2.__dict__, shortcut_size=self.shortcut_size[index:]),
+        )
+
+
 def collate(
     batch: list[dict[str, Tensor]],
     mark_first_padding: bool = True,

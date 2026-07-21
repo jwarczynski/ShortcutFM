@@ -17,6 +17,11 @@ from shortcutfm.criteria import (
     X0ConsistencyCriterion,
     X0FlowMatchingCriterion,
 )
+from shortcutfm.masked_criteria import (
+    MaskedCompositeCriterion,
+    MaskedConsistencyCriterion,
+    MaskedDiffusionCriterion,
+)
 from shortcutfm.model.dit_factory import DiTFactory
 from shortcutfm.model.factory import (
     FFNFactory,
@@ -57,6 +62,9 @@ def create_criterion(training_cfg: TrainingConfig, tokenizer=None) -> CompositeC
     # Initialize tokenizer
     tokenizer = tokenizer or AutoTokenizer.from_pretrained(training_cfg.model.tokenizer_config_name)
 
+    if training_cfg.model.type == "masked_diffusion":
+        return create_masked_diffusion_criterion(model, tokenizer, training_cfg)
+
     # Create base flow matching criterion
     flow_matching_criterion = create_flow_matching_criterion(model, tokenizer, training_cfg)
 
@@ -82,8 +90,48 @@ def create_factory(training_cfg: TrainingConfig):
             return DiTFactory(training_cfg.model)
         case "shortcut_token":
             return ShortcutTokenFactory(training_cfg.model)
+        case "masked_diffusion":
+            # Same backbone as the continuous transformer: word_embedding + time/shortcut
+            # embeddings + BERT encoder + lm_head. Only the criteria differ.
+            return TransformerNetModelFactory(training_cfg.model)
         case _:
             raise ValueError(f"Unknown model type: {training_cfg.model.type}")
+
+
+def create_masked_diffusion_criterion(
+    model: FlowMatchingModel, tokenizer, training_cfg: TrainingConfig
+) -> MaskedCompositeCriterion:
+    """Create the masked discrete diffusion composite criterion (CE + shortcut consistency)."""
+    reduce_fn = get_reduction_fn(training_cfg.reduce_fn)
+    default_shortcut_factory = create_default_shortcut_factory(training_cfg.model.default_shortcut)
+
+    masked_criterion = MaskedDiffusionCriterion(
+        model,
+        diffusion_steps=training_cfg.model.diffusion_steps,
+        tokenizer=tokenizer,
+        training_cfg=training_cfg,
+        default_shortcut_factory=default_shortcut_factory,
+    )
+    consistency_criterion = MaskedConsistencyCriterion(
+        model,
+        diffusion_steps=training_cfg.model.diffusion_steps,
+        reduce_fn=reduce_fn,
+        training_cfg=training_cfg,
+        default_shortcut_factory=default_shortcut_factory,
+    )
+
+    return MaskedCompositeCriterion(
+        masked_criterion=masked_criterion,
+        consistency_criterion=consistency_criterion,
+        masked_ce_weight=training_cfg.flow_matching_loss_weight,
+        consistency_weight=training_cfg.consistency_loss_weight,
+        model=model,
+        diffusion_steps=training_cfg.model.diffusion_steps,
+        self_consistency_ratio=training_cfg.self_consistency_ratio,
+        sampler=create_time_sampler(training_cfg),
+        time_shortcut_sampler=create_time_and_shortcut_sampelr(training_cfg),
+        training_cfg=training_cfg,
+    )
 
 
 def create_flow_matching_criterion(model, tokenizer, training_cfg: TrainingConfig):

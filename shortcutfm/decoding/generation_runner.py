@@ -468,8 +468,8 @@ def run_single_checkpoint_generation(gen_cfg: GenerationConfig) -> None:
             logger.error(f"Evaluation failed: {e}")
             raise
 
-    # Run cosine similarity analysis if enabled
-    if gen_cfg.run_plot_analysis:
+    # Run cosine similarity analysis if enabled (continuous embedding-space models only)
+    if gen_cfg.run_plot_analysis and gen_cfg.training_config.model.type != "masked_diffusion":
         logger.info("Starting cosine similarity and velocity analysis...")
 
         try:
