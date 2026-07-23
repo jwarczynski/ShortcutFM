@@ -4,7 +4,15 @@ date: 2026-07-21
 related: [[cluster-athena]] [[exp-masked-v1-qqp]]
 ---
 
-# Cluster: HGX (primary)
+# Cluster: HGX (secondary — see reliability note)
+
+> **Placement policy (2026-07-23, from user):** hgx nodes are unstable and heavily
+> occupied — hgx2 went down mid-training on 2026-07-22/23 (killed the
+> [[exp-masked-v1-qqp]] main run at step 49000/50000) and hgx1 is often fully
+> allocated. **Default new GPU jobs to [[cluster-athena]]**: lower occupancy,
+> easier to get multiple instances; A100s are less powerful per-GPU but fine for
+> our ~110M models. Use hgx opportunistically when idle, and don't pin jobs to a
+> single node unless required.
 
 ## Access
 
