@@ -41,12 +41,23 @@ def find_checkpoint(run_dir: Path, preferred: str) -> Path:
     ckpt = run_dir / preferred
     if ckpt.exists():
         return ckpt
-    # fall back to matching the step number in the name
+    # fall back to matching the step number, then to the highest step available
+    # (the main 50k run was requeued when hgx2 went down mid-training)
     step = preferred.split("step=")[1].split("-")[0]
     matches = list(run_dir.glob(f"*step={step}*.ckpt"))
-    if not matches:
-        raise FileNotFoundError(f"No checkpoint for step {step} in {run_dir}")
-    return matches[0]
+    if matches:
+        return matches[0]
+    by_step = []
+    for c in run_dir.glob("*step=*.ckpt"):
+        try:
+            by_step.append((int(c.name.split("step=")[1].split("-")[0].split(".")[0]), c))
+        except (IndexError, ValueError):
+            continue
+    if not by_step:
+        raise FileNotFoundError(f"No step checkpoints in {run_dir}")
+    best = max(by_step)[1]
+    print(f"NOTE: {preferred} not found in {run_dir}, using highest available: {best.name}")
+    return best
 
 
 def main() -> int:
