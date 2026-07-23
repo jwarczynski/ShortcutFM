@@ -424,3 +424,83 @@ class TestMaskedDenoise(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEvalFixes(unittest.TestCase):
+    """Tests for the eval fixes: ground-truth source logits, confidence default, t-clip."""
+
+    def setUp(self):
+        self.model = IdentityLogitsModel()
+        self.criterion = MaskedDiffusionCriterion(
+            self.model,
+            diffusion_steps=DIFFUSION_STEPS,
+            tokenizer=MagicMock(),
+            training_cfg=make_training_cfg(),
+        )
+        self.batch = make_batch()
+
+    def test_return_logits_source_positions_are_ground_truth(self):
+        torch.manual_seed(0)
+        logits = self.criterion.denoise(
+            self.batch, shortcut_size=0, step_size=2, probe_every_step=False, return_logits=True
+        )
+        denoise_mask = self.batch.input_ids_mask * self.batch.padding_mask
+        source_or_pad = denoise_mask == 0
+        # argmax at source/padding positions must equal the ground-truth tokens
+        self.assertTrue(
+            torch.equal(logits.argmax(-1)[source_or_pad], self.batch.seqs[source_or_pad])
+        )
+
+    def test_unmask_strategy_override(self):
+        torch.manual_seed(0)
+        # explicit random strategy must be honored (no error, deterministic shape)
+        out = self.criterion.denoise(
+            self.batch, shortcut_size=0, step_size=2, probe_every_step=False, unmask_strategy="random"
+        )
+        self.assertEqual(tuple(out.shape), self.batch.seqs.shape)
+        with self.assertRaises(ValueError):
+            self.criterion.denoise(
+                self.batch, shortcut_size=0, step_size=2, probe_every_step=False, unmask_strategy="bogus"
+            )
+
+
+class TestTClip(unittest.TestCase):
+    def _make_composite(self, t_min_frac, t_max_frac):
+        cfg = make_training_cfg(t_min_frac=t_min_frac, t_max_frac=t_max_frac)
+        cfg.self_consistency_ratio = 0.0
+        model = IdentityLogitsModel()
+        masked = MaskedDiffusionCriterion(model, DIFFUSION_STEPS, MagicMock(), cfg)
+        consistency = MaskedConsistencyCriterion(model, DIFFUSION_STEPS, training_cfg=cfg)
+        sampler = MagicMock()
+        # return full-range t values to exercise clipping
+        sampler.side_effect = lambda batch_size, device: (
+            torch.tensor([1, DIFFUSION_STEPS, DIFFUSION_STEPS // 2, 2][:batch_size], device=device),
+            torch.ones(batch_size, device=device),
+        )
+        return MaskedCompositeCriterion(
+            masked_criterion=masked,
+            consistency_criterion=consistency,
+            masked_ce_weight=1.0,
+            consistency_weight=1.0,
+            model=model,
+            diffusion_steps=DIFFUSION_STEPS,
+            self_consistency_ratio=0.0,
+            sampler=sampler,
+            time_shortcut_sampler=MagicMock(),
+            training_cfg=cfg,
+        )
+
+    def test_clip_bounds_respected(self):
+        composite = self._make_composite(0.25, 0.75)
+        t = composite._clip_t(torch.tensor([1, DIFFUSION_STEPS, DIFFUSION_STEPS // 2]))
+        t_min = int(0.25 * DIFFUSION_STEPS)
+        t_max = int(0.75 * DIFFUSION_STEPS)
+        self.assertTrue((t >= t_min).all() and (t <= t_max).all())
+        # endpoints map to band edges
+        self.assertEqual(t[0].item(), t_min)
+        self.assertEqual(t[1].item(), t_max)
+
+    def test_no_clip_is_identity(self):
+        composite = self._make_composite(0.0, 1.0)
+        t = torch.tensor([1, 5, DIFFUSION_STEPS])
+        self.assertTrue(torch.equal(composite._clip_t(t), t))

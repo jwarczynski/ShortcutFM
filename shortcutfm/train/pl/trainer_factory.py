@@ -407,6 +407,7 @@ def load_unit_from_checkpoint(
         normalize_embeddings=training_config.normalize_embeddings,
         prediction_shortcut_size=prediction_shortcut_size,
         denoising_step_size=denoising_step_size,
+        val_nfe_list=training_config.val_nfe_list,
         weights_only=False,
     )
     return train_unit

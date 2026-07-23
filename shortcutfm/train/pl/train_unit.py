@@ -17,7 +17,7 @@ from shortcutfm.config import SchedulerConfig
 from shortcutfm.criteria import CompositeCriterion, Criterion
 from shortcutfm.decoding.prediction_strategies import PredictionStrategy
 from shortcutfm.decoding.text_processing import process_batch_predictions
-from shortcutfm.evaluation import compute_bleu_from_batch
+from shortcutfm.evaluation import compute_bleu_from_batch, compute_generation_metrics_from_batch
 from shortcutfm.train.optim import SchedulerFactory
 
 
@@ -30,6 +30,7 @@ class TrainModule(pl.LightningModule):
         prediction_strategy: PredictionStrategy | None = None,
         prediction_shortcut_size: int = 64,
         denoising_step_size: int = 32,
+        val_nfe_list: list[int] | None = None,
         num_val_batches_to_log: int = 2,
         num_timestep_bins: int = 4,  # Number of bins for timestep logging
         log_train_predictions_every_n_epochs: int = 100,  # Number of epochs between train prediction logging
@@ -45,6 +46,7 @@ class TrainModule(pl.LightningModule):
         self.prediction_strategy = prediction_strategy
         self.prediction_shortcut_size = prediction_shortcut_size
         self.denoising_step_size = denoising_step_size
+        self.val_nfe_list = val_nfe_list or [1, 16]
         self.num_val_batches_to_log = num_val_batches_to_log
         self.log_train_predictions_every_n_epochs = log_train_predictions_every_n_epochs
         self.log_train_predictions_from_n_epochs = log_train_predictions_from_n_epochs
@@ -485,6 +487,10 @@ class TrainModule(pl.LightningModule):
         return outputs["loss"]
 
     def compute_and_log_bleu(self, batch):
+        if hasattr(self.criterion, "masked_criterion"):
+            self._compute_and_log_masked_metrics(batch)
+            return
+
         # Compute predictions and BLEU scores using shared function
         # Use probe_every_step=True to be consistent with test_step
         predictions = self.criterion.denoise(
@@ -506,6 +512,44 @@ class TrainModule(pl.LightningModule):
 
         self.log("val/bleu", bleu_score, on_step=False, on_epoch=True, prog_bar=True,
                 batch_size=batch.seqs.size(0), sync_dist=True)
+
+    def _compute_and_log_masked_metrics(self, batch):
+        """Masked-diffusion validation: BLEU + copy%% at each NFE in val_nfe_list.
+
+        Shortcut conditioning follows training: consistency-trained models are
+        conditioned on d = step size (the shortcut promise); models trained without
+        consistency only ever saw d = 0 and are evaluated that way.
+        """
+        cfg = self.criterion.training_cfg
+        diffusion_steps = self.criterion.diffusion_steps
+        consistency_trained = cfg.self_consistency_ratio > 0 and (cfg.consistency_loss_weight or 0) > 0
+
+        for nfe in self.val_nfe_list:
+            step_size = max(diffusion_steps // nfe, 1)
+            shortcut = step_size if consistency_trained else 0
+            predictions = self.criterion.denoise(
+                batch=batch,
+                shortcut_size=shortcut,
+                probe_every_step=False,
+                return_logits=False,
+                step_size=step_size,
+            )
+            metrics = compute_generation_metrics_from_batch(
+                batch=batch,
+                predicted_tokens=predictions,
+                tokenizer=self.tokenizer,
+                use_fallback_processing=False,
+                smoothing_method=4,
+            )
+            primary = nfe == max(self.val_nfe_list)
+            self.log(f"val/bleu_nfe{nfe}", metrics["bleu"], on_step=False, on_epoch=True,
+                    prog_bar=primary, batch_size=batch.seqs.size(0), sync_dist=True)
+            self.log(f"val/copy_pct_nfe{nfe}", metrics["copy_pct"], on_step=False, on_epoch=True,
+                    batch_size=batch.seqs.size(0), sync_dist=True)
+            if primary:
+                # keep val/bleu as an alias so existing checkpointing/monitor configs work
+                self.log("val/bleu", metrics["bleu"], on_step=False, on_epoch=True,
+                        batch_size=batch.seqs.size(0), sync_dist=True)
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.

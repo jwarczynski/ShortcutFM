@@ -123,6 +123,7 @@ class MaskedDiffusionCriterion(Criterion):
         step_size: int | None = None,
         guidance_scale: float | None = None,
         use_ground_truth_embeddings: bool = False,
+        unmask_strategy: str | None = None,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Iteratively unmask target tokens, conditioned on shortcut size.
 
@@ -142,6 +143,9 @@ class MaskedDiffusionCriterion(Criterion):
         self.model.eval()
         effective_step = step_size or shortcut_size
         shortcut_size = shortcut_size or 0
+        # Inference default is low-confidence remasking (LLaDA); the training-config
+        # strategy only governs consistency-target construction
+        unmask_strategy = unmask_strategy or "confidence"
 
         seqs = batch.seqs
         bsz, seq_len = seqs.shape
@@ -153,7 +157,10 @@ class MaskedDiffusionCriterion(Criterion):
         # Track masked state explicitly — comparing x to mask_token_id would break if the
         # model ever predicts the mask token itself
         currently_masked = denoise_mask == 1
+        # Source and true-padding positions carry ground-truth one-hot logits so the
+        # return_logits path never exposes model re-predictions of the conditioning
         committed_logits = torch.zeros((bsz, seq_len, vocab_size), dtype=torch.float, device=device)
+        committed_logits.scatter_(-1, seqs.unsqueeze(-1), 1.0)
 
         num_steps = len(range(self.diffusion_steps, 0, -effective_step))
         if probe_every_step:
@@ -174,15 +181,15 @@ class MaskedDiffusionCriterion(Criterion):
             logits[..., self.mask_token_id] = float("-inf")
             predicted_tokens = logits.argmax(dim=-1)
 
-            # Positions not yet committed get this step's logits; earlier commits are kept
-            refresh = currently_masked | (denoise_mask == 0)
-            committed_logits = torch.where(refresh.unsqueeze(-1), logits, committed_logits)
+            # Positions not yet committed get this step's logits; earlier commits and
+            # ground-truth source/padding positions are kept
+            committed_logits = torch.where(currently_masked.unsqueeze(-1), logits, committed_logits)
 
             # Reveal enough positions to reach mask ratio t_next / t
             num_masked = currently_masked.sum(-1)
             keep = torch.round(num_masked.float() * t_next / t).long()
             to_unmask = select_positions_to_unmask(
-                currently_masked, num_masked - keep, logits, self.unmask_strategy
+                currently_masked, num_masked - keep, logits, unmask_strategy
             )
             x = torch.where(to_unmask, predicted_tokens, x)
             currently_masked = currently_masked & ~to_unmask
@@ -393,6 +400,24 @@ class MaskedCompositeCriterion(Criterion):
 
         return result
 
+    def _clip_t(self, t: Tensor) -> Tensor:
+        """Clamp sampled timesteps to the configured mask-ratio bandwidth (LLaDA2.0).
+
+        Extreme mask ratios give high gradient variance with little signal: at low t
+        only 0-1 target tokens are supervised (with a huge T/t weight); applies to the
+        CE branch only — the consistency branch needs the full (t, d) range.
+        """
+        t_min_frac = getattr(self.training_cfg.model, "t_min_frac", 0.0)
+        t_max_frac = getattr(self.training_cfg.model, "t_max_frac", 1.0)
+        if t_min_frac <= 0.0 and t_max_frac >= 1.0:
+            return t
+        t_min = max(int(t_min_frac * self.diffusion_steps), 1)
+        t_max = min(int(t_max_frac * self.diffusion_steps), self.diffusion_steps)
+        # Rescale linearly into [t_min, t_max] instead of clamping, which would pile
+        # probability mass onto the band edges
+        rescaled = t_min + (t.float() - 1) * (t_max - t_min) / max(self.diffusion_steps - 1, 1)
+        return rescaled.round().long().clamp(t_min, t_max)
+
     def _prepare_batches(
         self, batch: EncoderBatch
     ) -> tuple[MaskedDiffusionBatch, MaskedShortcutBatch | None, tuple]:
@@ -410,6 +435,7 @@ class MaskedCompositeCriterion(Criterion):
         ce_padding_mask = batch.padding_mask[:num_ce_elems]
         ce_input_ids_mask = batch.input_ids_mask[:num_ce_elems]
         t, ce_weights = self.sampler(batch_size=num_ce_elems, device=batch.seqs.device)
+        t = self._clip_t(t)
         x_t, mask_indicator = self.masked_criterion.corrupt(ce_seqs, t, ce_input_ids_mask * ce_padding_mask)
         masked_batch = MaskedDiffusionBatch(
             seqs=ce_seqs,
@@ -456,6 +482,7 @@ class MaskedCompositeCriterion(Criterion):
         return_logits: bool = False,
         step_size: int | None = None,
         use_ground_truth_embeddings: bool = False,
+        unmask_strategy: str | None = None,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         return self.masked_criterion.denoise(
             batch,
@@ -465,4 +492,5 @@ class MaskedCompositeCriterion(Criterion):
             return_logits=return_logits,
             step_size=step_size,
             use_ground_truth_embeddings=use_ground_truth_embeddings,
+            unmask_strategy=unmask_strategy,
         )

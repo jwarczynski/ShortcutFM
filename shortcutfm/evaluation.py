@@ -170,6 +170,31 @@ def compute_bleu_score(
         return 0.0
 
 
+def compute_generation_metrics_from_batch(
+    batch,
+    predicted_tokens,
+    tokenizer,
+    use_fallback_processing: bool = False,
+    smoothing_method: int = 4,
+) -> dict[str, float]:
+    """Compute BLEU and source-copy rate from a batch and predicted tokens.
+
+    copy_pct is the percentage of hypotheses that are verbatim copies of the
+    source — the pathology that inflated NFE=1 BLEU for continuous shortcut runs.
+    """
+    try:
+        source_texts, reference_texts, predicted_texts = process_batch_predictions(
+            batch, predicted_tokens, tokenizer, use_fallback_processing
+        )
+        bleu = compute_bleu_score(predicted_texts, reference_texts, smoothing_method)
+        num = max(len(predicted_texts), 1)
+        copy_pct = sum(1 for s, h in zip(source_texts, predicted_texts, strict=False) if s.strip() == h.strip()) / num * 100
+        return {"bleu": bleu, "copy_pct": copy_pct}
+    except Exception as e:
+        logger.error(f"Error computing generation metrics from batch: {e}")
+        return {"bleu": 0.0, "copy_pct": 0.0}
+
+
 def compute_bleu_from_batch(
     batch,
     predicted_tokens,

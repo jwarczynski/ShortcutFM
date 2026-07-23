@@ -212,6 +212,16 @@ class MaskedDiffusionModelConfig(BaseModelConfig):
         description="How to choose which masked positions to unmask when composing"
         " two shortcut steps and during inference",
     )
+    t_min_frac: float = Field(
+        default=0.0,
+        description="Lower bound of the sampled mask-ratio bandwidth as a fraction of"
+        " diffusion_steps (LLaDA2.0-style clipping; 0.0 = no clipping)",
+    )
+    t_max_frac: float = Field(
+        default=1.0,
+        description="Upper bound of the sampled mask-ratio bandwidth as a fraction of"
+        " diffusion_steps (1.0 = no clipping)",
+    )
     model_config = ConfigDict(extra="forbid")
 
     @field_validator("sc_rate")
@@ -378,6 +388,11 @@ class TrainingConfig(BaseModel):
         description="Step size used during denoising process when shortcut_size is 0 or None",
     )
     prediction_shortcut_size: int = Field(default=None, description="Shortcut size for prediction")
+    val_nfe_list: list[int] = Field(
+        default=[1, 16],
+        description="NFE values to compute validation BLEU at (masked diffusion only)."
+        " Each NFE n decodes with step_size = diffusion_steps // n.",
+    )
 
     num_val_batches_to_log: int = Field(
         default=1,
