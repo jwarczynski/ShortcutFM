@@ -15,6 +15,14 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-23] experiment | Round-1 recipe search launched (6 runs) + R0 re-eval queued
+
+- R0 re-eval: hgx job 995688 (NFE {1,4,16,64} x {confidence,random} grid on v1 checkpoints; main run's last ckpt is step **49000** — hgx2 died mid-training).
+- Round-1 (10k steps each): hgx 995689 `mdlm-r1-bert-init`; athena 2818487 `mdlm-r1-t-clip` (RUNNING), 2818518 `mdlm-r1-warmup-2k`, 2818526 `mdlm-r1-no-ema`, 2818527 `mdlm-r1-cons-delay-5k`, 2818528 `mdlm-r1-combo`.
+- Placement policy set: default Athena (hgx unstable/occupied — see [[cluster-hgx]]).
+- Gotchas hit: exca `cfg.train()` blocks until job completion → submissions must be nohup-backgrounded; `bash -lc` resets cwd to $HOME on athena → `cd` must be inside the same subshell as the nohup.
+
+
 ## [2026-07-23] experiment | Both masked-diffusion 50k runs done; quality investigation → 3 bugs found, recipe search planned
 
 Both 50k-step runs from [[exp-masked-v1-qqp]] completed: main `qqp_masked_diffusion` (r43zphwi) final train CE 0.85, val/bleu 0.222, consistency loss 0.22→0.035; ablation `qqp_masked_no_consistency` (exu5bftd) train CE 0.60, val/bleu 0.209. Generated outputs judged poor by user → deep-dive investigation found three bugs that contaminate the numbers:
