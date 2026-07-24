@@ -41,3 +41,19 @@ Which Round 2 happens depends on Round 0 + Round 1 outcomes:
 - **Nothing wins** → step back: seq_len 64 (denser signal per batch), anisotropy diagnostics on the embedding space, rethink the DiffuSeq packing format.
 
 Round-2 candidates regardless of branch: complementary masking (LLaDA2.0 SFT data-efficiency trick).
+
+
+## Later: task generalization (user, 2026-07-24)
+
+Once the best masked-diffusion recipe is found on QQP paraphrasing, extend to other
+seq2seq tasks — **summarization** and **machine translation** first. Notes:
+
+- MT: tokenization pipeline already supports WMT19 / iwslt14 de-en
+  (`Helsinki-NLP/opus-mt-en-de` tokenizer path in configs; hgx has raw data).
+- Summarization: needs a tokenization pass (XSum / CNN-DM); longer targets will
+  stress the seq_len-128 format — likely needs seq_len 256+ (parasci configs already
+  use `max_position_embeddings: 256` as precedent).
+- Context from R0: the continuous paper's QQP numbers were inflated by src-copying
+  (99% at NFE=1); masked diffusion has no copy pathology and BLEU *rises* with NFE —
+  the honest cross-paradigm comparison on new tasks should use the corrected
+  multi-NFE eval from the start.
