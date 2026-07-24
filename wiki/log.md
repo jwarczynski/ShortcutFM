@@ -15,6 +15,12 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-24] experiment | bert-init retracted (copy collapse); round 2 launched (6 runs)
+
+- **RETRACTION**: `mdlm-r1-bert-init` BLEU 0.271 was **100% source copying** (val/copy_pct caught it; BLEU bit-identical across NFE). At lr 1e-4, pretrained BERT locks onto reproduce-the-source. Run cancelled. See [[bug-bert-init-copy-collapse]]. Honest bert-init signal = round-1 combo (lr 3e-5, copy 4.8%).
+- Round 2 launched per [[decision-round2-design]]: athena B-series 2823164/65/66 (bertinit-lr3e-5, +tclip, +tclip-nocons); pcss C-series 7785151/52/53 (tclip-30k, combo-30k, tclip-band-01-09). First PCSS jobs ever (H100s).
+
+
 ## [2026-07-24] experiment | R0 re-eval complete + bert-init early signal is dominant
 
 - R0 (athena 2821594): multi-step decoding adds +0.04-0.06 BLEU (best 0.266-0.268 at ~50k steps, both v1 runs). No copy pathology (<=8%). SURPRISE: confidence unmasking UNDERPERFORMS random at NFE>=16 for consistency-trained models — val now logs both strategies. See [[exp-r0-reeval-results]].
