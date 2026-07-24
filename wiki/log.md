@@ -15,6 +15,12 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-24] experiment | R0 re-eval complete + bert-init early signal is dominant
+
+- R0 (athena 2821594): multi-step decoding adds +0.04-0.06 BLEU (best 0.266-0.268 at ~50k steps, both v1 runs). No copy pathology (<=8%). SURPRISE: confidence unmasking UNDERPERFORMS random at NFE>=16 for consistency-trained models — val now logs both strategies. See [[exp-r0-reeval-results]].
+- `mdlm-r1-bert-init` (athena 2821327): **BLEU@NFE16 = 0.271 at step 800** — matches the 50k-step from-scratch ceiling with 60x fewer steps. H2 (pretrained init) is the dominant round-1 factor, ahead of t-clip (0.142@10k).
+
+
 ## [2026-07-24] infrastructure | PCSS/Eagle cluster onboarded
 
 - SSH alias `pcss` working (key auth; fixed concatenated authorized_keys line). Repo + uv env + QQP dataset bootstrapped at `/mnt/storage_6/project_data/pl1095-01/ShortcutFM`.
