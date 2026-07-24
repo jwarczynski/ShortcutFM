@@ -15,6 +15,12 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-24] infrastructure | PCSS/Eagle cluster onboarded
+
+- SSH alias `pcss` working (key auth; fixed concatenated authorized_keys line). Repo + uv env + QQP dataset bootstrapped at `/mnt/storage_6/project_data/pl1095-01/ShortcutFM`.
+- 76 nodes x 4x H100 on `tesla` partition, 94k GPU-h remaining on grant — biggest pool of the three clusters. See [[cluster-pcss]].
+
+
 ## [2026-07-23] experiment | Round-1 recipe search launched (6 runs) + R0 re-eval queued
 
 - R0 re-eval: hgx job 995688 (NFE {1,4,16,64} x {confidence,random} grid on v1 checkpoints; main run's last ckpt is step **49000** — hgx2 died mid-training).
