@@ -527,29 +527,35 @@ class TrainModule(pl.LightningModule):
         for nfe in self.val_nfe_list:
             step_size = max(diffusion_steps // nfe, 1)
             shortcut = step_size if consistency_trained else 0
-            predictions = self.criterion.denoise(
-                batch=batch,
-                shortcut_size=shortcut,
-                probe_every_step=False,
-                return_logits=False,
-                step_size=step_size,
-            )
-            metrics = compute_generation_metrics_from_batch(
-                batch=batch,
-                predicted_tokens=predictions,
-                tokenizer=self.tokenizer,
-                use_fallback_processing=False,
-                smoothing_method=4,
-            )
-            primary = nfe == max(self.val_nfe_list)
-            self.log(f"val/bleu_nfe{nfe}", metrics["bleu"], on_step=False, on_epoch=True,
-                    prog_bar=primary, batch_size=batch.seqs.size(0), sync_dist=True)
-            self.log(f"val/copy_pct_nfe{nfe}", metrics["copy_pct"], on_step=False, on_epoch=True,
-                    batch_size=batch.seqs.size(0), sync_dist=True)
-            if primary:
-                # keep val/bleu as an alias so existing checkpointing/monitor configs work
-                self.log("val/bleu", metrics["bleu"], on_step=False, on_epoch=True,
+            # At NFE=1 every token commits in one pass, so unmask order is irrelevant.
+            # R0 re-eval (2026-07-24) showed random > confidence at our scale — log both.
+            strategies = ["confidence"] if nfe == 1 else ["confidence", "random"]
+            for strategy in strategies:
+                predictions = self.criterion.denoise(
+                    batch=batch,
+                    shortcut_size=shortcut,
+                    probe_every_step=False,
+                    return_logits=False,
+                    step_size=step_size,
+                    unmask_strategy=strategy,
+                )
+                metrics = compute_generation_metrics_from_batch(
+                    batch=batch,
+                    predicted_tokens=predictions,
+                    tokenizer=self.tokenizer,
+                    use_fallback_processing=False,
+                    smoothing_method=4,
+                )
+                suffix = f"nfe{nfe}" if strategy == "confidence" else f"nfe{nfe}_{strategy}"
+                primary = nfe == max(self.val_nfe_list) and strategy == "confidence"
+                self.log(f"val/bleu_{suffix}", metrics["bleu"], on_step=False, on_epoch=True,
+                        prog_bar=primary, batch_size=batch.seqs.size(0), sync_dist=True)
+                self.log(f"val/copy_pct_{suffix}", metrics["copy_pct"], on_step=False, on_epoch=True,
                         batch_size=batch.seqs.size(0), sync_dist=True)
+                if primary:
+                    # keep val/bleu as an alias so existing checkpointing/monitor configs work
+                    self.log("val/bleu", metrics["bleu"], on_step=False, on_epoch=True,
+                            batch_size=batch.seqs.size(0), sync_dist=True)
 
     def _process_validation_predictions(self, batch: EncoderBatch, batch_idx: int) -> float:
         """Process a batch for validation predictions and store results.
