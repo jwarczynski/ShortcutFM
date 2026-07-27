@@ -15,6 +15,13 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-27] experiment | Round-2 B-series gated; recipe-candidate pair launched (30k)
+
+- B-series (bert-init lr 3e-5, 10k): **bertinit-tclip 0.254 bleu16** / nocons variant 0.269 (random) — matches from-scratch 50k ceiling at 1/5 steps, no copy collapse. See [[exp-round2-bertinit]].
+- Candidate recipe = bert-init + lr 3e-5 + t-clip[0.15,0.95]. Definitive consistency A/B at 30k launched on athena: `mdlm-r3-cand-cons` 2828089 vs `mdlm-r3-cand-nocons` 2828088.
+- PCSS venv fixed (uv-managed python on project storage — login/compute node python mismatch documented in [[cluster-pcss]]); C-series resubmitted: 7810123 (tclip-30k), 7810124 (combo-30k).
+
+
 ## [2026-07-24] experiment | bert-init retracted (copy collapse); round 2 launched (6 runs)
 
 - **RETRACTION**: `mdlm-r1-bert-init` BLEU 0.271 was **100% source copying** (val/copy_pct caught it; BLEU bit-identical across NFE). At lr 1e-4, pretrained BERT locks onto reproduce-the-source. Run cancelled. See [[bug-bert-init-copy-collapse]]. Honest bert-init signal = round-1 combo (lr 3e-5, copy 4.8%).
