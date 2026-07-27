@@ -49,3 +49,10 @@ Config: `configs/training/qqp_masked_r1_pcss.yaml` (tesla partition, 4 GPUs/node
 - Login node has internet; assume compute nodes may not — **pre-download HF models on the login node** (`AutoTokenizer/AutoConfig.from_pretrained` once) before submitting.
 - First-time authorized_keys edit: an existing ssh-rsa key had no trailing newline, so an appended key got concatenated onto it and silently ignored — check `cat -A ~/.ssh/authorized_keys` if key auth fails.
 - `exca` submissions block until job completion (same as other clusters) — always nohup-background them.
+- **wandb API key must be in `~/.netrc`** (`machine api.wandb.ai ...`) — compute jobs die
+  at `wandb login` otherwise (hit 2026-07-27, jobs 7810123/24). Copied from Athena's netrc.
+- **venv must use a uv-managed Python on project storage** (`UV_PYTHON_INSTALL_DIR=.../tools/pythons`,
+  then `uv venv --python 3.12`): the login node's `/usr/bin/python3.12` does not exist on
+  compute nodes, so a system-python venv fails with `execve: No such file or directory`.
+- 4-GPU-free tesla nodes are scarce; **2 GPUs + accumulate_grad_batches=8** (same effective
+  batch as 4×acc4) schedules much faster on the 50+ mixed nodes.
