@@ -15,6 +15,13 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-28] bug | combo-30k collapse at consistency onset; PCSS maintenance
+
+- `mdlm-r2-combo-30k`: healthy 0.27 bleu16 until step 5000, then **collapse at consistency_start_step=5000** (bleu16 0.27→0.02; bleu1 0.26→0.01, never recovered). Abrupt objective switch + untrained d-pathway wrecks the trunk. Rule: consistency from step 0 or with a weight ramp — never abruptly mid-training. See [[bug-consistency-onset-collapse]]. Retroactively explains round-1 cons-delay-5k weakness.
+- Also: combo-30k hit the 720-min walltime at 16k/30k; PCSS went into maintenance ("System is going down") — tclip-30k rerun (7815289) fate unknown until it's back. Athena candidate pair still queued.
+- Peak numbers so far: combo pre-collapse **bleu1 0.26-0.27 at NFE=1 at ~5k steps** (bert-init+warmup) — best 1-step result of the whole search.
+
+
 ## [2026-07-27] experiment | Round-2 B-series gated; recipe-candidate pair launched (30k)
 
 - B-series (bert-init lr 3e-5, 10k): **bertinit-tclip 0.254 bleu16** / nocons variant 0.269 (random) — matches from-scratch 50k ceiling at 1/5 steps, no copy collapse. See [[exp-round2-bertinit]].
