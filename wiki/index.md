@@ -43,3 +43,5 @@ This is the catalog of all wiki pages. Start here when exploring. See [[schema]]
 - Repo: [jwarczynski/ShortcutFM](https://github.com/jwarczynski/ShortcutFM)
 - Wandb: [jedrasowicz/Thesis](https://wandb.ai/jedrasowicz/Thesis)
 - Paper: [ACL 2026 short](https://aclanthology.org/2026.acl-short.53/)
+
+- [report-outline](report-outline.md) — narrative outline for the final HTML report (key findings, in order)
