@@ -15,6 +15,12 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-28] experiment | tclip-30k timed out at 13.7k (numbers excellent); candidate pair hedged onto PCSS
+
+- `mdlm-r2-tclip-30k` (pcss): TIMEOUT at 12h/13.7k steps (720-min default again — my miss). But the data is decisive: **bleu16-random 0.277 and bleu1 0.229 at ~12.5k steps, still climbing** — from-scratch t-clip beats the v1 50k ceiling (0.266) in a quarter of the steps. t-clip is confirmed as the strongest single from-scratch factor.
+- Athena candidate pair (2828088/89) queued >24h (GenieSAE jobs share the account priority). Hedged: same A/B submitted on PCSS as `mdlm-r3p-cand-{cons,nocons}` (7822668/69), 15k steps, timeout_min=1440, 2 GPUs, gpu16 excluded. First to run wins; the other gets cancelled.
+
+
 ## [2026-07-28] bug | combo-30k collapse at consistency onset; PCSS maintenance
 
 - `mdlm-r2-combo-30k`: healthy 0.27 bleu16 until step 5000, then **collapse at consistency_start_step=5000** (bleu16 0.27→0.02; bleu1 0.26→0.01, never recovered). Abrupt objective switch + untrained d-pathway wrecks the trunk. Rule: consistency from step 0 or with a weight ramp — never abruptly mid-training. See [[bug-consistency-onset-collapse]]. Retroactively explains round-1 cons-delay-5k weakness.
