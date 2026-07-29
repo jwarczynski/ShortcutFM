@@ -1,4 +1,5 @@
 import json
+import os
 
 import torch
 from torch.utils.data import Dataset
@@ -57,10 +58,13 @@ def helper_tokenize(data, vocab_dict=None, seq_len=None, tokenize_function=None,
             result_dict = {"input_id_x": input_id_x, "input_id_y": input_id_y}
             return result_dict
 
+    # num_proc via TOKENIZE_NUM_PROC (default 4). Set to 1 to avoid HF datasets fork
+    # deadlocks on long docs / contended login nodes (observed on PCSS with XSum).
+    _tok_num_proc = int(os.environ.get("TOKENIZE_NUM_PROC", "4"))
     tokenized_datasets = dataset.map(
         tokenize_function,
         batched=True,
-        num_proc=4,
+        num_proc=_tok_num_proc,
         remove_columns=["src", "trg"] if "src" in dataset.column_names and "trg" in dataset.column_names else [],
         load_from_cache_file=True,
         desc="Running tokenizer on dataset",
