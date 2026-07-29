@@ -206,6 +206,32 @@ if __name__ == "__main__":
                 col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
             ],
         )
+    elif args.dataset.lower() == "xsum":
+        # Summarization: document -> single-sentence summary. Long source stresses the
+        # seq_len-256 format; run with --max_seq_length 256 and max_position_embeddings 256.
+        data = datasets.load_dataset("EdinburghNLP/xsum")
+        data = data.map(lambda x: {"src": x["document"], "trg": x["summary"]})
+        train_corpus = helper_tokenize(data["train"], tokenizer, args.max_seq_length, from_dict=False)
+        train_corpus = train_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in train_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        val_corpus = helper_tokenize(data["validation"], tokenizer, args.max_seq_length, from_dict=False)
+        val_corpus = val_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in val_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        test_corpus = helper_tokenize(data["test"], tokenizer, args.max_seq_length, from_dict=False)
+        test_corpus = test_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
     elif args.dataset.lower() == "grammar_correction":
         # Load Grammar Correction dataset from Hugging Face datasets
         data = datasets.load_dataset("agentlans/grammar-correction")

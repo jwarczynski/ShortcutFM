@@ -1,0 +1,106 @@
+# Summarization: XSum (document -> single-sentence summary), masked diffusion, winning
+# recipe (PCSS/H100). Recipe = bert-init + lr 3e-5 + t-clip[0.15,0.95] + myle warmup + EMA.
+# Consistency-ON arm of the shortcut A/B; nocons arm via CLI override
+# (self_consistency_ratio=0 consistency_loss_weight=0).
+# seq_len 256: dataset tokenized with --max_seq_length 256. We keep bert-base's native
+# 512 position embeddings (>=256, so no re-init needed) — shrinking to 256 would break
+# bert-init (pretrained pos-emb table is 512-wide). bert-base has native [MASK]=103.
+training_data_path: "datasets/tokenized/bert-base-uncased/xsum/train"
+validation_data_path: "datasets/tokenized/bert-base-uncased/xsum/valid"
+
+normalize_embeddings: false
+normalize_flow_matching_loss: false
+
+self_consistency_ratio: 0.25
+consistency_start_step: 0
+shortcut_target_x_start_probability: 0.0
+
+flow_matching_loss_weight: 1.0
+consistency_loss_weight: 1.0
+nll_loss_weight: 0.0
+isotropy_loss_weight: 0.0
+
+cfg_guidance_scale: 1.0
+cfg_start_step: null
+cfg_probability: 0.0
+
+denoising_step_size: 2048
+prediction_shortcut_size: 2048
+val_nfe_list: [1, 16]
+
+check_val_every_n_epoch: null
+val_interval: 2500
+log_train_predictions_every_n_epochs: 5
+log_train_predictions_from_n_epochs: 5
+
+batch_size: 64
+accumulate_grad_batches: 8
+gradient_clipping: 1
+max_steps: 30000
+
+limit_train_batches: null
+limit_val_batches: null
+overfit_batches: 0.0
+
+model:
+  type: "masked_diffusion"
+  config_name: "bert-base-uncased"
+  tokenizer_config_name: "bert-base-uncased"
+  diffusion_steps: 2048
+  use_pretrained_weights: true
+  use_pretrained_embeddings: true
+  freeze_word_embedding: false
+  freeze_lm_head: false
+  tie_word_embedding: true
+  input_dims: 768
+  output_dims: 768
+  sc_rate: 0.0
+  hidden_t_dim: 128
+  hidden_shortcut_dim: 128
+  default_shortcut: "0"
+  projection_activation: "tanh"
+  parametrization: "x0"
+  scale_time: false
+  min_shortcut_size: 1
+  mask_token_id: 103
+  ce_importance_weighting: "one_over_t"
+  consistency_loss_space: "l2_embedding"
+  unmask_strategy: "random"
+  t_min_frac: 0.15
+  t_max_frac: 0.95
+
+time_shortcut_sampling:
+  type: timestep_first
+  shortcut_sampler: "uniform"
+  time_sampler: "uniform"
+
+loss:
+  type: mse
+
+optimizer:
+  scheduler:
+    lr: 3e-5
+    type: "myle"
+    warmup_steps: 2000
+    start_lr: 1e-7
+
+wandb:
+  project_name: "Thesis"
+  run_name: "mdlm-summ-xsum-cons"
+  enabled: true
+
+checkpoint:
+  save_folder: "checkpoints/xsum/mdlm_summ_xsum_cons"
+  enabled: true
+
+use_exca: true
+infra:
+  cluster: "slurm"
+  folder: "jobs"
+  timeout_min: 2880
+  mode: "force"
+  slurm_partition: "tesla"
+  gpus_per_node: 2
+  tasks_per_node: 2
+  cpus_per_task: 4
+  slurm_use_srun: true
