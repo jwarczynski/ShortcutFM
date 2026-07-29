@@ -15,6 +15,16 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-29] experiment | Next phase launched — decode study + MT (iwslt) + summarization (XSum)
+
+Post-recipe-search phase kicked off (decode modes → MT → summ → HTML report):
+
+- **Decode modes implemented** (training-free): confidence-threshold + block decoding added at the single commit choke point in `MaskedDiffusionCriterion.denoise`, forwarded through the composite passthrough; 7 new unit tests pass. `scripts/decode_study.py` sweeps NFE × decode-mode on existing QQP checkpoints (v1 pair + winning-recipe tclip pair). **First submit (2840503) TIMED OUT at 2h with no output** — Python stdout buffering + 72 configs over full valid split too heavy. Fixed: flush=True, incremental writes, dropped NFE=64, `--limit-batches 30`; resubmitted (2840907).
+- **MT iwslt A/B launched on Athena**: `mdlm-mt-iwslt-cons` (2840543) vs `nocons` (2840545), 30k steps. iwslt2017 unloadable (datasets≥4 dropped script datasets) → parquet-native opus-100 de-en, 200k subsample. mbert backbone (native [MASK], bert-init transfers; opus-mt vocab can't). See [[exp-mt-iwslt]].
+- **XSum summarization setup on PCSS**: xsum tokenize branch, seq_len 256. **Gotcha:** first tokenize died with `Disk quota exceeded` (HF download filled PCSS 1 GB home) → fixed with `HF_HOME` on scratch. Re-tokenizing. See [[exp-summ-xsum]].
+- Wiki: recipe search formally closed; task #17 done. HTML report is the terminal deliverable, built while MT/summ train.
+
+
 ## [2026-07-29] experiment | Recipe search CLOSED — shortcuts don't help short-target paraphrasing
 
 - Definitive consistency A/B finished (PCSS 15k, `mdlm-r3p-cand-cons` 7822695 vs `nocons` 7822696): cons and nocons reach **identical multi-step ceilings** (b16r ~0.273; nocons peak 0.281), and **nocons is better at NFE=1** (0.155 vs 0.107). Consistency training is pure opportunity cost on QQP's ~14-token targets. See [[exp-r3p-consistency-ab]].
