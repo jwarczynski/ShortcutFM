@@ -124,6 +124,9 @@ class MaskedDiffusionCriterion(Criterion):
         guidance_scale: float | None = None,
         use_ground_truth_embeddings: bool = False,
         unmask_strategy: str | None = None,
+        decode_mode: str = "schedule",
+        conf_threshold: float = 0.9,
+        block_size: int = 32,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         """Iteratively unmask target tokens, conditioned on shortcut size.
 
@@ -132,7 +135,18 @@ class MaskedDiffusionCriterion(Criterion):
               [bsz, num_steps, seq_len, vocab] if probe_every_step else [bsz, seq_len, vocab]
             - return_decoded: decoded strings (per step if probe_every_step)
             - otherwise token ids, [bsz, num_steps, seq_len] if probe_every_step else [bsz, seq_len]
+
+        `decode_mode` selects how many / which masked positions commit each step:
+            - "schedule" (default): reveal enough to reach mask ratio t_next/t, ordered
+              by `unmask_strategy` (confidence or random). Original behaviour.
+            - "threshold": commit every position whose top-class probability >=
+              `conf_threshold` (a variable count per step; >=1 forced so it terminates).
+            - "block": LLaDA-style left-to-right block decoding — eligibility restricted
+              to the left-most block of `block_size` target positions that still has
+              masks, then the schedule count applied within that block.
         """
+        if decode_mode not in ("schedule", "threshold", "block"):
+            raise ValueError(f"Unknown decode_mode: {decode_mode}")
         if shortcut_size is None and step_size is None:
             raise ValueError("Either shortcut_size or step_size must be provided")
         if (shortcut_size == 0 or shortcut_size is None) and step_size is None:
@@ -157,6 +171,12 @@ class MaskedDiffusionCriterion(Criterion):
         # Track masked state explicitly — comparing x to mask_token_id would break if the
         # model ever predicts the mask token itself
         currently_masked = denoise_mask == 1
+        # For block decoding: assign each target position a block id by its left-to-right
+        # rank within the target region (source/pad positions get a large sentinel so they
+        # never win the "left-most block with masks" selection)
+        if decode_mode == "block":
+            target_rank = (denoise_mask == 1).long().cumsum(dim=-1) - 1
+            block_id = torch.where(denoise_mask == 1, target_rank // block_size, seq_len)
         # Source and true-padding positions carry ground-truth one-hot logits so the
         # return_logits path never exposes model re-predictions of the conditioning
         committed_logits = torch.zeros((bsz, seq_len, vocab_size), dtype=torch.float, device=device)
@@ -185,12 +205,39 @@ class MaskedDiffusionCriterion(Criterion):
             # ground-truth source/padding positions are kept
             committed_logits = torch.where(currently_masked.unsqueeze(-1), logits, committed_logits)
 
-            # Reveal enough positions to reach mask ratio t_next / t
-            num_masked = currently_masked.sum(-1)
-            keep = torch.round(num_masked.float() * t_next / t).long()
-            to_unmask = select_positions_to_unmask(
-                currently_masked, num_masked - keep, logits, unmask_strategy
-            )
+            if decode_mode == "threshold":
+                # Commit every still-masked position confident enough; force >=1 per
+                # sample (among samples that still have masks) so the loop terminates
+                confidence = torch.softmax(logits, dim=-1).amax(dim=-1)
+                to_unmask = (confidence >= conf_threshold) & currently_masked
+                has_mask = currently_masked.any(dim=-1)
+                needs_forced = has_mask & ~to_unmask.any(dim=-1)
+                if needs_forced.any():
+                    forced = select_positions_to_unmask(
+                        currently_masked,
+                        needs_forced.long(),
+                        logits,
+                        "confidence",
+                    )
+                    to_unmask = to_unmask | forced
+            elif decode_mode == "block":
+                # Restrict eligibility to the left-most block that still holds masks,
+                # then apply the schedule count within that block
+                masked_block = torch.where(currently_masked, block_id, seq_len)
+                active_block = masked_block.amin(dim=-1, keepdim=True)
+                eligible = currently_masked & (block_id == active_block)
+                num_eligible = eligible.sum(-1)
+                keep = torch.round(num_eligible.float() * t_next / t).long()
+                to_unmask = select_positions_to_unmask(
+                    eligible, num_eligible - keep, logits, unmask_strategy
+                )
+            else:
+                # "schedule": reveal enough positions to reach mask ratio t_next / t
+                num_masked = currently_masked.sum(-1)
+                keep = torch.round(num_masked.float() * t_next / t).long()
+                to_unmask = select_positions_to_unmask(
+                    currently_masked, num_masked - keep, logits, unmask_strategy
+                )
             x = torch.where(to_unmask, predicted_tokens, x)
             currently_masked = currently_masked & ~to_unmask
 
@@ -481,8 +528,12 @@ class MaskedCompositeCriterion(Criterion):
         return_decoded: bool = False,
         return_logits: bool = False,
         step_size: int | None = None,
+        guidance_scale: float | None = None,
         use_ground_truth_embeddings: bool = False,
         unmask_strategy: str | None = None,
+        decode_mode: str = "schedule",
+        conf_threshold: float = 0.9,
+        block_size: int = 32,
     ) -> np.ndarray[str, np.dtype[str]] | Tensor:
         return self.masked_criterion.denoise(
             batch,
@@ -491,6 +542,10 @@ class MaskedCompositeCriterion(Criterion):
             return_decoded=return_decoded,
             return_logits=return_logits,
             step_size=step_size,
+            guidance_scale=guidance_scale,
             use_ground_truth_embeddings=use_ground_truth_embeddings,
             unmask_strategy=unmask_strategy,
+            decode_mode=decode_mode,
+            conf_threshold=conf_threshold,
+            block_size=block_size,
         )

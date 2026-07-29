@@ -1,11 +1,36 @@
 ---
 tags: [meta, roadmap]
-last_updated: 2026-07-23
+last_updated: 2026-07-29
 ---
 
 # Roadmap
 
-Current focus: **Round-1 recipe search** for the masked-diffusion + shortcut setup ([[masked-diffusion-shortcuts]]), motivated by the mixed v1 outcome ([[exp-masked-v1-qqp]]) and the LLaDA recipe gap analysis ([[decision-llada-recipe-takeaways]]).
+## Status (2026-07-29): QQP recipe search CLOSED → next phase active
+
+The masked-diffusion recipe search on QQP is **complete**. Recipe locked:
+**bert-init + lr 3e-5 + t-clip[0.15, 0.95]** (+ EMA 0.99, myle warmup 2000). The
+definitive shortcut A/B ([[exp-r3p-consistency-ab]]) showed consistency gives **no**
+benefit on short-target paraphrasing (identical multi-step ceiling; worse at NFE=1).
+
+**Current phase (in priority order):**
+1. **Decode study** (training-free): confidence-threshold + block decoding on existing
+   QQP checkpoints — does either beat plain confidence/random at matched NFE?
+2. **MT — iwslt14 de-en**: add `[MASK]` to opus-mt vocab + `iwslt` tokenize branch;
+   winning recipe; consistency on/off A/B. First long(er)-target test of shortcuts.
+3. **Summarization — XSum**: net-new tokenize branch, seq_len 256; winning recipe;
+   consistency on/off A/B. Strongest shortcut test (longest targets).
+4. **Living HTML report** (visual-comms, highlight-to-comment) built while MT/summ train.
+5. Bonus if all else finishes: complementary masking (LLaDA2.0 SFT trick).
+
+The shortcut hypothesis needs long targets (many denoising steps to skip) to pay off —
+QQP's ~14-token targets were too short. MT/summ are the real test.
+
+---
+
+## Archived focus (complete): Round-1/2 recipe search
+
+Below is the original recipe-search plan, kept for provenance. Motivated by the mixed v1
+outcome ([[exp-masked-v1-qqp]]) and the LLaDA recipe gap analysis ([[decision-llada-recipe-takeaways]]).
 
 ## Round 0 (prerequisite, in flight)
 

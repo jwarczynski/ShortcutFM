@@ -422,6 +422,93 @@ class TestMaskedDenoise(unittest.TestCase):
             self.criterion.denoise(self.batch, shortcut_size=0)
 
 
+class TestDecodeModes(unittest.TestCase):
+    """Confidence-threshold and block decoding (inference-time, training-free)."""
+
+    def setUp(self):
+        self.model = IdentityLogitsModel()
+        self.criterion = MaskedDiffusionCriterion(
+            self.model,
+            diffusion_steps=DIFFUSION_STEPS,
+            tokenizer=MagicMock(),
+            training_cfg=make_training_cfg(),
+        )
+        self.batch = make_batch()
+        self.denoise_mask = self.batch.input_ids_mask * self.batch.padding_mask
+
+    def test_unknown_decode_mode_raises(self):
+        with self.assertRaises(ValueError):
+            self.criterion.denoise(self.batch, step_size=2, decode_mode="bogus")
+
+    def test_threshold_completes_and_preserves_source(self):
+        # IdentityLogitsModel emits near-certain logits, so a high threshold still
+        # commits; output must be fully unmasked with source/padding untouched.
+        out = self.criterion.denoise(
+            self.batch, step_size=2, probe_every_step=False,
+            decode_mode="threshold", conf_threshold=0.99,
+        )
+        self.assertTrue((out[self.denoise_mask == 1] != MASK_ID).all())
+        self.assertTrue(torch.equal(out[self.denoise_mask == 0], self.batch.seqs[self.denoise_mask == 0]))
+
+    def test_threshold_terminates_when_nothing_confident(self):
+        # A threshold above the max achievable confidence would commit nothing without
+        # the forced-min guarantee; output must still be fully unmasked (>1 forced/step).
+        out = self.criterion.denoise(
+            self.batch, step_size=2, probe_every_step=False,
+            decode_mode="threshold", conf_threshold=1.01,
+        )
+        self.assertTrue((out[self.denoise_mask == 1] != MASK_ID).all())
+
+    def test_block_decodes_left_to_right(self):
+        # With block_size 1 and probe_every_step, the left-most masked target must be
+        # revealed no later than any target to its right.
+        seq = self.criterion.denoise(
+            self.batch, step_size=1, probe_every_step=True,
+            decode_mode="block", block_size=1,
+        )
+        # For sample 0, find first step each target position stopped being MASK
+        target_cols = (self.denoise_mask[0] == 1).nonzero(as_tuple=True)[0].tolist()
+        first_commit = {}
+        for col in target_cols:
+            committed = (seq[0, :, col] != MASK_ID).nonzero(as_tuple=True)[0]
+            first_commit[col] = committed.min().item() if len(committed) else DIFFUSION_STEPS + 1
+        commit_steps = [first_commit[c] for c in sorted(target_cols)]
+        self.assertEqual(commit_steps, sorted(commit_steps))
+
+    def test_block_completes_and_preserves_source(self):
+        out = self.criterion.denoise(
+            self.batch, step_size=2, probe_every_step=False,
+            decode_mode="block", block_size=2,
+        )
+        self.assertTrue((out[self.denoise_mask == 1] != MASK_ID).all())
+        self.assertTrue(torch.equal(out[self.denoise_mask == 0], self.batch.seqs[self.denoise_mask == 0]))
+
+    def test_new_modes_keep_source_logits_ground_truth(self):
+        for mode, kw in (("threshold", {"conf_threshold": 0.5}), ("block", {"block_size": 2})):
+            logits = self.criterion.denoise(
+                self.batch, step_size=2, probe_every_step=False, return_logits=True,
+                decode_mode=mode, **kw,
+            )
+            source_or_pad = self.denoise_mask == 0
+            self.assertTrue(
+                torch.equal(logits.argmax(-1)[source_or_pad], self.batch.seqs[source_or_pad]),
+                msg=f"decode_mode={mode} corrupted source/pad logits",
+            )
+
+    def test_composite_passthrough_forwards_decode_kwargs(self):
+        # MaskedCompositeCriterion.denoise must forward the new kwargs to the inner criterion.
+        composite = MaskedCompositeCriterion.__new__(MaskedCompositeCriterion)
+        composite.masked_criterion = MagicMock()
+        MaskedCompositeCriterion.denoise(
+            composite, self.batch, step_size=2,
+            decode_mode="block", conf_threshold=0.8, block_size=16,
+        )
+        _, kwargs = composite.masked_criterion.denoise.call_args
+        self.assertEqual(kwargs["decode_mode"], "block")
+        self.assertEqual(kwargs["conf_threshold"], 0.8)
+        self.assertEqual(kwargs["block_size"], 16)
+
+
 if __name__ == "__main__":
     unittest.main()
 

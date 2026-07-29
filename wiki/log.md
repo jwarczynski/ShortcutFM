@@ -15,6 +15,13 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-29] experiment | Recipe search CLOSED — shortcuts don't help short-target paraphrasing
+
+- Definitive consistency A/B finished (PCSS 15k, `mdlm-r3p-cand-cons` 7822695 vs `nocons` 7822696): cons and nocons reach **identical multi-step ceilings** (b16r ~0.273; nocons peak 0.281), and **nocons is better at NFE=1** (0.155 vs 0.107). Consistency training is pure opportunity cost on QQP's ~14-token targets. See [[exp-r3p-consistency-ab]].
+- **Recipe locked**: bert-init + lr 3e-5 + t-clip[0.15,0.95] + EMA 0.99 + myle warmup 2000. Round-2 design closed ([[decision-round2-design]]).
+- Answers the user's core question ("are shortcuts making it better?"): NO for short targets. The shortcut hypothesis needs long targets (many denoising steps to skip) → next phase = MT (iwslt14) + summarization (XSum), plus a training-free decode study (confidence-threshold / block decoding). Athena duplicate pair 2828088/89 cancelled.
+
+
 ## [2026-07-28] experiment | tclip-30k timed out at 13.7k (numbers excellent); candidate pair hedged onto PCSS
 
 - `mdlm-r2-tclip-30k` (pcss): TIMEOUT at 12h/13.7k steps (720-min default again — my miss). But the data is decisive: **bleu16-random 0.277 and bleu1 0.229 at ~12.5k steps, still climbing** — from-scratch t-clip beats the v1 50k ceiling (0.266) in a quarter of the steps. t-clip is confirmed as the strongest single from-scratch factor.

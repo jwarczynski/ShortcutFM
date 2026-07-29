@@ -14,17 +14,23 @@ This is the catalog of all wiki pages. Start here when exploring. See [[schema]]
 ## Experiments
 
 - [[exp-masked-v1-qqp]] — First 2×50k QQP runs (main r43zphwi + no-consistency ablation exu5bftd); complete, outcome mixed — all val numbers contaminated by eval bugs
-- [[exp-r0-reeval]] — Planned re-eval of v1 checkpoints: NFE {1,4,16,64} × {confidence,random}, ablation at d=0; in progress
+- [[exp-r0-reeval]] — Re-eval of v1 checkpoints: NFE {1,4,16,64} × {confidence,random}, ablation at d=0; complete → [[exp-r0-reeval-results]]
+- [[exp-r0-reeval-results]] — Corrected numbers: masked ~0.27 at ~50k, above continuous baseline (0.155); confidence underperforms random at NFE≥16
+- [[exp-round2-bertinit]] — Round-2 B-series: bert-init lr 3e-5 + t-clip hits the ceiling in ~1/5 the steps
+- [[exp-r3p-consistency-ab]] — DEFINITIVE shortcut A/B: consistency gives no benefit on short-target QQP; recipe search closed
 
 ## Bugs
 
 - [[bug-eval-nfe1-random]] — val/bleu measured at NFE=1 with random unmasking (denoising_step_size=2048=diffusion_steps); fix = multi-NFE validation + confidence unmasking default
 - [[bug-ablation-shortcut-conditioning]] — no-consistency ablation evaluated at d=2048 with an untrained shortcut embedding; its 0.209 is invalid; fix = eval at d=0
 - [[bug-val-table-source-repredicted]] — denoise return_logits re-predicts source/padding positions instead of ground truth → garbled val table + inflated full_denoising_ce
+- [[bug-bert-init-copy-collapse]] — bert-init at lr 1e-4 scores a fake 0.271 BLEU that is 100% source-copy; caught by copy% metric; use lr 3e-5
+- [[bug-consistency-onset-collapse]] — STAR FINDING: enabling consistency abruptly mid-training (start_step=5000) causes catastrophic collapse; bleu1 never recovers. From step 0 or ramped only
 
 ## Decisions
 
 - [[decision-llada-recipe-takeaways]] — Recipe facts from LLaDA + LLaDA2.0 with our-status annotations; drives the Round-1 recipe search
+- [[decision-round2-design]] — Round-2 design + OUTCOME: recipe locked (bert-init + lr 3e-5 + t-clip[0.15,0.95]); shortcuts don't help short targets
 
 ## Infrastructure
 

@@ -1,11 +1,19 @@
 ---
 tags: [decision, masked-diffusion, recipe-search, round2]
-status: in-progress
+status: complete
 date: 2026-07-24
-related: [[exp-r0-reeval-results]] [[bug-bert-init-copy-collapse]] [[decision-llada-recipe-takeaways]]
+related: [[exp-r0-reeval-results]] [[bug-bert-init-copy-collapse]] [[decision-llada-recipe-takeaways]] [[exp-r3p-consistency-ab]]
 ---
 
 # Round-2 design
+
+## OUTCOME (2026-07-29) — recipe locked, search closed
+
+Winning recipe: **bert-init + lr 3e-5 + t-clip[0.15, 0.95]** (+ EMA 0.99, myle warmup
+2000). The round-3 A/B ([[exp-r3p-consistency-ab]]) settled the consistency question:
+on short-target QQP, shortcuts give **no** benefit — identical multi-step ceiling and
+*worse* NFE=1 than the no-consistency variant. The shortcut hypothesis moves to
+long-target tasks (summarization / MT). Recipe search is complete.
 
 ## Round-1 gate summary (10k steps, BLEU@NFE16 best-strategy / copy%)
 
