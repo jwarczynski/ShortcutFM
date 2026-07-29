@@ -176,11 +176,15 @@ if __name__ == "__main__":
         )
         # test_corpus = val_corpus  # For simplicity, use validation set as test set
     elif args.dataset.lower() == "iwslt":
-        # IWSLT2017 de-en — smaller than WMT19 (~160k pairs), fast first MT signal.
-        # de -> en, matching the wmt branch direction.
-        data = datasets.load_dataset("iwslt2017", "iwslt2017-de-en")
+        # de -> en MT, smaller than WMT19 for fast first signal. iwslt2017 is no longer
+        # loadable (datasets>=4 dropped script datasets), so we use the parquet-native
+        # Helsinki-NLP/opus-100 de-en mirror (same translation/{de,en} format) and
+        # subsample train to ~200k pairs to keep it iwslt-sized.
+        data = datasets.load_dataset("Helsinki-NLP/opus-100", "de-en")
         data = data.map(lambda x: {"src": x["translation"]["de"], "trg": x["translation"]["en"]})
-        # iwslt2017 already ships train/validation/test splits
+        if len(data["train"]) > 200_000:
+            data["train"] = data["train"].shuffle(seed=42).select(range(200_000))
+        # opus-100 ships train/validation/test splits
         train_corpus = helper_tokenize(data["train"], tokenizer, args.max_seq_length, from_dict=False)
         train_corpus = train_corpus.map(
             lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
