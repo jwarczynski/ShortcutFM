@@ -32,8 +32,12 @@ from shortcutfm.train.pl.trainer_factory import create_criterion, load_unit_from
 
 CHECKPOINTS = [
     # (label, run_dir, ckpt_name, consistency_trained)
+    # Converged v1 pair (directly comparable to the R0 baseline table)
     ("main-50k", "checkpoints/qqp/masked_diffusion/run_r43zphwi", "epoch=704-step=50000-val_bleu=0.0000.ckpt", True),
     ("ablation-50k", "checkpoints/qqp/masked_no_consistency/run_exu5bftd", "epoch=704-step=50000-val_bleu=0.0000.ckpt", False),
+    # Winning-recipe pair (bert-init + lr 3e-5 + t-clip), 10k steps
+    ("tclip-cons-10k", "checkpoints/qqp/mdlm_r2_bertinit_tclip/run_h9f9sgwl", "epoch=140-step=10000-val_bleu=0.0000.ckpt", True),
+    ("tclip-nocons-10k", "checkpoints/qqp/mdlm_r2_bertinit_tclip_nocons/run_16mirxf9", "epoch=140-step=10000-val_bleu=0.0000.ckpt", False),
 ]
 NFES = [4, 16, 64]
 
