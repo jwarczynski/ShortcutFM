@@ -39,7 +39,7 @@ CHECKPOINTS = [
     ("tclip-cons-10k", "checkpoints/qqp/mdlm_r2_bertinit_tclip/run_h9f9sgwl", "epoch=140-step=10000-val_bleu=0.0000.ckpt", True),
     ("tclip-nocons-10k", "checkpoints/qqp/mdlm_r2_bertinit_tclip_nocons/run_16mirxf9", "epoch=140-step=10000-val_bleu=0.0000.ckpt", False),
 ]
-NFES = [4, 16, 64]
+NFES = [4, 16]
 
 # (mode label, denoise kwargs). schedule modes reproduce the R0 baseline at matched NFE.
 DECODE_CONFIGS = [
@@ -135,8 +135,11 @@ def main() -> int:
                 bleu = agg["bleu"] / max(n_batches, 1)
                 copy_pct = agg["copy_pct"] / max(n_batches, 1)
                 lines.append(f"| {nfe} | {mode_label} | {shortcut} | {bleu:.4f} | {copy_pct:.1f} |")
-                print(f"{label} NFE={nfe} {mode_label} d={shortcut}: BLEU={bleu:.4f} copy={copy_pct:.1f}%")
+                print(f"{label} NFE={nfe} {mode_label} d={shortcut}: BLEU={bleu:.4f} copy={copy_pct:.1f}%", flush=True)
+                # Write incrementally so partial results survive a timeout
+                Path(args.out).write_text("\n".join(lines) + "\n")
         lines.append("")
+        Path(args.out).write_text("\n".join(lines) + "\n")
 
     Path(args.out).write_text("\n".join(lines) + "\n")
     print(f"Wrote {args.out}")
