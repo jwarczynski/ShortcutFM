@@ -15,6 +15,15 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-29] experiment | Decode study DONE — confidence-threshold breaks 0.30 (new project best)
+
+- `results_decode_study.md` (Athena 2840907): **confidence-threshold decoding (τ≈0.9, NFE=16) is the best decoder** — ablation-50k hits **BLEU 0.318** (τ=0.95), tclip-nocons 0.295, main-50k 0.290. Prior project ceiling was ~0.27. Pure decode-time change, no retraining. See [[exp-decode-study]].
+- Resolves the R0 puzzle: confidence *ordering* with a fixed per-step count underperformed random; confidence *thresholding* (variable count, commit only sure positions) fixes it and wins. Confidence was the right signal all along; the rigid count schedule was the problem.
+- Win concentrates on no-consistency / d=0 models → reinforces [[exp-r3p-consistency-ab]] (shortcuts still buy nothing on QQP, even with the better decoder). Block decoding a wash on short targets; parked for long-target summ.
+- **Adopt confidence-threshold as default decoder** for MT/summ evals.
+- XSum tokenization: PCSS login node **hung** (single-proc too, 4h at batch 1000 — pathological long docs / login throttling) → relocated to Athena (where iwslt tokenized in ~1 min). Added `TOKENIZE_NUM_PROC` env knob.
+
+
 ## [2026-07-29] experiment | Next phase launched — decode study + MT (iwslt) + summarization (XSum)
 
 Post-recipe-search phase kicked off (decode modes → MT → summ → HTML report):

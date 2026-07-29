@@ -18,6 +18,7 @@ This is the catalog of all wiki pages. Start here when exploring. See [[schema]]
 - [[exp-r0-reeval-results]] — Corrected numbers: masked ~0.27 at ~50k, above continuous baseline (0.155); confidence underperforms random at NFE≥16
 - [[exp-round2-bertinit]] — Round-2 B-series: bert-init lr 3e-5 + t-clip hits the ceiling in ~1/5 the steps
 - [[exp-r3p-consistency-ab]] — DEFINITIVE shortcut A/B: consistency gives no benefit on short-target QQP; recipe search closed
+- [[exp-decode-study]] — Confidence-THRESHOLD decoding (τ≈0.9, NFE16) breaks 0.30 BLEU (0.318 best) — new project best, training-free
 - [[exp-mt-iwslt]] — Task generalization: MT (opus-100 de→en) masked diffusion, winning recipe, cons/nocons A/B; running on Athena
 - [[exp-summ-xsum]] — Task generalization: summarization (XSum, seq_len 256), winning recipe, cons/nocons A/B; setup on PCSS
 
