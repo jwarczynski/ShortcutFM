@@ -126,7 +126,7 @@ if __name__ == "__main__":
             remove_columns=[
                 col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
             ],
-z        )
+        )
     elif args.dataset.lower() == "wmt":
         # Load WMT19 en-de dataset from Hugging Face datasets
         data = datasets.load_dataset("wmt19", "de-en")
@@ -175,6 +175,33 @@ z        )
             ],
         )
         # test_corpus = val_corpus  # For simplicity, use validation set as test set
+    elif args.dataset.lower() == "iwslt":
+        # IWSLT2017 de-en — smaller than WMT19 (~160k pairs), fast first MT signal.
+        # de -> en, matching the wmt branch direction.
+        data = datasets.load_dataset("iwslt2017", "iwslt2017-de-en")
+        data = data.map(lambda x: {"src": x["translation"]["de"], "trg": x["translation"]["en"]})
+        # iwslt2017 already ships train/validation/test splits
+        train_corpus = helper_tokenize(data["train"], tokenizer, args.max_seq_length, from_dict=False)
+        train_corpus = train_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in train_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        val_corpus = helper_tokenize(data["validation"], tokenizer, args.max_seq_length, from_dict=False)
+        val_corpus = val_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in val_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
+        test_corpus = helper_tokenize(data["test"], tokenizer, args.max_seq_length, from_dict=False)
+        test_corpus = test_corpus.map(
+            lambda x: {"input_ids": x["input_ids"], "input_mask": x["input_mask"], "padding_mask": x["padding_mask"]},
+            remove_columns=[
+                col for col in test_corpus.column_names if col not in ["input_ids", "input_mask", "padding_mask"]
+            ],
+        )
     elif args.dataset.lower() == "grammar_correction":
         # Load Grammar Correction dataset from Hugging Face datasets
         data = datasets.load_dataset("agentlans/grammar-correction")

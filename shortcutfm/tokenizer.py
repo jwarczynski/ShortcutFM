@@ -15,18 +15,31 @@ class MyTokenizer:
             self.sep_token_id = tokenizer.sep_token_id
             self.pad_token_id = tokenizer.pad_token_id
             self.null_token_id = tokenizer.convert_tokens_to_ids("[NULL]")
+            self.mask_token_id = tokenizer.mask_token_id  # bert has [MASK] natively (103)
+            # bert vocab_size unchanged from prior behaviour (30522; [NULL] sits above it)
+            self.vocab_size = tokenizer.vocab_size
             # save
             if not is_eval:
                 tokenizer.save_pretrained(args.checkpoint_path)
         elif args.vocab == "mt":
-            self.tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_config_name)
-            self.sep_token_id = self.tokenizer.convert_tokens_to_ids("</s>")
-            self.pad_token_id = self.tokenizer.convert_tokens_to_ids("<pad>")
-            self.null_token_id = self.tokenizer.convert_tokens_to_ids("<unk>")
+            tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_config_name)
+            # Marian/opus-mt has no mask token — add one for masked diffusion. It becomes
+            # the largest id (vocab_size), so model vocab_size must be bumped by one.
+            if "[MASK]" not in tokenizer.get_vocab():
+                tokenizer.add_special_tokens({"additional_special_tokens": ["[MASK]"]})
+            self.tokenizer = tokenizer
+            self.sep_token_id = tokenizer.convert_tokens_to_ids("</s>")
+            self.pad_token_id = tokenizer.convert_tokens_to_ids("<pad>")
+            self.null_token_id = tokenizer.convert_tokens_to_ids("<unk>")
+            self.mask_token_id = tokenizer.convert_tokens_to_ids("[MASK]")
+            # len() includes the added [MASK]; .vocab_size would not
+            self.vocab_size = len(tokenizer)
+            if not is_eval:
+                tokenizer.save_pretrained(args.checkpoint_path)
 
-        self.vocab_size = self.tokenizer.vocab_size
         args.vocab_size = self.vocab_size  # update vocab size in args
         args.null_token_id = self.null_token_id  # update null token id in args
+        args.mask_token_id = self.mask_token_id  # update mask token id in args
 
     def encode_token(self, sentences):
         if isinstance(self.tokenizer, dict):

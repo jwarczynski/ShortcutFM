@@ -214,7 +214,7 @@ class TransformerNetModelFactory:
         :return: Tuple of (input_transformers, position_embeddings, layer_norm)
         :rtype: Tuple[nn.Module, Optional[nn.Embedding], Optional[nn.LayerNorm]]
         """
-        if self.config.config_name == "bert-base-uncased":
+        if self.config.config_name in ("bert-base-uncased", "bert-base-multilingual-cased"):
             return self._create_bert_backbone(word_embedding)
         elif self.config.config_name == "answerdotai/ModernBERT-base":
             return self._create_modern_bert_backbone(word_embedding)
