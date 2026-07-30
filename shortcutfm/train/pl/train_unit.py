@@ -459,8 +459,12 @@ class TrainModule(pl.LightningModule):
 
     @torch.no_grad()
     def _calculate_anisotropy(self, model_emb):
+        # sum_{i,j} cos(e_i, e_j) = ||sum_i e_hat_i||^2 for L2-normalized e_hat, which
+        # avoids materializing the V x V similarity matrix (OOM for large vocabs, e.g.
+        # mbert's 119547 -> 53 GiB). Mathematically identical to the mm(.).sum() form.
         model_emb = model_emb / torch.norm(model_emb, dim=-1, keepdim=True)
-        cos_similarity = torch.mm(model_emb, model_emb.T).sum() - model_emb.size(0)
+        summed = model_emb.sum(dim=0)
+        cos_similarity = summed.dot(summed) - model_emb.size(0)
         anisotropy = cos_similarity / model_emb.size(0) / (model_emb.size(0) - 1)
         return anisotropy
 
