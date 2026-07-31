@@ -31,8 +31,10 @@ val_interval: 2500
 log_train_predictions_every_n_epochs: 5
 log_train_predictions_from_n_epochs: 5
 
-batch_size: 128
-accumulate_grad_batches: 4
+# batch 64 (not 128): mbert's 119547 vocab makes logits ~4x QQP's; batch 128 OOMs on
+# 40GB A100s, especially during NFE=16 validation denoising. 64x8 keeps eff. batch 512.
+batch_size: 64
+accumulate_grad_batches: 8
 gradient_clipping: 1
 max_steps: 30000
 
