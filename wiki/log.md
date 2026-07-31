@@ -15,6 +15,13 @@ Types: `ingest`, `experiment`, `bug`, `decision`, `meta`, `note`.
 
 ---
 
+## [2026-07-31] bug | MT jobs OOM on mbert's 119547 vocab — fixed (anisotropy + batch 64)
+
+- MT iwslt jobs repeatedly OOM'd on 40GB A100s (QQP ran fine at batch 128). Cause: mbert vocab 119547 (~4× QQP's) inflates vocab-sized tensors. Three sites: (1) anisotropy `mm(emb,emb.T)` = 53 GiB → rewrote as `||sum ê_i||²` O(V·d) (c1a3d8a); (2) batch-128 CE logits 7.8 GiB; (3) NFE=16 validation denoising. Fixed with batch 64 / accumulate 8 + `expandable_segments:True` (f4220b1). See [[bug-mbert-vocab-oom]].
+- A submitit zombie masked it: squeue showed cons "RUNNING 14h" while the training process had died at step 2500 (val OOM) the night before — always verify via job err log, not just squeue state.
+- Both arms relaunched clean: cons 2847706, nocons 2847700 (batch 64), queued on Athena.
+
+
 ## [2026-07-29] experiment | Decode study DONE — confidence-threshold breaks 0.30 (new project best)
 
 - `results_decode_study.md` (Athena 2840907): **confidence-threshold decoding (τ≈0.9, NFE=16) is the best decoder** — ablation-50k hits **BLEU 0.318** (τ=0.95), tclip-nocons 0.295, main-50k 0.290. Prior project ceiling was ~0.27. Pure decode-time change, no retraining. See [[exp-decode-study]].

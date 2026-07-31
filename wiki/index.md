@@ -29,6 +29,7 @@ This is the catalog of all wiki pages. Start here when exploring. See [[schema]]
 - [[bug-val-table-source-repredicted]] — denoise return_logits re-predicts source/padding positions instead of ground truth → garbled val table + inflated full_denoising_ce
 - [[bug-bert-init-copy-collapse]] — bert-init at lr 1e-4 scores a fake 0.271 BLEU that is 100% source-copy; caught by copy% metric; use lr 3e-5
 - [[bug-consistency-onset-collapse]] — STAR FINDING: enabling consistency abruptly mid-training (start_step=5000) causes catastrophic collapse; bleu1 never recovers. From step 0 or ramped only
+- [[bug-mbert-vocab-oom]] — mbert's 119547 vocab OOMs 40GB A100 (V×V anisotropy matmul + batch-128 logits); fixed with O(V·d) anisotropy + batch 64
 
 ## Decisions
 

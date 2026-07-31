@@ -35,6 +35,24 @@ targets.)
 Both PENDING (priority queue) as of 2026-07-29 15:40. Gate: BLEU@NFE{1,16} (conf+random)
 + copy% on valid, cons vs nocons — does the shortcut buy anything at longer targets?
 
+## OOM saga (resolved 2026-07-31)
+
+Three failure rounds before both arms ran clean — all from **mbert's 119547 vocab**
+(~4× QQP's 30522), which inflates every vocab-sized tensor on 40GB A100s:
+
+1. **Anisotropy diagnostic OOM** (`_calculate_anisotropy`): `torch.mm(emb, emb.T)` on
+   119547×119547 = 53 GiB. Fixed in code (commit c1a3d8a): `||sum_i ê_i||²` form, O(V·d),
+   numerically identical. See [[bug-mbert-vocab-oom]].
+2. **Full-batch CE logits OOM at batch 128**: 128×128×119547×4B ≈ 7.8 GiB logits tensor
+   tips over. nocons (full-batch CE) died in 56 s; cons (75% CE) limped to the first
+   validation then died.
+3. **Validation NFE=16 OOM**: the multi-step denoising loop allocates more than training,
+   so even surviving training, cons OOM'd at step 2500 val.
+
+**Fix:** batch 64 + accumulate 8 (eff. batch 512 unchanged) for both arms, plus
+`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`. Config updated (f4220b1).
+Final jobs: cons 2847706, nocons 2847700 (both batch 64).
+
 ## Notes
 
 - opus-100 is web-crawled and noisy (some misaligned pairs); fine for a first signal,
